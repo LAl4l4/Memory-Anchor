@@ -4,20 +4,19 @@ Memory Anchor is a Copilot CLI scaffold focused on preserving project context be
 
 The workflow revolves around a small set of files in `./.memoryanchor/`: a chart of the repository structure and exports, a ballast file for constraints and rules, and a manifest that captures ongoing and completed work. Pre-session hooks read these files to build the context payload; post-session hooks update the manifest/ballast and incrementally refresh the chart based on git changes.
 
-For AI behavior rules (what to read first and what to update at the end), see the `AGENTS.md` file created by `copilotwolf init`.
+For AI behavior rules (what to read first and what to update at the end), see the `AGENTS.md` file created by `anchor init`.
 
 ## Requirements
 - Node.js >= 18
 
 ## Getting Started
 ```bash
-npm install
-npm run build
-npm start
+npm install -g memory-anchor
+anchor init
 ```
 
 ## CLI Commands
-### `copilotwolf init`
+### `anchor init`
 Initializes a workspace by creating:
 - `./.memoryanchor/chart.md` (project map: directory skeleton + export signatures)
 - `./.memoryanchor/ballast.md` (lessons learned / constraints)
