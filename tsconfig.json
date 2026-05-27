@@ -1,8 +1,8 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
     "outDir": "dist",
     "rootDir": "src",
     "declaration": true,
@@ -10,6 +10,9 @@
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
     "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "allowImportingTsExtensions": true,  // 允许导入 .ts 文件（仅供类型检查）
+    "noEmit": true,  // 仅进行类型检查，不生成输出文件
     "types": ["node"]
   },
   "include": ["src/**/*.ts"]

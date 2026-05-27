@@ -1,11 +1,8 @@
-import type { Command } from '../core/app.js';
+import type { CAC } from 'cac';
+import type { CommandContext } from '../core/context';
 
-export function statusCommand(): Command {
-  return {
-    name: 'status',
-    description: 'Show CopilotWolf status',
-    async run(_args, _context) {
-      throw new Error('status command is not implemented yet.');
-    }
-  };
+export function statusCommand(cli: CAC, _context: CommandContext): void {
+  cli.command('status', 'Show CopilotWolf status').action(async () => {
+    throw new Error('status command is not implemented yet.');
+  });
 }

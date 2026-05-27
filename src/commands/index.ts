@@ -1,8 +1,9 @@
-import type { App } from '../core/app.js';
-import { initCommand } from './init.js';
-import { statusCommand } from './status.js';
+import type { CAC } from 'cac';
+import type { CommandContext } from '../core/context';
+import { initCommand } from './init';
+import { statusCommand } from './status';
 
-export function registerBuiltInCommands(app: App): void {
-  app.registerCommand(initCommand());
-  app.registerCommand(statusCommand());
+export function registerBuiltInCommands(cli: CAC, context: CommandContext): void {
+  initCommand(cli, context);
+  statusCommand(cli, context);
 }

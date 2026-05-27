@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { runCli } from './index.js';
+import { runCli } from './index';
 
 runCli(process.argv).catch((error) => {
   console.error(error instanceof Error ? error.message : error);

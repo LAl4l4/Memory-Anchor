@@ -17,3 +17,10 @@ npm install
 npm run build
 npm start
 ```
+
+运行 `copilotwolf init` 会在当前工作目录创建 `./.memoryanchor/`，包含：
+- `chart.md`（项目地图：目录树与函数摘要）
+- `ballast.md`（压舱铁律：习惯、教训与高频错题）
+- `manifest.md`（Cross-Session Todo/Done 看板）
+
+同时会创建 `./.github/hooks/memory-anchor.json` 作为 Memory Anchor hook 入口。
