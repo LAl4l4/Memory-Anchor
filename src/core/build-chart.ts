@@ -1,31 +1,57 @@
-// .memory_anchor/core/build-chart.ts
+// .memoryanchor/core/build-chart.ts
 import * as fs from 'fs';
 import * as path from 'path';
 import { globSync } from 'glob';
 import { parse } from '@babel/parser';
 import traverse from '@babel/traverse';
 
+const IGNORE_PATTERNS = [
+    'node_modules/**',
+    '.git/**',
+    'dist/**',
+    'build/**',
+    '.memoryanchor/**',
+    'package-lock.json',
+    'pnpm-lock.yaml',
+    'yarn.lock',
+    '.DS_Store'
+];
+
+interface WorkspacePaths {
+    anchorDir: string;
+    projectRoot: string;
+    chartPath: string;
+}
+
 /**
  * 🛠️ Path Resolution Strategy
- * Use findAnchorDir() to ensure that even if the developer triggers the build 
+ * Use resolveWorkspacePaths() to ensure that even if the developer triggers the build 
  * command from a deep sub-directory, we always lock onto the exact root.
  */
-function findAnchorDir(): string {
+function resolveWorkspacePaths(): WorkspacePaths {
     let currentDir = process.cwd();
     while (currentDir !== path.dirname(currentDir)) {
-        const potentialAnchor = path.join(currentDir, '.memory_anchor');
+        const potentialAnchor = path.join(currentDir, '.memoryanchor');
         if (fs.existsSync(potentialAnchor) && fs.statSync(potentialAnchor).isDirectory()) {
-            return potentialAnchor;
+            return {
+                anchorDir: potentialAnchor,
+                projectRoot: path.dirname(potentialAnchor),
+                chartPath: path.join(potentialAnchor, 'chart.md')
+            };
         }
         currentDir = path.dirname(currentDir);
     }
     // Fallback to script location parent directory
-    return path.resolve(__dirname, '../');
+    const anchorDir = path.resolve(__dirname, '../');
+    return {
+        anchorDir,
+        projectRoot: path.dirname(anchorDir),
+        chartPath: path.join(anchorDir, 'chart.md')
+    };
 }
 
-const ANCHOR_DIR = findAnchorDir();
-const PROJECT_ROOT = path.dirname(ANCHOR_DIR); // The actual project workspace root
-const CHART_PATH = path.join(ANCHOR_DIR, 'chart.md');
+const { anchorDir: ANCHOR_DIR, projectRoot: PROJECT_ROOT, chartPath: CHART_PATH } =
+    resolveWorkspacePaths();
 
 interface FileNode {
     relativePath: string;
@@ -126,60 +152,113 @@ function generateTreeSkeleton(files: string[]): string {
     return skeletonStr;
 }
 
-function main(): void {
-    logToUser("Compiling repository architecture into LLM-Native Chart...", "36");
+function listProjectFiles(): string[] {
+    return globSync('**/*', {
+        cwd: PROJECT_ROOT,
+        nodir: true,
+        ignore: IGNORE_PATTERNS
+    });
+}
 
-    try {
-        // Gather all functional source files, ignoring artifacts, locks, and system states
-        const allFiles = globSync('**/*', {
-            cwd: PROJECT_ROOT,
-            nodir: true,
-            ignore: [
-                'node_modules/**',
-                '.git/**',
-                'dist/**',
-                'build/**',
-                '.memory_anchor/**',
-                'package-lock.json',
-                'pnpm-lock.yaml',
-                'yarn.lock',
-                '.DS_Store'
-            ]
-        });
+function buildSkeletonSection(files: string[]): string {
+    let skeletonSection = "## 1. Directory Skeleton\n";
+    skeletonSection += generateTreeSkeleton(files);
+    return skeletonSection;
+}
 
-        // 🧱 Structure Part 1: Clean Flat Path Mapping
-        let skeletonSection = "## 1. Directory Skeleton\n";
-        skeletonSection += generateTreeSkeleton(allFiles);
+function buildNodesSection(files: string[]): string {
+    let nodesSection = "## 2. Key Architecture Nodes\n";
+    files.forEach(relPath => {
+        const absPath = path.join(PROJECT_ROOT, relPath);
+        const fileNode = parseFileArchitecture(absPath, relPath);
 
-        // 🧱 Structure Part 2: High-Density AST Signature Blocks
-        let nodesSection = "## 2. Key Architecture Nodes\n";
-        allFiles.forEach(relPath => {
-            const absPath = path.join(PROJECT_ROOT, relPath);
-            const fileNode = parseFileArchitecture(absPath, relPath);
-            
-            if (fileNode.exports.length > 0) {
-                nodesSection += `### /${fileNode.relativePath}\n`;
-                fileNode.exports.forEach(exp => {
-                    nodesSection += `- ${exp}\n`;
-                });
-                nodesSection += '\n';
-            }
-        });
-
-        const finalChartContent = `# PROJECT CHART\n\n${skeletonSection}\n${nodesSection}`;
-
-        // Ensure .memory_anchor directory exists before writing
-        if (!fs.existsSync(ANCHOR_DIR)) {
-            fs.mkdirSync(ANCHOR_DIR, { recursive: true });
+        if (fileNode.exports.length > 0) {
+            nodesSection += `### /${fileNode.relativePath}\n`;
+            fileNode.exports.forEach(exp => {
+                nodesSection += `- ${exp}\n`;
+            });
+            nodesSection += '\n';
         }
+    });
+    return nodesSection;
+}
 
-        fs.writeFileSync(CHART_PATH, finalChartContent, 'utf-8');
-        logToUser(`Chart successfully compiled and rendered to: .memory_anchor/chart.md`, "32");
+function buildChartContent(files: string[]): string {
+    const skeletonSection = buildSkeletonSection(files);
+    const nodesSection = buildNodesSection(files);
+    return `# PROJECT CHART\n\n${skeletonSection}\n${nodesSection}`;
+}
 
-    } catch (error: any) {
-        process.stderr.write(`\x1b[31m[Memory Anchor Error] Build failed: ${error?.message || error}\x1b[0m\n`);
-        process.exit(1);
+function ensureAnchorDirExists(): void {
+    if (!fs.existsSync(ANCHOR_DIR)) {
+        fs.mkdirSync(ANCHOR_DIR, { recursive: true });
     }
 }
 
-main();
+function writeChart(content: string): void {
+    fs.writeFileSync(CHART_PATH, content, 'utf-8');
+}
+
+// 增量逻辑核心：只处理给定的文件列表
+export function updateChartIncrementally(changedFiles: string[]): void {
+    const registryPath = path.join(ANCHOR_DIR, 'registry.json');
+    let registry = fs.existsSync(registryPath) 
+        ? JSON.parse(fs.readFileSync(registryPath, 'utf-8')) 
+        : {};
+
+    let chartContent = fs.readFileSync(CHART_PATH, 'utf-8');
+    let hasUpdated = false;
+
+    changedFiles.forEach(file => {
+        const absPath = path.join(PROJECT_ROOT, file);
+        if (!fs.existsSync(absPath)) {
+            // 文件被删除了：从 Chart 中彻底移除该块
+            chartContent = chartContent.replace(new RegExp(`### /${file}[\\s\\S]*?(?=### /|$)`), '');
+            delete registry[file];
+            hasUpdated = true;
+            return;
+        }
+
+        const stats = fs.statSync(absPath);
+        // 如果时间没变，跳过
+        if (registry[file] && registry[file].mtime === stats.mtimeMs) return;
+
+        // 仅对改动文件调用高耗能的 AST 解析
+        const node = parseFileArchitecture(absPath, file);
+        const newNodeContent = node.exports.map(e => `- ${e}`).join('\n');
+        
+        // 更新注册表
+        registry[file] = { mtime: stats.mtimeMs, content: newNodeContent };
+        
+        // 关键：在 chart.md 中原地替换
+        const nodeBlock = `### /${file}\n${newNodeContent}\n`;
+        const blockRegex = new RegExp(`### /${file}[\\s\\S]*?(?=### /|$)`);
+        
+        if (blockRegex.test(chartContent)) {
+            chartContent = chartContent.replace(blockRegex, nodeBlock);
+        } else {
+            chartContent += `\n${nodeBlock}`;
+        }
+        hasUpdated = true;
+    });
+
+    if (hasUpdated) {
+        fs.writeFileSync(CHART_PATH, chartContent, 'utf-8');
+        fs.writeFileSync(registryPath, JSON.stringify(registry, null, 2));
+    }
+}
+
+export function buildChartFull(): void {
+    logToUser("Compiling repository architecture into LLM-Native Chart...", "36");
+
+    try {
+        const allFiles = listProjectFiles();
+        const chartContent = buildChartContent(allFiles);
+        ensureAnchorDirExists();
+        writeChart(chartContent);
+        logToUser(`Chart successfully compiled and rendered to: .memoryanchor/chart.md`, "32");
+    } catch (error: any) {
+        process.stderr.write(`\x1b[31m[Memory Anchor Error] Build failed: ${error?.message || error}\x1b[0m\n`);
+        throw error;
+    }
+}

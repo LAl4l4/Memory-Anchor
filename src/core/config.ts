@@ -8,8 +8,8 @@ export interface AppConfig {
 
 export function createDefaultConfig(): AppConfig {
   return {
-    dataDir: '.copilotwolf',
-    indexDir: '.copilotwolf/index',
+    dataDir: '.memoryanchor',
+    indexDir: '.memoryanchor/index',
     logLevel: 'info'
   };
 }

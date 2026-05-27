@@ -1,8 +1,9 @@
-// .memory_anchor/core/post-session.ts
+// .memoryanchor/core/post-session.ts
 import * as fs from 'fs';
 import * as path from 'path';
 import { execSync } from 'child_process';
 import { GitChange } from './types';
+import { updateChartIncrementally } from '../core/build-chart';
 
 const ANCHOR_DIR = path.resolve(__dirname, '../');
 const MANIFEST_PATH = path.join(ANCHOR_DIR, 'manifest.md');
@@ -90,11 +91,75 @@ function cleanBallastRules(changes: GitChange[] | null): void {
     }
 }
 
+function sanitizeBallast(): void {
+
+    if (!fs.existsSync(BALLAST_PATH)) return;
+
+    const content =
+        fs.readFileSync(
+            BALLAST_PATH,
+            "utf8"
+        );
+
+    const rules = content
+        .split("\n")
+        .map(line => line.trim())
+        .filter(Boolean)
+        .map(line => {
+
+            // remove AI explanations
+            if (
+                line.startsWith("Note:") ||
+                line.startsWith("Explanation:") ||
+                line.startsWith("Rule:")
+            ) {
+                return null;
+            }
+
+            // normalize
+            line = line
+                .replace(/^\*/, "-")
+                .replace(/^\d+\./, "-")
+                .replace(/^\[\]/, "- [ ]")
+                .replace(/^-?\s*\[\]/, "- [ ]");
+
+            if (
+                !/^- \[[ x]\]/.test(line)
+            ) {
+                line = `- [ ] ${line}`;
+            }
+
+            return line;
+
+        })
+        .filter(Boolean);
+
+    const unique =
+        [...new Set(rules)];
+
+    fs.writeFileSync(
+        BALLAST_PATH,
+        unique.join("\n"),
+        "utf8"
+    );
+
+    logToUser(
+        `Ballast normalized (${unique.length} rules)`,
+        "35"
+    );
+}
+
 function main(): void {
     const changes = captureGitChanges();
-    
+    if (!changes) return;
+
     updateManifest(changes);
     cleanBallastRules(changes);
+
+    sanitizeBallast();
+
+    const changedPaths = changes.map(c => c.file);
+    updateChartIncrementally(changedPaths);
     
     process.exit(0);
 }

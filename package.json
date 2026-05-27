@@ -1,22 +1,24 @@
 {
-  "name": "copilotwolf",
-  "version": "0.1.0",
-  "description": "CopilotWolf CLI scaffold",
-  "license": "MIT",
+  "name": "memory-anchor",
+  "version": "1.0.0",
+  "description": "MemoryAnchor CLI scaffold",
+  "license": "Apache-2.0",
   "author": "LAl4l4",
   "type": "module",
-  "bin": {
-    "copilotwolf": "dist/cli"
-  },
-  "engines": {
-    "node": ">=18"
-  },
-  "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "start": "node dist/cli"
-  },
-  "main": "dist/index",
+  "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "bin": {
+    "anchor": "dist/cli.js"
+  },
+  "files": [
+    "dist/",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "start": "node dist/cli.js",
+    "prepublishOnly": "npm run build"
+  },
   "dependencies": {
     "@babel/parser": "^7.29.7",
     "@babel/traverse": "^7.29.7",
@@ -28,5 +30,12 @@
     "@types/glob": "^8.1.0",
     "@types/node": "^20.14.12",
     "typescript": "^5.4.5"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "compilerOptions": {
+    "outDir": "./dist",
+    "rootDir": "."
   }
 }

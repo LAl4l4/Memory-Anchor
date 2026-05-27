@@ -1,4 +1,4 @@
-// .memory_anchor/core/types.ts
+// .memoryanchor/core/types.ts
 
 /**
  * sessionStart 钩子必须返回的响应体格式

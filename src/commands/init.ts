@@ -2,6 +2,7 @@ import type { CAC } from 'cac';
 import { access, mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import type { CommandContext } from '../core/context';
+import { buildChartFull } from '../core/build-chart';
 
 interface HookCommand {
   type: 'command';
@@ -27,22 +28,46 @@ interface WorkspacePaths {
   manifestPath: string;
   hooksDir: string;
   hookPath: string;
+  agentsPath: string;
+  copilotInstructionsPath: string;
 }
 
 const REQUIRED_HOOKS: Record<'sessionStart' | 'sessionEnd', HookCommand> = {
   sessionStart: {
     type: 'command',
-    bash: 'node .memory_anchor/dist/pre-session.js',
-    powershell: 'node .memory_anchor/dist/pre-session.js',
+    bash: 'node .memoryanchor/dist/pre-session.js',
+    powershell: 'node .memoryanchor/dist/pre-session.js',
     timeoutSec: 10
   },
   sessionEnd: {
     type: 'command',
-    bash: 'node .memory_anchor/dist/post-session.js',
-    powershell: 'node .memory_anchor/dist/post-session.js',
+    bash: 'node .memoryanchor/dist/post-session.js',
+    powershell: 'node .memoryanchor/dist/post-session.js',
     timeoutSec: 10
   }
 };
+
+const AGENTS_CONTENT = `# AGENTS
+
+## Memory Anchor Rules
+- Required memory files:
+  - ./.memoryanchor/chart.md
+  - ./.memoryanchor/ballast.md
+  - ./.memoryanchor/manifest.md
+- Always read chart.md first.
+- Only open repository files when the chart is insufficient.
+- Must follow all rules in ballast.md.
+- At the end of a session, update TODO/DONE entries in manifest.md.
+
+For '.memoryanchor/ballast.md':
+Keep only valid rules. Delete obsolete ones.
+Use one line per rule with exact format:
+'- [ ] Rule content'
+## Memory Anchor Ends
+`;
+
+const COPILOT_INSTRUCTIONS_LINE =
+  '- Follow `AGENTS.md` for Memory Anchor rules.';
 
 export function initCommand(cli: CAC, context: CommandContext): void {
   cli.command('init', 'Initialize CopilotWolf workspace').action(async () => {
@@ -52,14 +77,22 @@ export function initCommand(cli: CAC, context: CommandContext): void {
 
     const anchorFilesCreated = await ensureAnchorFiles(paths);
     const hooksUpdated = await ensureHookConfig(paths);
+    const agentsCreated = await ensureAgentsFile(paths);
+    const instructionsUpdated = await ensureCopilotInstructions(paths);
+    buildChartFull();
 
-    if (anchorFilesCreated || hooksUpdated) {
+    if (
+      anchorFilesCreated ||
+      hooksUpdated ||
+      agentsCreated ||
+      instructionsUpdated
+    ) {
       context.logger.info(
-        'Memory anchor initialized in ./.memoryanchor and ./.github/hooks'
+        'Memory anchor initialized in ./.memoryanchor and ./.github'
       );
     } else {
       context.logger.info(
-        'Memory anchor already exists in ./.memoryanchor and ./.github/hooks'
+        'Memory anchor already exists in ./.memoryanchor and ./.github'
       );
     }
   });
@@ -75,7 +108,9 @@ function getWorkspacePaths(cwd: string): WorkspacePaths {
     ballastPath: path.join(memoryAnchorDir, 'ballast.md'),
     manifestPath: path.join(memoryAnchorDir, 'manifest.md'),
     hooksDir,
-    hookPath: path.join(hooksDir, 'memory-anchor.json')
+    hookPath: path.join(hooksDir, 'memory-anchor.json'),
+    agentsPath: path.join(cwd, 'AGENTS.md'),
+    copilotInstructionsPath: path.join(cwd, '.github', 'copilot-instructions.md')
   };
 }
 
@@ -90,6 +125,31 @@ async function ensureAnchorFiles(paths: WorkspacePaths): Promise<boolean> {
   const manifestCreated = await ensureFile(paths.manifestPath);
 
   return chartCreated || ballastCreated || manifestCreated;
+}
+
+async function ensureAgentsFile(paths: WorkspacePaths): Promise<boolean> {
+  return ensureFile(paths.agentsPath, AGENTS_CONTENT);
+}
+
+async function ensureCopilotInstructions(
+  paths: WorkspacePaths
+): Promise<boolean> {
+  const exists = await fileExists(paths.copilotInstructionsPath);
+  if (!exists) {
+    const contents = `# Copilot Instructions\n\n${COPILOT_INSTRUCTIONS_LINE}\n`;
+    await writeFile(paths.copilotInstructionsPath, contents);
+    return true;
+  }
+
+  const existing = await readFile(paths.copilotInstructionsPath, 'utf8');
+  if (existing.includes('AGENTS.md')) {
+    return false;
+  }
+
+  const suffix = existing.endsWith('\n') ? '' : '\n';
+  const updated = `${existing}${suffix}\n${COPILOT_INSTRUCTIONS_LINE}\n`;
+  await writeFile(paths.copilotInstructionsPath, updated);
+  return true;
 }
 
 async function ensureHookConfig(paths: WorkspacePaths): Promise<boolean> {

@@ -1,4 +1,4 @@
-// .memory_anchor/core/pre-session.ts
+// .memoryanchor/core/pre-session.ts
 import * as fs from 'fs';
 import * as path from 'path';
 import { SessionStartResponse } from './types';
@@ -30,7 +30,7 @@ function loadMemory(): string {
         taskSection = `
             [TRIGGERED MISSION: MEMORY PRUNING]
             - Urgent Status: Some developer-enforced limits inside the [2. BALLAST RULES] section are currently flagged with '[STALE]'.
-            - Your Action Required: These rules are likely obsolete due to recent code changes. You MUST evaluate and directly rewrite '.memory_anchor/ballast.md' to DELETE any invalid stale rules during this session.
+            - Your Action Required: These rules are likely obsolete due to recent code changes. You MUST evaluate and directly rewrite '.memoryanchor/ballast.md' to DELETE any invalid stale rules during this session.
             `;
         }
 
