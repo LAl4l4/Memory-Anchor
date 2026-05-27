@@ -2,8 +2,8 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { execSync } from 'child_process';
-import { GitChange } from './types';
-import { updateChartIncrementally } from '../core/build-chart';
+import { GitChange } from './types.js';
+import { updateChartIncrementally } from '../core/build-chart.js';
 
 const ANCHOR_DIR = path.resolve(__dirname, '../');
 const MANIFEST_PATH = path.join(ANCHOR_DIR, 'manifest.md');

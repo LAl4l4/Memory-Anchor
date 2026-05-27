@@ -1,8 +1,8 @@
 import type { CAC } from 'cac';
 import { access, mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import type { CommandContext } from '../core/context';
-import { buildChartFull } from '../core/build-chart';
+import type { CommandContext } from '../core/context.js';
+import { buildChartFull } from '../core/build-chart.js';
 
 interface HookCommand {
   type: 'command';

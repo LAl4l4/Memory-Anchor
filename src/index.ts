@@ -1,7 +1,7 @@
 import cac from 'cac';
-import { registerBuiltInCommands } from './commands/index';
-import { createDefaultConfig } from './core/config';
-import { logger } from './utils/logger';
+import { registerBuiltInCommands } from './commands/index.js';
+import { createDefaultConfig } from './core/config.js';
+import { logger } from './utils/logger.js';
 
 export async function runCli(argv: string[]): Promise<void> {
   const cli = cac('memory-anchor');

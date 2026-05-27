@@ -1,7 +1,7 @@
 // .memoryanchor/core/pre-session.ts
 import * as fs from 'fs';
 import * as path from 'path';
-import { SessionStartResponse } from './types';
+import { SessionStartResponse } from './types.js';
 
 const ANCHOR_DIR = path.resolve(__dirname, '../');
 const CHART_PATH = path.join(ANCHOR_DIR, 'chart.md');

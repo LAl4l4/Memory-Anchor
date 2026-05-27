@@ -1,5 +1,5 @@
 import type { CAC } from 'cac';
-import type { CommandContext } from '../core/context';
+import type { CommandContext } from '../core/context.js';
 
 export function statusCommand(cli: CAC, _context: CommandContext): void {
   cli.command('status', 'Show MemoryAnchor status').action(async () => {
