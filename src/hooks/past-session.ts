@@ -4,17 +4,14 @@ import * as path from 'path';
 import { execSync } from 'child_process';
 import { GitChange } from './types.js';
 import { updateChartIncrementally } from '../core/build-chart.js';
-import { fileURLToPath } from 'url';
 
-// 当前文件路径
-const __filename = fileURLToPath(import.meta.url);
-// 当前目录
-const __dirname = path.dirname(__filename);
 
-const ANCHOR_DIR = path.resolve(__dirname, '../');
-const MANIFEST_PATH = path.join(ANCHOR_DIR, 'manifest.md');
-const BALLAST_PATH = path.join(ANCHOR_DIR, 'ballast.md');
-
+const cwd = process.cwd(); // 用户运行命令的目录
+const ANCHOR_PATH = path.join(cwd, '.memoryanchor');
+const CHART_PATH = path.join(ANCHOR_PATH, 'chart.md');
+const BALLAST_PATH = path.join(ANCHOR_PATH, 'ballast.md');
+const MANIFEST_PATH = path.join(ANCHOR_PATH, 'manifest.md');
+void CHART_PATH; // make the linter silent about unused variables
 /**
  * Helper to write colorized logs directly to stderr
  */
@@ -155,7 +152,7 @@ function sanitizeBallast(): void {
     );
 }
 
-function main(): void {
+async function main(): Promise<void> {
     const changes = captureGitChanges();
     if (!changes) return;
 
@@ -165,9 +162,9 @@ function main(): void {
     sanitizeBallast();
 
     const changedPaths = changes.map(c => c.file);
-    updateChartIncrementally(changedPaths);
+    await updateChartIncrementally(changedPaths);
     
     process.exit(0);
 }
 
-main();
+void main();

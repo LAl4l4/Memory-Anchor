@@ -79,7 +79,7 @@ export function initCommand(cli: CAC, context: CommandContext): void {
     const hooksUpdated = await ensureHookConfig(paths);
     const agentsCreated = await ensureAgentsFile(paths);
     const instructionsUpdated = await ensureCopilotInstructions(paths);
-    buildChartFull();
+    await buildChartFull();
 
     if (
       anchorFilesCreated ||

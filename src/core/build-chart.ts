@@ -2,15 +2,11 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { globSync } from 'glob';
-import { parse } from '@babel/parser';
-import traverse from '@babel/traverse';
+import { Parser, Language } from "web-tree-sitter";
+import { loadLanguage } from './parser-loader.js';
+import { EXT_TO_LANGUAGE } from '../utils/ext-to-lang.js';
 
-import { fileURLToPath } from 'url';
-
-// 当前文件路径
-const __filename = fileURLToPath(import.meta.url);
-// 当前目录
-const __dirname = path.dirname(__filename);
+void Language
 
 const IGNORE_PATTERNS = [
     'node_modules/**',
@@ -24,17 +20,30 @@ const IGNORE_PATTERNS = [
     '.DS_Store'
 ];
 
+let parserInstance: Parser | null = null;
+let parserInitPromise: Promise<Parser> | null = null;
+
+async function ensureParser(): Promise<Parser> {
+    if (parserInstance) return parserInstance;
+
+    if (!parserInitPromise) {
+        parserInitPromise = (async () => {
+            await Parser.init();
+            parserInstance = new Parser();
+            return parserInstance;
+        })();
+    }
+
+    return parserInitPromise;
+}
+
 interface WorkspacePaths {
     anchorDir: string;
     projectRoot: string;
     chartPath: string;
 }
 
-/**
- * 🛠️ Path Resolution Strategy
- * Use resolveWorkspacePaths() to ensure that even if the developer triggers the build 
- * command from a deep sub-directory, we always lock onto the exact root.
- */
+
 function resolveWorkspacePaths(): WorkspacePaths {
 
     const projectRoot = process.cwd();
@@ -52,9 +61,15 @@ function resolveWorkspacePaths(): WorkspacePaths {
 const { anchorDir: ANCHOR_DIR, projectRoot: PROJECT_ROOT, chartPath: CHART_PATH } =
     resolveWorkspacePaths();
 
+interface FileExport {
+    type: string;
+    name: string;
+}
+
 interface FileNode {
     relativePath: string;
-    exports: string[];
+    language: string;
+    exports: FileExport[];
 }
 
 /**
@@ -65,62 +80,68 @@ function logToUser(message: string, colorCode: string = '32'): void {
     process.stderr.write(`\x1b[${colorCode}m[Memory Anchor] ${message}\x1b[0m\n`);
 }
 
-/**
- * Step 1: Parse JS/TS files using Babel AST to extract structural exports.
- * This skips all conversation, syntax noise, and granular code lines, providing high-density context.
- */
-function parseFileArchitecture(absolutePath: string, relativePath: string): FileNode {
-    const fileNode: FileNode = { relativePath, exports: [] };
+export async function parseFileArchitecture(
+  absolutePath: string,
+  relativePath: string
+): Promise<FileNode> {
+
+    const fileNode: FileNode = {
+        relativePath,
+        language: '',
+        exports: []
+    };
+
     const ext = path.extname(absolutePath);
-    
-    if (!['.ts', '.js', '.tsx', '.jsx'].includes(ext)) {
-        return fileNode;
-    }
+    const lang = EXT_TO_LANGUAGE[ext];
+
+    if (!lang) return fileNode;
 
     try {
-        const code = fs.readFileSync(absolutePath, 'utf-8');
-        const ast = parse(code, {
-            sourceType: 'module',
-            plugins: ['typescript', 'jsx']
-        });
+        const code = fs.readFileSync(absolutePath, "utf-8");
 
-        traverse(ast, {
-            ExportNamedDeclaration(nodePath) {
-                const declaration = nodePath.node.declaration;
-                if (!declaration) return;
+        const parser = await ensureParser();
+        const language = await loadLanguage(lang);
+        parser.setLanguage(language);
 
-                // Case A: export function myFunc() {}
-                if (declaration.type === 'FunctionDeclaration' && declaration.id) {
-                    fileNode.exports.push(`Function: \`${declaration.id.name}()\``);
-                }
-                // Case B: export class MyClass {}
-                if (declaration.type === 'ClassDeclaration' && declaration.id) {
-                    fileNode.exports.push(`Class: \`${declaration.id.name}\``);
-                }
-                // Case C: export const myVar = ...
-                if (declaration.type === 'VariableDeclaration') {
-                    declaration.declarations.forEach(dec => {
-                        if (dec.id.type === 'Identifier') {
-                            fileNode.exports.push(`Variable/Constant: \`${dec.id.name}\``);
-                        }
-                    });
-                }
-            },
-            ExportDefaultDeclaration(nodePath) {
-                const declaration = nodePath.node.declaration;
-                if (declaration && 'id' in declaration && declaration.id) {
-                    fileNode.exports.push(`Default Export: \`${declaration.id.name}\``);
-                } else {
-                    fileNode.exports.push(`Default Export (Anonymous)`);
-                }
-            }
+        const tree = parser.parse(code);
+
+        if (!tree || !tree.rootNode) {
+            logToUser(`⚠️ Failed to parse ${relativePath}`, '31');
+            return fileNode; // 返回空节点
+        }
+
+        fileNode.language = lang;
+
+        extractExports(tree.rootNode, fileNode);
+
+    } catch (err) {
+        fileNode.exports.push({
+            type: "error",
+            name: String(err)
         });
-    } catch (e) {
-        // Fallback gracefully on parsing warnings (e.g., incomplete code during active development)
-        fileNode.exports.push(`(Module structure parsed as text node due to active refactoring)`);
     }
 
     return fileNode;
+}
+
+function extractExports(node: any, fileNode: FileNode) {
+    for (const child of node.children) {
+
+        // export function foo()
+        if (child.type === 'export_statement') {
+            const nameNode = child.namedChildren?.find((n: any) =>
+                n.type === 'function_declaration' ||
+                n.type === 'class_declaration'
+            );
+
+            fileNode.exports.push({
+                type: nameNode?.type ?? 'export',
+                name: nameNode?.childForFieldName?.('name')?.text ?? child.text
+            });
+        }
+
+        extractExports(child, fileNode);
+    }
 }
 
 /**
@@ -165,26 +186,26 @@ function buildSkeletonSection(files: string[]): string {
     return skeletonSection;
 }
 
-function buildNodesSection(files: string[]): string {
+async function buildNodesSection(files: string[]): Promise<string> {
     let nodesSection = "## 2. Key Architecture Nodes\n";
-    files.forEach(relPath => {
+    for (const relPath of files) {
         const absPath = path.join(PROJECT_ROOT, relPath);
-        const fileNode = parseFileArchitecture(absPath, relPath);
+        const fileNode = await parseFileArchitecture(absPath, relPath);
 
         if (fileNode.exports.length > 0) {
             nodesSection += `### /${fileNode.relativePath}\n`;
-            fileNode.exports.forEach(exp => {
+            fileNode.exports.forEach((exp) => {
                 nodesSection += `- ${exp}\n`;
             });
             nodesSection += '\n';
         }
-    });
+    }
     return nodesSection;
 }
 
-function buildChartContent(files: string[]): string {
+async function buildChartContent(files: string[]): Promise<string> {
     const skeletonSection = buildSkeletonSection(files);
-    const nodesSection = buildNodesSection(files);
+    const nodesSection = await buildNodesSection(files);
     return `# PROJECT CHART\n\n${skeletonSection}\n${nodesSection}`;
 }
 
@@ -199,7 +220,7 @@ function writeChart(content: string): void {
 }
 
 // 增量逻辑核心：只处理给定的文件列表
-export function updateChartIncrementally(changedFiles: string[]): void {
+export async function updateChartIncrementally(changedFiles: string[]): Promise<void> {
     const registryPath = path.join(ANCHOR_DIR, 'registry.json');
     let registry = fs.existsSync(registryPath) 
         ? JSON.parse(fs.readFileSync(registryPath, 'utf-8')) 
@@ -208,23 +229,23 @@ export function updateChartIncrementally(changedFiles: string[]): void {
     let chartContent = fs.readFileSync(CHART_PATH, 'utf-8');
     let hasUpdated = false;
 
-    changedFiles.forEach(file => {
+    for (const file of changedFiles) {
         const absPath = path.join(PROJECT_ROOT, file);
         if (!fs.existsSync(absPath)) {
             // 文件被删除了：从 Chart 中彻底移除该块
             chartContent = chartContent.replace(new RegExp(`### /${file}[\\s\\S]*?(?=### /|$)`), '');
             delete registry[file];
             hasUpdated = true;
-            return;
+            continue;
         }
 
         const stats = fs.statSync(absPath);
         // 如果时间没变，跳过
-        if (registry[file] && registry[file].mtime === stats.mtimeMs) return;
+        if (registry[file] && registry[file].mtime === stats.mtimeMs) continue;
 
         // 仅对改动文件调用高耗能的 AST 解析
-        const node = parseFileArchitecture(absPath, file);
-        const newNodeContent = node.exports.map(e => `- ${e}`).join('\n');
+        const node = await parseFileArchitecture(absPath, file);
+        const newNodeContent = node.exports.map((e) => `- ${e}`).join('\n');
         
         // 更新注册表
         registry[file] = { mtime: stats.mtimeMs, content: newNodeContent };
@@ -239,7 +260,7 @@ export function updateChartIncrementally(changedFiles: string[]): void {
             chartContent += `\n${nodeBlock}`;
         }
         hasUpdated = true;
-    });
+    }
 
     if (hasUpdated) {
         fs.writeFileSync(CHART_PATH, chartContent, 'utf-8');
@@ -247,12 +268,12 @@ export function updateChartIncrementally(changedFiles: string[]): void {
     }
 }
 
-export function buildChartFull(): void {
+export async function buildChartFull(): Promise<void> {
     logToUser("Compiling repository architecture into LLM-Native Chart...", "36");
 
     try {
         const allFiles = listProjectFiles();
-        const chartContent = buildChartContent(allFiles);
+        const chartContent = await buildChartContent(allFiles);
         ensureAnchorDirExists();
         writeChart(chartContent);
         logToUser(`Chart successfully compiled and rendered to: .memoryanchor/chart.md`, "32");

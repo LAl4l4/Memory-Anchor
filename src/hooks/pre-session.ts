@@ -2,17 +2,13 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { SessionStartResponse } from './types.js';
-import { fileURLToPath } from 'url';
 
-// 当前文件路径
-const __filename = fileURLToPath(import.meta.url);
-// 当前目录
-const __dirname = path.dirname(__filename);
 
-const ANCHOR_DIR = path.resolve(__dirname, '../');
-const CHART_PATH = path.join(ANCHOR_DIR, 'chart.md');
-const BALLAST_PATH = path.join(ANCHOR_DIR, 'ballast.md');
-const MANIFEST_PATH = path.join(ANCHOR_DIR, 'manifest.md');
+const cwd = process.cwd(); // 用户运行命令的目录
+const ANCHOR_PATH = path.join(cwd, '.memoryanchor');
+const CHART_PATH = path.join(ANCHOR_PATH, 'chart.md');
+const BALLAST_PATH = path.join(ANCHOR_PATH, 'ballast.md');
+const MANIFEST_PATH = path.join(ANCHOR_PATH, 'manifest.md');
 
 function loadMemory(): string {
     let chart = "No project chart found. Run 'npx memory-anchor build' to generate.";
