@@ -12,6 +12,7 @@
   },
   "files": [
     "dist/",
+    "tree-sitter-parser/",
     "README.md"
   ],
   "scripts": {
