@@ -2,11 +2,9 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { globSync } from 'glob';
-import { Parser, Language } from "web-tree-sitter";
+import { Parser } from "web-tree-sitter";
 import { loadLanguage } from './parser-loader.js';
 import { EXT_TO_LANGUAGE } from '../utils/ext-to-lang.js';
-
-void Language
 
 const IGNORE_PATTERNS = [
     'node_modules/**',
@@ -20,21 +18,13 @@ const IGNORE_PATTERNS = [
     '.DS_Store'
 ];
 
-let parserInstance: Parser | null = null;
-let parserInitPromise: Promise<Parser> | null = null;
+let initialized = false;
 
-async function ensureParser(): Promise<Parser> {
-    if (parserInstance) return parserInstance;
-
-    if (!parserInitPromise) {
-        parserInitPromise = (async () => {
-            await Parser.init();
-            parserInstance = new Parser();
-            return parserInstance;
-        })();
+export async function ensureParserInit() {
+    if (!initialized) {
+        await Parser.init();
+        initialized = true;
     }
-
-    return parserInitPromise;
 }
 
 interface WorkspacePaths {
@@ -99,7 +89,8 @@ export async function parseFileArchitecture(
     try {
         const code = fs.readFileSync(absolutePath, "utf-8");
 
-        const parser = await ensureParser();
+        await ensureParserInit();
+        const parser = new Parser();
         const language = await loadLanguage(lang);
         parser.setLanguage(language);
 
