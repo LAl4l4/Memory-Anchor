@@ -5,6 +5,13 @@ import { globSync } from 'glob';
 import { parse } from '@babel/parser';
 import traverse from '@babel/traverse';
 
+import { fileURLToPath } from 'url';
+
+// 当前文件路径
+const __filename = fileURLToPath(import.meta.url);
+// 当前目录
+const __dirname = path.dirname(__filename);
+
 const IGNORE_PATTERNS = [
     'node_modules/**',
     '.git/**',

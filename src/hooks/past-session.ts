@@ -4,6 +4,12 @@ import * as path from 'path';
 import { execSync } from 'child_process';
 import { GitChange } from './types.js';
 import { updateChartIncrementally } from '../core/build-chart.js';
+import { fileURLToPath } from 'url';
+
+// 当前文件路径
+const __filename = fileURLToPath(import.meta.url);
+// 当前目录
+const __dirname = path.dirname(__filename);
 
 const ANCHOR_DIR = path.resolve(__dirname, '../');
 const MANIFEST_PATH = path.join(ANCHOR_DIR, 'manifest.md');

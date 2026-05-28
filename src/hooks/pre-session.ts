@@ -2,6 +2,12 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { SessionStartResponse } from './types.js';
+import { fileURLToPath } from 'url';
+
+// 当前文件路径
+const __filename = fileURLToPath(import.meta.url);
+// 当前目录
+const __dirname = path.dirname(__filename);
 
 const ANCHOR_DIR = path.resolve(__dirname, '../');
 const CHART_PATH = path.join(ANCHOR_DIR, 'chart.md');
