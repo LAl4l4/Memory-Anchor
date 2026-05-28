@@ -36,23 +36,15 @@ interface WorkspacePaths {
  * command from a deep sub-directory, we always lock onto the exact root.
  */
 function resolveWorkspacePaths(): WorkspacePaths {
-    let currentDir = process.cwd();
-    while (currentDir !== path.dirname(currentDir)) {
-        const potentialAnchor = path.join(currentDir, '.memoryanchor');
-        if (fs.existsSync(potentialAnchor) && fs.statSync(potentialAnchor).isDirectory()) {
-            return {
-                anchorDir: potentialAnchor,
-                projectRoot: path.dirname(potentialAnchor),
-                chartPath: path.join(potentialAnchor, 'chart.md')
-            };
-        }
-        currentDir = path.dirname(currentDir);
-    }
-    // Fallback to script location parent directory
-    const anchorDir = path.resolve(__dirname, '../');
+
+    const projectRoot = process.cwd();
+
+    const anchorDir =
+        path.join(projectRoot, '.memoryanchor');
+
     return {
         anchorDir,
-        projectRoot: path.dirname(anchorDir),
+        projectRoot,
         chartPath: path.join(anchorDir, 'chart.md')
     };
 }
