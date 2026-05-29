@@ -1,4 +1,4 @@
-// .memoryanchor/core/post-session.ts
+#!/usr/bin/env node
 import * as fs from 'fs';
 import * as path from 'path';
 import { execSync } from 'child_process';

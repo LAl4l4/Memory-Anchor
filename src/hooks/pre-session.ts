@@ -1,4 +1,4 @@
-// .memoryanchor/core/pre-session.ts
+#!/usr/bin/env node
 import * as fs from 'fs';
 import * as path from 'path';
 import { SessionStartResponse } from './types.js';
