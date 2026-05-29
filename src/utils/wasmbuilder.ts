@@ -1,7 +1,7 @@
 import fs from "fs";
 import path from "path";
 import { execSync } from "child_process";
-import { LANGS } from "../types.ts";
+import { LANGS } from "../types.js";
 //must work at the project root, otherwise the path will be messed up
 const outDir = "./tree-sitter-parser";
 const cacheDir = "./.tree-sitter-repos";
