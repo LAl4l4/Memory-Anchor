@@ -10,7 +10,7 @@
   "bin": {
     "anchor": "dist/cli.js",
     "memoryanchor-pre": "dist/hooks/pre-session.js",
-    "memoryanchor-post": "dist/hooks/post-session.js"
+    "memoryanchor-past": "dist/hooks/past-session.js"
   },
   "files": [
     "dist/",

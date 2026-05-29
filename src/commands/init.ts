@@ -41,8 +41,8 @@ const REQUIRED_HOOKS: Record<'sessionStart' | 'sessionEnd', HookCommand> = {
   },
   sessionEnd: {
     type: 'command',
-    bash: "memoryanchor-post",
-    powershell: "memoryanchor-post",
+    bash: "memoryanchor-past",
+    powershell: "memoryanchor-past",
     timeoutSec: 10
   }
 };
