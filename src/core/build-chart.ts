@@ -163,6 +163,7 @@ function extractExports(node: any, fileNode: FileNode) {
         const exportInfo = getExportInfo(child, fileNode.language);
         if (exportInfo) {
             fileNode.exports.push(exportInfo);
+            continue; // 已经确定这是一个导出节点，不需要继续深入它的子节点了
         }
 
         extractExports(child, fileNode);
@@ -174,6 +175,14 @@ function getExportInfo(node: any, lang: string): FileExport | null {
         return null;
 
     if (!GENERIC_DECLARATIONS.has(node.type)) return null;
+
+    // 🔥 核心修复 1：针对 C/C++ 等语言的 struct/enum/union 的特殊防护
+    // 只有当它们包含 body（即 field_declaration_list）时，才算作真正的“类型定义”
+    if (node.type === "struct_specifier" || node.type === "enum_specifier") {
+        // childForFieldName 是 Tree-sitter 的原生方法，用来查找指定名称的子节点
+        const hasBody = node.childForFieldName("body") !== null;
+        if (!hasBody) return null; // 只是作为参数或变量类型使用，直接过滤掉
+    }
 
     const name = getNodeName(node);
     if (!name) return null;
