@@ -54,7 +54,7 @@ const AGENTS_CONTENT = `# AGENTS
   - ./.memoryanchor/chart.md
   - ./.memoryanchor/ballast.md
   - ./.memoryanchor/manifest.md
-- Always read chart.md first.
+- chart.md will injected in automatically, do not read it.
 - Only open repository files when the chart is insufficient.
 - Must follow all rules in ballast.md.
 - At the end of a session, update TODO/DONE entries in manifest.md.

@@ -25,10 +25,6 @@ major:
 release:
 	@echo "🚀 启动终极全自动发布流程..."
 	
-	@echo "🔍 [1/6] 正在执行打包编译 (npm run build)..."
-	# 🔥 必须最先编译！让所有新生成的 dist 文件尘埃落定
-	npm run build
-	
 	@echo "➕ [2/6] 正在暂存所有本地改动，包含最新的编译产物 (git add .)..."
 	git add .
 	
