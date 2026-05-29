@@ -9,8 +9,8 @@
   "types": "dist/index.d.ts",
   "bin": {
     "anchor": "dist/cli.js",
-    "memoryanchor-pre": "dist/src/hooks/pre-session.js",
-    "memoryanchor-post": "dist/src/hooks/post-session.js"
+    "memoryanchor-pre": "dist/hooks/pre-session.js",
+    "memoryanchor-post": "dist/hooks/post-session.js"
   },
   "files": [
     "dist/",
