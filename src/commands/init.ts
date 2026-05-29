@@ -35,14 +35,14 @@ interface WorkspacePaths {
 const REQUIRED_HOOKS: Record<'sessionStart' | 'sessionEnd', HookCommand> = {
   sessionStart: {
     type: 'command',
-    bash: 'node .memoryanchor/dist/pre-session.js',
-    powershell: 'node .memoryanchor/dist/pre-session.js',
+    bash: "memoryanchor-pre",
+    powershell: "memoryanchor-pre",
     timeoutSec: 10
   },
   sessionEnd: {
     type: 'command',
-    bash: 'node .memoryanchor/dist/post-session.js',
-    powershell: 'node .memoryanchor/dist/post-session.js',
+    bash: "memoryanchor-post",
+    powershell: "memoryanchor-post",
     timeoutSec: 10
   }
 };

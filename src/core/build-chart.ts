@@ -94,9 +94,6 @@ export async function parseFileArchitecture(
         const language = await loadLanguage(lang);
         parser.setLanguage(language);
 
-        console.log("lang:", lang);
-        console.log("language loaded:", !!language);
-
         const tree = parser.parse(code);
 
         if (!tree || !tree.rootNode) {
@@ -107,8 +104,6 @@ export async function parseFileArchitecture(
         fileNode.language = lang;
 
         extractExports(tree.rootNode, fileNode);
-
-        console.log(tree.rootNode.toString());
 
     } catch (err) {
         console.error(err);
