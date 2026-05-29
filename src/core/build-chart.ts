@@ -94,6 +94,9 @@ export async function parseFileArchitecture(
         const language = await loadLanguage(lang);
         parser.setLanguage(language);
 
+        console.log("lang:", lang);
+        console.log("language loaded:", !!language);
+
         const tree = parser.parse(code);
 
         if (!tree || !tree.rootNode) {
@@ -105,7 +108,11 @@ export async function parseFileArchitecture(
 
         extractExports(tree.rootNode, fileNode);
 
+        console.log(tree.rootNode.toString());
+
     } catch (err) {
+        console.error(err);
+
         fileNode.exports.push({
             type: "error",
             name: String(err)
@@ -115,24 +122,128 @@ export async function parseFileArchitecture(
     return fileNode;
 }
 
+const JS_EXPORT_LANGS = new Set(["javascript", "typescript", "tsx"]);
+const GENERIC_DECLARATIONS = new Set([
+    "function_definition",
+    "function_declaration",
+    "method_definition",
+    "method_declaration",
+    "class_definition",
+    "class_declaration",
+    "interface_declaration",
+    "enum_declaration",
+    "record_declaration",
+    "type_definition",
+    "struct_specifier"
+]);
+const FUNCTION_DECLARATION_TYPES = new Set([
+    "function_definition",
+    "function_declaration",
+    "method_definition",
+    "method_declaration"
+]);
+const CLASS_DECLARATION_TYPES = new Set([
+    "class_definition",
+    "class_declaration",
+]);
+const INTERFACE_DECLARATION_TYPES = new Set([
+    "interface_declaration"
+]);
+const ENUM_DECLARATION_TYPES = new Set([
+    "enum_declaration"
+]);
+const TYPE_DECLARATION_TYPES = new Set([
+    "record_declaration",
+    "type_definition",
+    "struct_specifier"
+]);
+
 function extractExports(node: any, fileNode: FileNode) {
     for (const child of node.children) {
-
-        // export function foo()
-        if (child.type === 'export_statement') {
-            const nameNode = child.namedChildren?.find((n: any) =>
-                n.type === 'function_declaration' ||
-                n.type === 'class_declaration'
-            );
-
-            fileNode.exports.push({
-                type: nameNode?.type ?? 'export',
-                name: nameNode?.childForFieldName?.('name')?.text ?? child.text
-            });
+        const exportInfo = getExportInfo(child, fileNode.language);
+        if (exportInfo) {
+            fileNode.exports.push(exportInfo);
         }
 
         extractExports(child, fileNode);
     }
+}
+
+function getExportInfo(node: any, lang: string): FileExport | null {
+    if (JS_EXPORT_LANGS.has(lang) && node.type !== "export_statement") 
+        return null;
+
+    if (!GENERIC_DECLARATIONS.has(node.type)) return null;
+
+    const name = getNodeName(node);
+    if (!name) return null;
+
+    let type: string = node.type;
+    if (FUNCTION_DECLARATION_TYPES.has(node.type)) {
+        type = 'function_declaration';
+    } else if (CLASS_DECLARATION_TYPES.has(node.type)) {
+        type = 'class_declaration';
+    } else if (INTERFACE_DECLARATION_TYPES.has(node.type)) {
+        type = 'interface_declaration';
+    } else if (ENUM_DECLARATION_TYPES.has(node.type)) {
+        type = 'enum_declaration';
+    } else if (TYPE_DECLARATION_TYPES.has(node.type)) {
+        type = 'type_declaration';
+    }
+
+    return { type, name };
+
+}
+
+function formatExport(exp: FileExport): string {
+    switch (exp.type) {
+        case 'function_declaration':
+            return `- function ${exp.name}()`;
+
+        case 'class_declaration':
+            return `- class ${exp.name}`;
+
+        case 'interface_declaration':
+            return `- interface ${exp.name}`;
+
+        case 'enum_declaration':
+            return `- enum ${exp.name}`;
+
+        case 'type_declaration':
+            return `- type ${exp.name}`;
+
+        default:
+            return `- ${exp.name}`;
+    }
+}
+
+function getNodeName(node: any): string | null {
+    const nameNode = node.childForFieldName?.("name");
+    if (nameNode?.text) return nameNode.text;
+
+    const identifier = findIdentifier(node);
+    return identifier?.text ?? null;
+}
+
+function findIdentifier(node: any): any | null {
+    if (!node?.namedChildren) return null;
+
+    for (const child of node.namedChildren) {
+        if (
+            child.type === "identifier" ||
+            child.type === "type_identifier" ||
+            child.type === "field_identifier"
+        ) {
+            return child;
+        }
+    }
+
+    for (const child of node.namedChildren) {
+        const found = findIdentifier(child);
+        if (found) return found;
+    }
+
+    return null;
 }
 
 /**
@@ -183,10 +294,14 @@ async function buildNodesSection(files: string[]): Promise<string> {
         const absPath = path.join(PROJECT_ROOT, relPath);
         const fileNode = await parseFileArchitecture(absPath, relPath);
 
-        if (fileNode.exports.length > 0) {
+        const validExports = fileNode.exports.filter(
+            exp => exp.type !== 'error'
+        );
+
+        if (validExports.length > 0) {
             nodesSection += `### /${fileNode.relativePath}\n`;
-            fileNode.exports.forEach((exp) => {
-                nodesSection += `- ${exp}\n`;
+            validExports.forEach((exp) => {
+                nodesSection += `${formatExport(exp)}\n`;
             });
             nodesSection += '\n';
         }
@@ -236,7 +351,7 @@ export async function updateChartIncrementally(changedFiles: string[]): Promise<
 
         // 仅对改动文件调用高耗能的 AST 解析
         const node = await parseFileArchitecture(absPath, file);
-        const newNodeContent = node.exports.map((e) => `- ${e}`).join('\n');
+        const newNodeContent = node.exports.map(formatExport).join('\n');
         
         // 更新注册表
         registry[file] = { mtime: stats.mtimeMs, content: newNodeContent };

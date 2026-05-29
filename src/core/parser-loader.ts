@@ -16,12 +16,16 @@ export async function loadLanguage(lang: string) {
         return cache.get(lang)!;
     }
 
+    if (lang != "c" && lang != "python") {
+        throw new Error(`Unsupported language: ${lang}`);
+    }
+
     const wasmPath = path.join(
         __dirname,
         "..",
         "..",
         "tree-sitter-parser",
-        `${lang}.wasm`
+        `tree-sitter-${lang}.wasm`
     );
 
     const buffer = fs.readFileSync(wasmPath);

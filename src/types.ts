@@ -1,0 +1,25 @@
+export const LANGS = [
+  "javascript",
+  "typescript",
+  "tsx",
+  "python",
+  "java",
+  "c",
+  "cpp",
+  "go",
+  "rust",
+  "php",
+  "ruby",
+  "kotlin",
+  "swift",
+  "c_sharp",
+  "scala",
+  "dart",
+  "lua",
+  "html",
+  "css",
+  "json",
+  "yaml"
+] as const;
+
+export type Lang = typeof LANGS[number];

@@ -29,9 +29,9 @@ beforeEach(async () => {
   await cleanupAnchor();
 });
 
-afterAll(async () => {
+/*afterAll(async () => {
   await cleanupAnchor();
-});
+});*/
 
 test('buildChartFull includes fixture paths in the skeleton', async () => {
   await buildChartFull();
