@@ -158,7 +158,10 @@ function extractExports(node: any, fileNode: FileNode) {
         const exportInfo = getExportInfo(child, fileNode.language);
         if (exportInfo) {
             fileNode.exports.push(exportInfo);
-            continue; // 已经确定这是一个导出节点，不需要继续深入它的子节点了
+            // 只有当它是一个函数、接口、枚举或类型声明时，才停止深入子节点
+            // 类声明我们允许继续深入，因为它可能包含方法定义，我们也想捕获到
+            if (!CLASS_DECLARATION_TYPES.has(exportInfo.type))
+            continue; 
         }
 
         extractExports(child, fileNode);
