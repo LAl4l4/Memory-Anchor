@@ -1,6 +1,6 @@
 # Memory Anchor
 
-Memory Anchor is a Copilot CLI scaffold focused on preserving project context between sessions and reducing token usage. It provides a thin command framework plus a “memory anchor” workflow that generates a project chart, tracks cross-session tasks, and carries forward constraints or lessons learned. The goal is to reduce cold-start time for Copilot by injecting a compact, high-signal summary of the repo at session start and recording meaningful changes when a session ends instead of re-reading large parts of the codebase.
+Memory Anchor is a Copilot CLI scaffold that saves tokens and improves long-term memory and cold-start time.
 
 The workflow revolves around a small set of files in `./.memoryanchor/`: a chart of the repository structure and exports, a ballast file for constraints and rules, and a manifest that captures ongoing and completed work. Pre-session hooks read these files to build the context payload; post-session hooks update the manifest/ballast and incrementally refresh the chart based on git changes.
 
@@ -31,6 +31,10 @@ The init command registers hooks in `./.github/hooks/memory-anchor.json`:
 - **sessionEnd**: runs `.memoryanchor/dist/post-session.js`
 
 These hooks are expected to read/write the Memory Anchor files above. The build-chart logic generates the project chart, and the post-session hook updates the manifest/ballast and performs incremental chart updates based on git changes.
+
+Hook effects and purpose:
+1. **sessionStart**: loads chart/ballast/manifest to inject a compact context payload and reduce token spend on re-reading the repo.
+2. **sessionEnd**: records changes into manifest/ballast and refreshes chart slices to preserve long-term memory and cut cold-start time next session.
 
 ## Project Layout
 - `src/cli.ts`: CLI entrypoint (shebang)

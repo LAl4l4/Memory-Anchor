@@ -16,10 +16,6 @@ export async function loadLanguage(lang: string) {
         return cache.get(lang)!;
     }
 
-    if (lang != "c" && lang != "python") {
-        throw new Error(`Unsupported language: ${lang}`);
-    }
-
     const wasmPath = path.join(
         __dirname,
         "..",

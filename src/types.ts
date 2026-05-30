@@ -19,7 +19,7 @@ export const LANGS = [
   "html",
   "css",
   "json",
-  "yaml"
+  "yaml",
 ] as const;
 
 export type Lang = typeof LANGS[number];

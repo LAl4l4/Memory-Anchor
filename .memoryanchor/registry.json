@@ -6,9 +6,5 @@
   "tests/test-src/sample.py": {
     "mtime": 1779987269830.7803,
     "content": "- function greet()\n- class Greeter\n- function __init__()"
-  },
-  "tests/test-src/Sample.java": {
-    "mtime": 1779987306996.3022,
-    "content": "- Error: Unsupported language: java"
   }
 }
