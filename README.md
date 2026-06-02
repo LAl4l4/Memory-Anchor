@@ -30,7 +30,7 @@ The init command registers hooks in `./.github/hooks/memory-anchor.json`:
 - **sessionStart**: runs `.memoryanchor/dist/pre-session.js`
 - **sessionEnd**: runs `.memoryanchor/dist/post-session.js`
 
-These hooks are expected to read/write the Memory Anchor files above. The build-chart logic generates the project chart, and the post-session hook updates the manifest/ballast and performs incremental chart updates based on git changes.
+These hooks are expected to read/write the Memory Anchor files above. The build-chart logic generates the project chart, and the post-session hook updates the manifest/ballast and refreshes the chart every session (incremental when git changes exist).
 
 Hook effects and purpose:
 1. **sessionStart**: loads chart/ballast/manifest to inject a compact context payload and reduce token spend on re-reading the repo.

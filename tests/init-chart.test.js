@@ -1,16 +1,21 @@
-import { afterAll, beforeEach, expect, test } from '@jest/globals';
-import fs from 'node:fs/promises';
+import { afterAll, beforeAll, beforeEach, expect, test } from '@jest/globals';
+import { copyFile, mkdtemp, mkdir, readFile, rm } from 'node:fs/promises';
+import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-import {
-  buildChartFull,
-  updateChartIncrementally
-} from '../dist/core/build-chart.js';
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const repoRoot = path.resolve(__dirname, '..');
+const originalCwd = process.cwd();
 
-const projectRoot = process.cwd();
-const anchorDir = path.join(projectRoot, '.memoryanchor');
-const chartPath = path.join(anchorDir, 'chart.md');
-const registryPath = path.join(anchorDir, 'registry.json');
+let buildChartFull;
+let updateChartIncrementally;
+let tempDir = '';
+let anchorDir = '';
+let chartPath = '';
+let registryPath = '';
+
 const fixtures = [
   { file: 'sample.c' },
   { file: 'sample.py' },
@@ -44,21 +49,51 @@ function getNodeBlock(chartContent, relPath) {
 }
 
 async function cleanupAnchor() {
-  await fs.rm(anchorDir, { recursive: true, force: true });
+  if (!anchorDir) {
+    return;
+  }
+  await rm(anchorDir, { recursive: true, force: true });
 }
+
+async function seedFixtures(baseDir) {
+  const fixturesDir = path.join(baseDir, 'tests', 'test-src');
+  await mkdir(fixturesDir, { recursive: true });
+
+  for (const { file } of fixtures) {
+    const source = path.join(repoRoot, 'tests', 'test-src', file);
+    const destination = path.join(fixturesDir, file);
+    await copyFile(source, destination);
+  }
+}
+
+beforeAll(async () => {
+  tempDir = await mkdtemp(path.join(os.tmpdir(), 'memory-anchor-chart-'));
+  process.chdir(tempDir);
+  await seedFixtures(tempDir);
+
+  ({ buildChartFull, updateChartIncrementally } = await import('../dist/core/build-chart.js'));
+
+  anchorDir = path.join(tempDir, '.memoryanchor');
+  chartPath = path.join(anchorDir, 'chart.md');
+  registryPath = path.join(anchorDir, 'registry.json');
+});
 
 beforeEach(async () => {
   await cleanupAnchor();
 });
 
-/*afterAll(async () => {
+afterAll(async () => {
   await cleanupAnchor();
-});*/
+  process.chdir(originalCwd);
+  if (tempDir) {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
 
 test('buildChartFull includes fixture paths in the skeleton', async () => {
   await buildChartFull();
 
-  const chartContent = await fs.readFile(chartPath, 'utf8');
+  const chartContent = await readFile(chartPath, 'utf8');
   const normalizedChart = chartContent.replace(/\\/g, '/');
 
   for (const relPath of fixtureRelPaths) {
@@ -70,7 +105,7 @@ test('updateChartIncrementally adds fixture nodes and registry', async () => {
   await buildChartFull();
   await updateChartIncrementally(incrementalRelPaths);
 
-  const chartContent = await fs.readFile(chartPath, 'utf8');
+  const chartContent = await readFile(chartPath, 'utf8');
   const normalizedChart = chartContent.replace(/\\/g, '/');
 
   for (const relPath of incrementalRelPaths) {
@@ -86,7 +121,7 @@ test('updateChartIncrementally adds fixture nodes and registry', async () => {
     }
   }
 
-  const registryRaw = await fs.readFile(registryPath, 'utf8');
+  const registryRaw = await readFile(registryPath, 'utf8');
   const registry = JSON.parse(registryRaw);
 
   for (const relPath of incrementalRelPaths) {

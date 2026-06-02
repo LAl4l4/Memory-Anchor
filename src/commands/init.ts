@@ -1,6 +1,8 @@
 import type { CAC } from 'cac';
-import { access, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { createReadStream } from 'node:fs';
+import { access, appendFile, mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import { createInterface } from 'node:readline';
 import type { CommandContext } from '../core/context.js';
 import { buildChartFull } from '../core/build-chart.js';
 
@@ -42,8 +44,8 @@ const REQUIRED_HOOKS: Record<'sessionStart' | 'sessionEnd', HookCommand> = {
   },
   sessionEnd: {
     type: 'command',
-    bash: "memoryanchor-past",
-    powershell: "memoryanchor-past",
+    bash: "memoryanchor-post",
+    powershell: "memoryanchor-post",
     timeoutSec: 10
   }
 };
@@ -70,6 +72,9 @@ Use one line per rule with exact format:
 const COPILOT_INSTRUCTIONS_LINE =
   '- Follow `AGENTS.md` for Memory Anchor rules.';
 const GITIGNORE_ENTRY = '.memoryanchor';
+const BALLAST_DEFAULT_RULE = '- [ ] Follow AGENTS.md rules.';
+const BALLAST_DEFAULT_CONTENT = `${BALLAST_DEFAULT_RULE}\n`;
+const MANIFEST_DEFAULT_CONTENT = '## Todo:\n\n## Done:\n';
 
 export function initCommand(cli: CAC, context: CommandContext): void {
   cli.command('init', 'Initialize CopilotWolf workspace').action(async () => {
@@ -126,8 +131,14 @@ async function ensureWorkspaceDirectories(paths: WorkspacePaths): Promise<void> 
 
 async function ensureAnchorFiles(paths: WorkspacePaths): Promise<boolean> {
   const chartCreated = await ensureFile(paths.chartPath);
-  const ballastCreated = await ensureFile(paths.ballastPath);
-  const manifestCreated = await ensureFile(paths.manifestPath);
+  const ballastCreated = await ensureFile(
+    paths.ballastPath,
+    BALLAST_DEFAULT_CONTENT
+  );
+  const manifestCreated = await ensureFile(
+    paths.manifestPath,
+    MANIFEST_DEFAULT_CONTENT
+  );
 
   return chartCreated || ballastCreated || manifestCreated;
 }
@@ -142,37 +153,33 @@ async function ensureCopilotInstructions(
   const exists = await fileExists(paths.copilotInstructionsPath);
   if (!exists) {
     const contents = `# Copilot Instructions\n\n${COPILOT_INSTRUCTIONS_LINE}\n`;
-    await writeFile(paths.copilotInstructionsPath, contents);
+    await appendFile(paths.copilotInstructionsPath, contents);
     return true;
   }
 
-  const existing = await readFile(paths.copilotInstructionsPath, 'utf8');
-  if (existing.includes(COPILOT_INSTRUCTIONS_LINE)) {
+  if (await fileContainsLine(paths.copilotInstructionsPath, COPILOT_INSTRUCTIONS_LINE)) {
     return false;
   }
 
-  const suffix = existing.endsWith('\n') ? '' : '\n';
-  const updated = `${existing}${suffix}\n${COPILOT_INSTRUCTIONS_LINE}\n`;
-  await writeFile(paths.copilotInstructionsPath, updated);
+  await appendFile(
+    paths.copilotInstructionsPath,
+    `\n\n${COPILOT_INSTRUCTIONS_LINE}\n`
+  );
   return true;
 }
 
 async function ensureGitignore(paths: WorkspacePaths): Promise<boolean> {
   const exists = await fileExists(paths.gitignorePath);
   if (!exists) {
-    await writeFile(paths.gitignorePath, `${GITIGNORE_ENTRY}\n`);
+    await appendFile(paths.gitignorePath, `${GITIGNORE_ENTRY}\n`);
     return true;
   }
 
-  const existing = await readFile(paths.gitignorePath, 'utf8');
-  const lines = existing.split(/\r?\n/);
-  if (lines.some((line) => line.trim() === GITIGNORE_ENTRY)) {
+  if (await fileContainsLine(paths.gitignorePath, GITIGNORE_ENTRY)) {
     return false;
   }
 
-  const suffix = existing.endsWith('\n') ? '' : '\n';
-  const updated = `${existing}${suffix}${GITIGNORE_ENTRY}\n`;
-  await writeFile(paths.gitignorePath, updated);
+  await appendFile(paths.gitignorePath, `\n${GITIGNORE_ENTRY}\n`);
   return true;
 }
 
@@ -292,7 +299,7 @@ async function ensureFile(filePath: string, content = ''): Promise<boolean> {
     if (error instanceof Error && 'code' in error) {
       const { code } = error as NodeJS.ErrnoException;
       if (code === 'ENOENT') {
-        await writeFile(filePath, content);
+        await appendFile(filePath, content);
         return true;
       }
     }
@@ -307,17 +314,65 @@ async function ensureFileWithAppend(
   const normalizedContent = content.trimEnd();
   const exists = await fileExists(filePath);
   if (!exists) {
-    await writeFile(filePath, `${normalizedContent}\n`);
+    await appendFile(filePath, `${normalizedContent}\n`);
     return true;
   }
 
-  const existing = await readFile(filePath, 'utf8');
-  if (existing.includes(normalizedContent)) {
+  if (await fileContains(filePath, normalizedContent)) {
     return false;
   }
 
-  const suffix = existing.endsWith('\n') ? '' : '\n';
-  const updated = `${existing}${suffix}\n${normalizedContent}\n`;
-  await writeFile(filePath, updated);
+  await appendFile(filePath, `\n\n${normalizedContent}\n`);
   return true;
+}
+
+async function fileContainsLine(
+  filePath: string,
+  lineValue: string
+): Promise<boolean> {
+  const stream = createReadStream(filePath, { encoding: 'utf8' });
+  const rl = createInterface({ input: stream, crlfDelay: Infinity });
+
+  try {
+    for await (const line of rl) {
+      if (line.trim() === lineValue) {
+        rl.close();
+        stream.destroy();
+        return true;
+      }
+    }
+  } finally {
+    rl.close();
+  }
+
+  return false;
+}
+
+async function fileContains(filePath: string, needle: string): Promise<boolean> {
+  if (needle.length === 0) {
+    return true;
+  }
+
+  return await new Promise<boolean>((resolve, reject) => {
+    const stream = createReadStream(filePath, { encoding: 'utf8' });
+    let buffer = '';
+    let found = false;
+
+    stream.on('data', (chunk) => {
+      buffer += chunk;
+      if (buffer.includes(needle)) {
+        found = true;
+        stream.destroy();
+        return;
+      }
+
+      const keepLength = Math.max(needle.length - 1, 0);
+      if (buffer.length > keepLength) {
+        buffer = keepLength > 0 ? buffer.slice(-keepLength) : '';
+      }
+    });
+
+    stream.on('error', (error) => reject(error));
+    stream.on('close', () => resolve(found));
+  });
 }

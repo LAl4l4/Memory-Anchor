@@ -22,7 +22,9 @@
 - /src/utils/ext-to-lang.ts: Source code module.
 - /src/utils/logger.ts: Source code module.
 - /src/utils/wasmbuilder.ts: Source code module.
-- /tests/build-chart.test.js: Automated test suites and verification scripts.
+- /tests/init-ballast.test.js: Automated test suites and verification scripts.
+- /tests/init-chart.test.js: Automated test suites and verification scripts.
+- /tests/init-manifest.test.js: Automated test suites and verification scripts.
 - /tests/test-src/Sample.java: Automated test suites and verification scripts.
 - /tests/test-src/sample.c: Automated test suites and verification scripts.
 - /tests/test-src/sample.js: Automated test suites and verification scripts.
@@ -70,6 +72,8 @@
 - function writeJsonFile()
 - function ensureFile()
 - function ensureFileWithAppend()
+- function fileContainsLine()
+- function fileContains()
 
 ### /src/commands/status.ts
 - export function statusCommand()
@@ -132,10 +136,17 @@
 - function warn()
 - function error()
 
-### /tests/build-chart.test.js
+### /tests/init-ballast.test.js
+- function runInit()
+
+### /tests/init-chart.test.js
 - function escapeRegExp()
 - function getNodeBlock()
 - function cleanupAnchor()
+- function seedFixtures()
+
+### /tests/init-manifest.test.js
+- function runInit()
 
 ### /tests/test-src/Sample.java
 - class Sample
@@ -144,11 +155,15 @@
 ### /tests/test-src/sample.c
 - function add()
 - function main()
+
 ### /tests/test-src/sample.js
 - export function add()
+
 ### /tests/test-src/sample.py
 - function greet()
 - class Greeter
 - function __init__()
+
 ### /tests/test-src/sample.ts
 - export function add()
+

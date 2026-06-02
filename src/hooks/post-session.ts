@@ -3,7 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { execSync } from 'child_process';
 import { GitChange } from './types.js';
-import { updateChartIncrementally } from '../core/build-chart.js';
+import { buildChartFull, updateChartIncrementally } from '../core/build-chart.js';
 
 
 const cwd = process.cwd(); // 用户运行命令的目录
@@ -53,8 +53,12 @@ function updateManifest(changes: GitChange[] | null): void {
         incrementDone += ` \`${c.file}\` (${action});`;
     });
 
-    const targetHeader = '## ✅ 已完成事项 (Done List)';
-    if (content.includes(targetHeader)) {
+    const targetHeaders = [
+        '## Done:',
+        '## ✅ 已完成事项 (Done List)'
+    ];
+    const targetHeader = targetHeaders.find((header) => content.includes(header));
+    if (targetHeader) {
         content = content.replace(targetHeader, `${targetHeader}${incrementDone}`);
         fs.writeFileSync(MANIFEST_PATH, content, 'utf-8');
         
@@ -152,17 +156,25 @@ function sanitizeBallast(): void {
     );
 }
 
-async function main(): Promise<void> {
-    const changes = captureGitChanges();
-    if (!changes) return;
-
-    updateManifest(changes);
-    cleanBallastRules(changes);
-
-    sanitizeBallast();
+async function refreshChart(changes: GitChange[] | null): Promise<void> {
+    if (!changes || changes.length === 0) {
+        await buildChartFull();
+        return;
+    }
 
     const changedPaths = changes.map(c => c.file);
     await updateChartIncrementally(changedPaths);
+}
+
+async function main(): Promise<void> {
+    const changes = captureGitChanges();
+    if (changes && changes.length > 0) {
+        updateManifest(changes);
+        cleanBallastRules(changes);
+        sanitizeBallast();
+    }
+
+    await refreshChart(changes);
     
     process.exit(0);
 }
