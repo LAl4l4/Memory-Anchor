@@ -14,18 +14,22 @@ const registryPath = path.join(anchorDir, 'registry.json');
 const fixtures = [
   { file: 'sample.c' },
   { file: 'sample.py' },
-  { file: 'Sample.java' }
+  { file: 'Sample.java' },
+  { file: 'sample.js' },
+  { file: 'sample.ts' }
 ];
 
 const fixtureRelPaths = fixtures.map(({ file }) =>
   path.posix.join('tests', 'test-src', file)
 );
 
-const expectedFunctions = new Map([
-  [path.posix.join('tests', 'test-src', 'sample.c'), ['add']],
-  [path.posix.join('tests', 'test-src', 'sample.py'), ['greet']]
+const expectedExports = new Map([
+  [path.posix.join('tests', 'test-src', 'sample.c'), ['- function add()']],
+  [path.posix.join('tests', 'test-src', 'sample.py'), ['- function greet()']],
+  [path.posix.join('tests', 'test-src', 'sample.js'), ['- export function add()']],
+  [path.posix.join('tests', 'test-src', 'sample.ts'), ['- export function add()']]
 ]);
-const incrementalRelPaths = Array.from(expectedFunctions.keys());
+const incrementalRelPaths = Array.from(expectedExports.keys());
 
 function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -73,12 +77,12 @@ test('updateChartIncrementally adds fixture nodes and registry', async () => {
     expect(normalizedChart).toContain(`### /${relPath}`);
   }
 
-  for (const [relPath, functionNames] of expectedFunctions.entries()) {
+  for (const [relPath, expectedLines] of expectedExports.entries()) {
     const nodeBlock = getNodeBlock(normalizedChart, relPath);
     expect(nodeBlock).not.toBeNull();
 
-    for (const name of functionNames) {
-      expect(nodeBlock).toContain(`- function ${name}()`);
+    for (const expectedLine of expectedLines) {
+      expect(nodeBlock).toContain(expectedLine);
     }
   }
 

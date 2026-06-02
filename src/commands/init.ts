@@ -30,6 +30,7 @@ interface WorkspacePaths {
   hookPath: string;
   agentsPath: string;
   copilotInstructionsPath: string;
+  gitignorePath: string;
 }
 
 const REQUIRED_HOOKS: Record<'sessionStart' | 'sessionEnd', HookCommand> = {
@@ -68,6 +69,7 @@ Use one line per rule with exact format:
 
 const COPILOT_INSTRUCTIONS_LINE =
   '- Follow `AGENTS.md` for Memory Anchor rules.';
+const GITIGNORE_ENTRY = '.memoryanchor';
 
 export function initCommand(cli: CAC, context: CommandContext): void {
   cli.command('init', 'Initialize CopilotWolf workspace').action(async () => {
@@ -75,6 +77,7 @@ export function initCommand(cli: CAC, context: CommandContext): void {
 
     await ensureWorkspaceDirectories(paths);
 
+    const gitignoreUpdated = await ensureGitignore(paths);
     const anchorFilesCreated = await ensureAnchorFiles(paths);
     const hooksUpdated = await ensureHookConfig(paths);
     const agentsCreated = await ensureAgentsFile(paths);
@@ -82,6 +85,7 @@ export function initCommand(cli: CAC, context: CommandContext): void {
     await buildChartFull();
 
     if (
+      gitignoreUpdated ||
       anchorFilesCreated ||
       hooksUpdated ||
       agentsCreated ||
@@ -110,7 +114,8 @@ function getWorkspacePaths(cwd: string): WorkspacePaths {
     hooksDir,
     hookPath: path.join(hooksDir, 'memory-anchor.json'),
     agentsPath: path.join(cwd, 'AGENTS.md'),
-    copilotInstructionsPath: path.join(cwd, '.github', 'copilot-instructions.md')
+    copilotInstructionsPath: path.join(cwd, '.github', 'copilot-instructions.md'),
+    gitignorePath: path.join(cwd, '.gitignore')
   };
 }
 
@@ -128,7 +133,7 @@ async function ensureAnchorFiles(paths: WorkspacePaths): Promise<boolean> {
 }
 
 async function ensureAgentsFile(paths: WorkspacePaths): Promise<boolean> {
-  return ensureFile(paths.agentsPath, AGENTS_CONTENT);
+  return ensureFileWithAppend(paths.agentsPath, AGENTS_CONTENT);
 }
 
 async function ensureCopilotInstructions(
@@ -142,13 +147,32 @@ async function ensureCopilotInstructions(
   }
 
   const existing = await readFile(paths.copilotInstructionsPath, 'utf8');
-  if (existing.includes('AGENTS.md')) {
+  if (existing.includes(COPILOT_INSTRUCTIONS_LINE)) {
     return false;
   }
 
   const suffix = existing.endsWith('\n') ? '' : '\n';
   const updated = `${existing}${suffix}\n${COPILOT_INSTRUCTIONS_LINE}\n`;
   await writeFile(paths.copilotInstructionsPath, updated);
+  return true;
+}
+
+async function ensureGitignore(paths: WorkspacePaths): Promise<boolean> {
+  const exists = await fileExists(paths.gitignorePath);
+  if (!exists) {
+    await writeFile(paths.gitignorePath, `${GITIGNORE_ENTRY}\n`);
+    return true;
+  }
+
+  const existing = await readFile(paths.gitignorePath, 'utf8');
+  const lines = existing.split(/\r?\n/);
+  if (lines.some((line) => line.trim() === GITIGNORE_ENTRY)) {
+    return false;
+  }
+
+  const suffix = existing.endsWith('\n') ? '' : '\n';
+  const updated = `${existing}${suffix}${GITIGNORE_ENTRY}\n`;
+  await writeFile(paths.gitignorePath, updated);
   return true;
 }
 
@@ -274,4 +298,26 @@ async function ensureFile(filePath: string, content = ''): Promise<boolean> {
     }
     throw error;
   }
+}
+
+async function ensureFileWithAppend(
+  filePath: string,
+  content: string
+): Promise<boolean> {
+  const normalizedContent = content.trimEnd();
+  const exists = await fileExists(filePath);
+  if (!exists) {
+    await writeFile(filePath, `${normalizedContent}\n`);
+    return true;
+  }
+
+  const existing = await readFile(filePath, 'utf8');
+  if (existing.includes(normalizedContent)) {
+    return false;
+  }
+
+  const suffix = existing.endsWith('\n') ? '' : '\n';
+  const updated = `${existing}${suffix}\n${normalizedContent}\n`;
+  await writeFile(filePath, updated);
+  return true;
 }

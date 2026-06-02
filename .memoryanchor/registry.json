@@ -6,5 +6,13 @@
   "tests/test-src/sample.py": {
     "mtime": 1779987269830.7803,
     "content": "- function greet()\n- class Greeter\n- function __init__()"
+  },
+  "tests/test-src/sample.js": {
+    "mtime": 1780157342361.939,
+    "content": "- export function add()"
+  },
+  "tests/test-src/sample.ts": {
+    "mtime": 1780157391621.6863,
+    "content": "- export function add()"
   }
 }

@@ -1,6 +1,7 @@
 # PROJECT CHART
 
 ## 1. Directory Skeleton
+- /AGENTS.md: Local documentation asset.
 - /LICENSE: Source code module.
 - /Makefile: Source code module.
 - /README.md: Local documentation asset.
@@ -24,7 +25,9 @@
 - /tests/build-chart.test.js: Automated test suites and verification scripts.
 - /tests/test-src/Sample.java: Automated test suites and verification scripts.
 - /tests/test-src/sample.c: Automated test suites and verification scripts.
+- /tests/test-src/sample.js: Automated test suites and verification scripts.
 - /tests/test-src/sample.py: Automated test suites and verification scripts.
+- /tests/test-src/sample.ts: Automated test suites and verification scripts.
 - /tree-sitter-parser/tree-sitter-c.wasm: Source code module.
 - /tree-sitter-parser/tree-sitter-cpp.wasm: Source code module.
 - /tree-sitter-parser/tree-sitter-css.wasm: Source code module.
@@ -44,6 +47,96 @@
 - /tsconfig.json: TypeScript compiler options and workspace path mappings.
 
 ## 2. Key Architecture Nodes
+### /src/commands/index.ts
+- export function registerBuiltInCommands()
+
+### /src/commands/init.ts
+- interface HookCommand
+- interface HooksConfig
+- interface WorkspacePaths
+- export function initCommand()
+- function getWorkspacePaths()
+- function ensureWorkspaceDirectories()
+- function ensureAnchorFiles()
+- function ensureAgentsFile()
+- function ensureCopilotInstructions()
+- function ensureGitignore()
+- function ensureHookConfig()
+- function registerHooks()
+- function ensureHookEntry()
+- function isSameHook()
+- function fileExists()
+- function readJsonFile()
+- function writeJsonFile()
+- function ensureFile()
+- function ensureFileWithAppend()
+
+### /src/commands/status.ts
+- export function statusCommand()
+
+### /src/core/build-chart.ts
+- export function ensureParserInit()
+- interface WorkspacePaths
+- function resolveWorkspacePaths()
+- interface FileExport
+- interface FileNode
+- function logToUser()
+- export function parseFileArchitecture()
+- function extractExports()
+- function getExportInfo()
+- function formatExport()
+- function getNodeName()
+- function findIdentifier()
+- function generateTreeSkeleton()
+- function listProjectFiles()
+- function buildSkeletonSection()
+- function buildNodesSection()
+- function buildChartContent()
+- function ensureAnchorDirExists()
+- function writeChart()
+- export function updateChartIncrementally()
+- export function buildChartFull()
+
+### /src/core/config.ts
+- export interface AppConfig
+- export function createDefaultConfig()
+
+### /src/core/context.ts
+- export interface CommandContext
+
+### /src/core/parser-loader.ts
+- export function loadLanguage()
+
+### /src/hooks/past-session.ts
+- function logToUser()
+- function captureGitChanges()
+- function updateManifest()
+- function cleanBallastRules()
+- function sanitizeBallast()
+- function main()
+
+### /src/hooks/pre-session.ts
+- function loadMemory()
+- function main()
+
+### /src/hooks/types.ts
+- export interface SessionStartResponse
+- export interface GitChange
+
+### /src/index.ts
+- export function runCli()
+
+### /src/utils/logger.ts
+- export interface Logger
+- function info()
+- function warn()
+- function error()
+
+### /tests/build-chart.test.js
+- function escapeRegExp()
+- function getNodeBlock()
+- function cleanupAnchor()
+
 ### /tests/test-src/Sample.java
 - class Sample
 - function add()
@@ -51,7 +144,11 @@
 ### /tests/test-src/sample.c
 - function add()
 - function main()
+### /tests/test-src/sample.js
+- export function add()
 ### /tests/test-src/sample.py
 - function greet()
 - class Greeter
 - function __init__()
+### /tests/test-src/sample.ts
+- export function add()

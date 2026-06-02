@@ -169,10 +169,23 @@ function extractExports(node: any, fileNode: FileNode) {
 }
 
 function getExportInfo(node: any, lang: string): FileExport | null {
-    if (JS_EXPORT_LANGS.has(lang) && node.type !== "export_statement") 
-        return null;
+    let isExported = false;
+
+    // 针对 JavaScript/TypeScript 的 export 语法进行特殊处理
+    if (JS_EXPORT_LANGS.has(lang) && node.type === "export_statement") {
+        const target =
+            node.namedChildren.find((c: any) =>
+                GENERIC_DECLARATIONS.has(c.type)
+            );
+        if (!target) return null;
+        node = target;
+        isExported = true;
+    }
 
     if (!GENERIC_DECLARATIONS.has(node.type)) return null;
+
+    const name = getNodeName(node);
+    if (!name) return null;
 
     // 🔥 核心修复 1：针对 C/C++ 等语言的 struct/enum/union 的特殊防护
     // 只有当它们包含 body（即 field_declaration_list）时，才算作真正的“类型定义”
@@ -181,9 +194,6 @@ function getExportInfo(node: any, lang: string): FileExport | null {
         const hasBody = node.childForFieldName("body") !== null;
         if (!hasBody) return null; // 只是作为参数或变量类型使用，直接过滤掉
     }
-
-    const name = getNodeName(node);
-    if (!name) return null;
 
     let type: string = node.type;
     if (FUNCTION_DECLARATION_TYPES.has(node.type)) {
@@ -196,6 +206,10 @@ function getExportInfo(node: any, lang: string): FileExport | null {
         type = 'enum_declaration';
     } else if (TYPE_DECLARATION_TYPES.has(node.type)) {
         type = 'type_declaration';
+    }
+
+    if (isExported) {
+        type = 'exported_' + type;
     }
 
     return { type, name };
@@ -218,6 +232,21 @@ function formatExport(exp: FileExport): string {
 
         case 'type_declaration':
             return `- type ${exp.name}`;
+
+        case 'exported_function_declaration':
+            return `- export function ${exp.name}()`;
+
+        case 'exported_class_declaration':
+            return `- export class ${exp.name}`;
+
+        case 'exported_interface_declaration':
+            return `- export interface ${exp.name}`;
+
+        case 'exported_enum_declaration':
+            return `- export enum ${exp.name}`;
+
+        case 'exported_type_declaration':
+            return `- export type ${exp.name}`;
 
         default:
             return `- ${exp.name}`;
