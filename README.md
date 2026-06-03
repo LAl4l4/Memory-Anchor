@@ -1,6 +1,6 @@
 # Memory Anchor
 
-**Memory Anchor** is a lightweight, local context scaffolding tool engineered for the AI-native coding era (GitHub Copilot, Claude Code, Cline, etc.). 
+**Memory Anchor** is a lightweight, local context scaffolding tool engineered for the AI-Agent (GitHub Copilot, Claude Code, Cline, etc.). 
 
 By maintaining a compact set of incremental metadata anchors directly within your repository, Memory Anchor drastically slashes LLM token consumption, eliminates context drift (the "Lost in the Middle" problem), and cuts down cold-start latencies in long-lived agent sessions.
 
@@ -16,13 +16,29 @@ By maintaining a compact set of incremental metadata anchors directly within you
 
 Memory Anchor operates via lightweight lifecycle hooks that orchestrate a tight loop between your source code, Git state, and the AI's system instructions:
 
-```text
-[Start Session] ──> sessionStart Hook ──> Aggregates Chart + Ballast + Manifest ──> Injects Compact Payload
-                                                                                              │
-                                                                                   [AI Co-Pilot Coding]
-                                                                                              │
-[End Session]   <──  sessionEnd Hook  <──  Incremental Git Diff Analysis  <───────────────────┘
-```
+### [ 1. Start Session ]
+↓ Trigger: sessionStart Hook
+Aggregate Ballast + Manifest
+Automatically scans and consolidates the core architecture benchmarks and file index lists.
+↓
+Inject Compact Payload
+Injects the highly compressed, noise-free context payload directly into the AI's system instructions.
+
+### [ 2. AI Coding Session ]
+↓ Interactive Development
+Context-Aware Coding
+The AI collaborates and modifies source code with a precise, global understanding of your workspace.
+
+### [ 3. agent stop ]
+Trigger: agentStop Hook
+Incremental Git Diff Analysis
+Automatically analyzes Git states to pinpoint only the files changed, added, or deleted during the session.
+Sync & Update
+Runs heavy AST parsing exclusively on those changed files, instantly updating the registry.json cache and chart.md blueprint.
+
+### [ 3. End Session ]
+↓ Trigger: sessionEnd Hook
+Update ballast, manifest. Do full update for chart.md to ensure the correctness.
 
 ## Requirements
 - Node.js >= 18

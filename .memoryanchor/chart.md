@@ -2,6 +2,7 @@
 
 ## 1. Directory Skeleton
 - /AGENTS.md: Local documentation asset.
+- /CLAUDE.md: Local documentation asset.
 - /LICENSE: Source code module.
 - /Makefile: Source code module.
 - /README.md: Local documentation asset.
@@ -9,16 +10,24 @@
 - /src/cli.ts: Source code module.
 - /src/commands/index.ts: Main entry gate and routing aggregator for this directory.
 - /src/commands/init.ts: Source code module.
+- /src/commands/initHelper/initClaude.ts: Source code module.
+- /src/commands/initHelper/initCopilot.ts: Source code module.
+- /src/commands/initHelper/initPublic.ts: Source code module.
 - /src/commands/status.ts: Source code module.
 - /src/core/build-chart.ts: Source code module.
 - /src/core/config.ts: Source code module.
 - /src/core/context.ts: Source code module.
 - /src/core/parser-loader.ts: Source code module.
-- /src/hooks/post-session.ts: Source code module.
-- /src/hooks/pre-session.ts: Source code module.
-- /src/hooks/types.ts: Source code module.
+- /src/hooks/claude/session-end.ts: Source code module.
+- /src/hooks/claude/session-start.ts: Source code module.
+- /src/hooks/claude/stop.ts: Source code module.
+- /src/hooks/copilot/agent-stop.ts: Source code module.
+- /src/hooks/copilot/post-session.ts: Source code module.
+- /src/hooks/copilot/pre-session.ts: Source code module.
 - /src/index.ts: Main entry gate and routing aggregator for this directory.
+- /src/test-stop-hook.ts: Automated test suites and verification scripts.
 - /src/types.ts: Source code module.
+- /src/utils/captureGitChanges.ts: Source code module.
 - /src/utils/ext-to-lang.ts: Source code module.
 - /src/utils/logger.ts: Source code module.
 - /src/utils/wasmbuilder.ts: Source code module.
@@ -53,27 +62,52 @@
 - export function registerBuiltInCommands()
 
 ### /src/commands/init.ts
-- interface HookCommand
-- interface HooksConfig
-- interface WorkspacePaths
 - export function initCommand()
-- function getWorkspacePaths()
-- function ensureWorkspaceDirectories()
-- function ensureAnchorFiles()
-- function ensureAgentsFile()
-- function ensureCopilotInstructions()
-- function ensureGitignore()
+
+### /src/commands/initHelper/initClaude.ts
+- interface ClaudeHookCommand
+- interface ClaudeHookEntry
+- interface ClaudeHooksConfig
+- interface ClaudePaths
+- export interface ClaudeSetupResult
+- function getClaudePaths()
+- function ensureClaudeSettings()
+- function registerClaudeHooks()
+- function ensureClaudeHookEntry()
+- function ensureClaudeMd()
+- export function claudeSetup()
+- export function initClaudeCommand()
+
+### /src/commands/initHelper/initCopilot.ts
+- interface CopilotHooksConfig
+- interface CopilotPaths
+- export interface CopilotSetupResult
+- function getCopilotPaths()
 - function ensureHookConfig()
 - function registerHooks()
 - function ensureHookEntry()
 - function isSameHook()
-- function fileExists()
-- function readJsonFile()
-- function writeJsonFile()
-- function ensureFile()
-- function ensureFileWithAppend()
-- function fileContainsLine()
-- function fileContains()
+- function ensureCopilotInstructions()
+- export function copilotSetup()
+- export function initCopilotCommand()
+
+### /src/commands/initHelper/initPublic.ts
+- export interface HookCommand
+- export function fileExists()
+- export function readJsonFile()
+- export function writeJsonFile()
+- export function ensureFile()
+- export function ensureFileWithAppend()
+- export function fileContainsLine()
+- export function fileContains()
+- export function ensureGitignore()
+- export function ensureAnchorFiles()
+- export function ensureAgentsFile()
+- export function ensureWorkspaceDirectories()
+- export interface BasePaths
+- export function getBasePaths()
+- export interface InitPublicResult
+- export function initPublic()
 
 ### /src/commands/status.ts
 - export function statusCommand()
@@ -86,7 +120,7 @@
 - interface FileNode
 - function logToUser()
 - export function parseFileArchitecture()
-- function extractExports()
+- function extractSymbols()
 - function getExportInfo()
 - function formatExport()
 - function getNodeName()
@@ -100,7 +134,6 @@
 - function writeChart()
 - export function updateChartIncrementally()
 - export function buildChartFull()
-
 ### /src/core/config.ts
 - export interface AppConfig
 - export function createDefaultConfig()
@@ -111,25 +144,43 @@
 ### /src/core/parser-loader.ts
 - export function loadLanguage()
 
-### /src/hooks/post-session.ts
+### /src/hooks/claude/session-end.ts
 - function logToUser()
-- function captureGitChanges()
 - function updateManifest()
 - function cleanBallastRules()
 - function sanitizeBallast()
-- function refreshChart()
 - function main()
 
-### /src/hooks/pre-session.ts
+### /src/hooks/claude/session-start.ts
 - function loadMemory()
 - function main()
 
-### /src/hooks/types.ts
-- export interface SessionStartResponse
-- export interface GitChange
+### /src/hooks/claude/stop.ts
+- function refreshChart()
+- function main()
+
+### /src/hooks/copilot/agent-stop.ts
+- function refreshChart()
+- function main()
+
+### /src/hooks/copilot/post-session.ts
+- function logToUser()
+- function updateManifest()
+- function cleanBallastRules()
+- function sanitizeBallast()
+- function main()
+
+### /src/hooks/copilot/pre-session.ts
+- interface SessionStartResponse
+- function loadMemory()
+- function main()
 
 ### /src/index.ts
 - export function runCli()
+
+### /src/utils/captureGitChanges.ts
+- interface GitChange
+- function captureGitChanges()
 
 ### /src/utils/logger.ts
 - export interface Logger
@@ -171,8 +222,8 @@
 
 ### /.memoryanchor/chart.md
 
-### /src/utils/sample.ts
-- export function buildGreeting()
-
 ### /.memoryanchor/registry.json
+
+
+### /README.md
 

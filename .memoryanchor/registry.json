@@ -1,6 +1,6 @@
 {
   ".memoryanchor/chart.md": {
-    "mtime": 1780400294445.6287,
+    "mtime": 1780484151900.3042,
     "content": ""
   },
   "src/utils/sample.ts": {
@@ -8,7 +8,23 @@
     "content": "- export function buildGreeting()"
   },
   ".memoryanchor/registry.json": {
-    "mtime": 1780400294445.76,
+    "mtime": 1780484151900.6648,
+    "content": ""
+  },
+  "AGENTS.md": {
+    "mtime": 1780483721593.232,
+    "content": ""
+  },
+  "src/test-stop-hook.ts": {
+    "mtime": 1780483897566.6292,
+    "content": ""
+  },
+  "src/core/build-chart.ts": {
+    "mtime": 1780495447472.0815,
+    "content": "- export function ensureParserInit()\n- interface WorkspacePaths\n- function resolveWorkspacePaths()\n- interface FileExport\n- interface FileNode\n- function logToUser()\n- export function parseFileArchitecture()\n- function extractSymbols()\n- function getExportInfo()\n- function formatExport()\n- function getNodeName()\n- function findIdentifier()\n- function generateTreeSkeleton()\n- function listProjectFiles()\n- function buildSkeletonSection()\n- function buildNodesSection()\n- function buildChartContent()\n- function ensureAnchorDirExists()\n- function writeChart()\n- export function updateChartIncrementally()\n- export function buildChartFull()"
+  },
+  "README.md": {
+    "mtime": 1780484496909.5798,
     "content": ""
   }
 }

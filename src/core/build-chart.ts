@@ -51,7 +51,7 @@ function resolveWorkspacePaths(): WorkspacePaths {
 const { anchorDir: ANCHOR_DIR, projectRoot: PROJECT_ROOT, chartPath: CHART_PATH } =
     resolveWorkspacePaths();
 
-interface FileExport {
+interface FileSymbol {
     type: string;
     name: string;
 }
@@ -59,7 +59,7 @@ interface FileExport {
 interface FileNode {
     relativePath: string;
     language: string;
-    exports: FileExport[];
+    symbols: FileSymbol[];
 }
 
 /**
@@ -78,7 +78,7 @@ export async function parseFileArchitecture(
     const fileNode: FileNode = {
         relativePath,
         language: '',
-        exports: []
+        symbols: []
     };
 
     const ext = path.extname(absolutePath);
@@ -103,12 +103,12 @@ export async function parseFileArchitecture(
 
         fileNode.language = lang;
 
-        extractExports(tree.rootNode, fileNode);
+        extractSymbols(tree.rootNode, fileNode);
 
     } catch (err) {
         console.error(err);
 
-        fileNode.exports.push({
+        fileNode.symbols.push({
             type: "error",
             name: String(err)
         });
@@ -153,22 +153,22 @@ const TYPE_DECLARATION_TYPES = new Set([
     "struct_specifier"
 ]);
 
-function extractExports(node: any, fileNode: FileNode) {
+function extractSymbols(node: any, fileNode: FileNode) {
     for (const child of node.children) {
         const exportInfo = getExportInfo(child, fileNode.language);
         if (exportInfo) {
-            fileNode.exports.push(exportInfo);
+            fileNode.symbols.push(exportInfo);
             // 只有当它是一个函数、接口、枚举或类型声明时，才停止深入子节点
             // 类声明我们允许继续深入，因为它可能包含方法定义，我们也想捕获到
             if (!CLASS_DECLARATION_TYPES.has(exportInfo.type))
-            continue; 
+            continue;
         }
 
-        extractExports(child, fileNode);
+        extractSymbols(child, fileNode);
     }
 }
 
-function getExportInfo(node: any, lang: string): FileExport | null {
+function getExportInfo(node: any, lang: string): FileSymbol | null {
     let isExported = false;
 
     // 针对 JavaScript/TypeScript 的 export 语法进行特殊处理
@@ -216,7 +216,7 @@ function getExportInfo(node: any, lang: string): FileExport | null {
 
 }
 
-function formatExport(exp: FileExport): string {
+function formatSymbol(exp: FileSymbol): string {
     switch (exp.type) {
         case 'function_declaration':
             return `- function ${exp.name}()`;
@@ -330,14 +330,14 @@ async function buildNodesSection(files: string[]): Promise<string> {
         const absPath = path.join(PROJECT_ROOT, relPath);
         const fileNode = await parseFileArchitecture(absPath, relPath);
 
-        const validExports = fileNode.exports.filter(
+        const validSymbols = fileNode.symbols.filter(
             exp => exp.type !== 'error'
         );
 
-        if (validExports.length > 0) {
+        if (validSymbols.length > 0) {
             nodesSection += `### /${fileNode.relativePath}\n`;
-            validExports.forEach((exp) => {
-                nodesSection += `${formatExport(exp)}\n`;
+            validSymbols.forEach((exp) => {
+                nodesSection += `${formatSymbol(exp)}\n`;
             });
             nodesSection += '\n';
         }
@@ -387,16 +387,29 @@ export async function updateChartIncrementally(changedFiles: string[]): Promise<
 
         // 仅对改动文件调用高耗能的 AST 解析
         const node = await parseFileArchitecture(absPath, file);
-        const newNodeContent = node.exports.map(formatExport).join('\n');
-        
+        const newNodeContent = node.symbols.map(formatSymbol).join('\n');
+        const blockRegex = new RegExp(`### /${file}[\\s\\S]*?(?=### /|$)`);
+        const hasExistingBlock = blockRegex.test(chartContent);
+
+        // 如果解析结果为空，则与buildFull行为保持一致：完全不写入
+        if (!newNodeContent) {
+            if (hasExistingBlock) {
+                // 文件存在但是已无导出 → 移除整块（与存量写入的过滤逻辑一致）
+                chartContent = chartContent.replace(blockRegex, '');
+                delete registry[file];
+                hasUpdated = true;
+            }
+            // 没有导出且没有旧块 → 什么都不做
+            continue;
+        }
+
         // 更新注册表
         registry[file] = { mtime: stats.mtimeMs, content: newNodeContent };
-        
+
         // 关键：在 chart.md 中原地替换
         const nodeBlock = `### /${file}\n${newNodeContent}\n`;
-        const blockRegex = new RegExp(`### /${file}[\\s\\S]*?(?=### /|$)`);
-        
-        if (blockRegex.test(chartContent)) {
+
+        if (hasExistingBlock) {
             chartContent = chartContent.replace(blockRegex, nodeBlock);
         } else {
             chartContent += `\n${nodeBlock}`;
