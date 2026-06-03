@@ -5,7 +5,7 @@ import * as path from 'path';
 /**
  * sessionStart 钩子必须返回的响应体格式
  */
-export interface SessionStartResponse {
+interface SessionStartResponse {
     additionalContext: string;
 }
 
@@ -50,13 +50,10 @@ function loadMemory(): string {
 
     ${taskSection}
 
-    [1. PROJECT CHART]
-    ${chart}
-
-    [2. BALLAST RULES]
+    [1. BALLAST RULES]
     ${ballastStr}
 
-    [3. MISSION MANIFEST]
+    [2. MISSION MANIFEST]
     ${manifest}
     ==================================================
     `;

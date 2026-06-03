@@ -9,9 +9,12 @@
   "types": "dist/index.d.ts",
   "bin": {
     "anchor": "dist/cli.js",
-    "memoryanchor-pre": "dist/hooks/pre-session.js",
-    "memoryanchor-post": "dist/hooks/post-session.js",
-    "memoryanchor-stop": "dist/hooks/agent-stop.js"
+    "memoryanchor-copilot-pre": "dist/hooks/copilot/pre-session.js",
+    "memoryanchor-copilot-post": "dist/hooks/copilot/post-session.js",
+    "memoryanchor-copilot-stop": "dist/hooks/copilot/agent-stop.js",
+    "memoryanchor-claude-pre": "dist/hooks/claude/session-start.js",
+    "memoryanchor-claude-post": "dist/hooks/claude/session-end.js",
+    "memoryanchor-claude-stop": "dist/hooks/claude/stop.js"
   },
   "files": [
     "dist/",

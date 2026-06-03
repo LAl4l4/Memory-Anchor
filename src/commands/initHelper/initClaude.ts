@@ -53,18 +53,18 @@ export interface ClaudeSetupResult {
 // pre-session
 const CLAUDE_START_HOOK: ClaudeHookEntry = {
   matcher: '',
-  hooks: [{ type: 'command', command: 'memoryanchor-pre', timeout: 5 }],
+  hooks: [{ type: 'command', command: 'memoryanchor-claude-pre', timeout: 5 }],
 };
 
 const CLAUDE_STOP_HOOK: ClaudeHookEntry = {
   matcher: '',
-  hooks: [{ type: 'command', command: 'memoryanchor-stop', timeout: 10 }],
+  hooks: [{ type: 'command', command: 'memoryanchor-claude-stop', timeout: 10 }],
 };
 
 // post-session
 const CLAUDE_END_HOOK: ClaudeHookEntry = {
   matcher: '',
-  hooks: [{ type: 'command', command: 'memoryanchor-post', timeout: 10 }],
+  hooks: [{ type: 'command', command: 'memoryanchor-claude-post', timeout: 10 }],
 };
 
 const CLAUDE_MD_LINE = '- Follow `AGENTS.md` for Memory Anchor rules.';

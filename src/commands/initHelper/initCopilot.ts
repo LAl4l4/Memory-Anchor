@@ -46,20 +46,20 @@ export interface CopilotSetupResult {
 const COPILOT_REQUIRED_HOOKS: Record<'sessionStart' | 'sessionEnd' | 'agentStop', HookCommand> = {
   sessionStart: {
     type: 'command',
-    bash: 'memoryanchor-pre',
-    powershell: 'memoryanchor-pre',
+    bash: 'memoryanchor-copilot-pre',
+    powershell: 'memoryanchor-copilot-pre',
     timeoutSec: 10,
   },
   agentStop: {
     type: 'command',
-    bash: 'memoryanchor-stop',
-    powershell: 'memoryanchor-stop',
+    bash: 'memoryanchor-copilot-stop',
+    powershell: 'memoryanchor-copilot-stop',
     timeoutSec: 10,
   },
   sessionEnd: {
     type: 'command',
-    bash: 'memoryanchor-post',
-    powershell: 'memoryanchor-post',
+    bash: 'memoryanchor-copilot-post',
+    powershell: 'memoryanchor-copilot-post',
     timeoutSec: 10,
   },
 };

@@ -14,10 +14,10 @@ export const AGENTS_CONTENT = `
   - ./.memoryanchor/chart.md
   - ./.memoryanchor/ballast.md
   - ./.memoryanchor/manifest.md
-- chart.md will injected in automatically, do not read it.
+- Always read chart.md before accessing any repository files.
 - Only open repository files when the chart is insufficient.
 - Must follow all rules in ballast.md.
-- At the end of a session, update TODO/DONE entries in manifest.md.
+- After each turn, update TODO/DONE entries in manifest.md.
 
 For '.memoryanchor/ballast.md':
 Keep only valid rules. Delete obsolete ones.
@@ -27,7 +27,7 @@ Use one line per rule with exact format:
 `;
 
 export const GITIGNORE_ENTRY = '.memoryanchor';
-export const BALLAST_DEFAULT_RULE = '- [ ] Follow AGENTS.md rules.';
+export const BALLAST_DEFAULT_RULE = '- [ ] Follow AGENTS.md rules.\n- [ ] Do not repeat yourself.';
 export const BALLAST_DEFAULT_CONTENT = `${BALLAST_DEFAULT_RULE}\n`;
 export const MANIFEST_DEFAULT_CONTENT = '## Todo:\n\n## Done:\n';
 

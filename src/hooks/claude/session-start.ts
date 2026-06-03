@@ -2,24 +2,15 @@
 import * as fs from 'fs';
 import * as path from 'path';
 
-/**
- * sessionStart 钩子必须返回的响应体格式
- */
-interface SessionStartResponse {
-    additionalContext: string;
-}
-
 const cwd = process.cwd();
 const ANCHOR_PATH = path.join(cwd, '.memoryanchor');
 const CHART_PATH = path.join(ANCHOR_PATH, 'chart.md');
 const BALLAST_PATH = path.join(ANCHOR_PATH, 'ballast.md');
 const MANIFEST_PATH = path.join(ANCHOR_PATH, 'manifest.md');
 
+void CHART_PATH; // make the linter silent about unused variables
+
 function loadMemory(): string {
-    let chart = "No project chart found. Run 'npx memory-anchor build' to generate.";
-    if (fs.existsSync(CHART_PATH)) {
-        chart = fs.readFileSync(CHART_PATH, 'utf-8').trim();
-    }
 
     let ballastStr = "No active coding constraints or lessons-learned enforced.";
     if (fs.existsSync(BALLAST_PATH)) {
@@ -49,28 +40,22 @@ Target: Assist the developer by ensuring all generated code aligns with local re
 
 ${taskSection}
 
-[1. PROJECT CHART]
-${chart}
-
-[2. BALLAST RULES]
+[1. BALLAST RULES]
 ${ballastStr}
 
-[3. MISSION MANIFEST]
+[2. MISSION MANIFEST]
 ${manifest}
 ==================================================
     `;
 }
 
 function main(): void {
+    // claude 不需要特殊的json，直接输出文本即可
     try {
         const injectedPrompt = loadMemory();
-        const payload: SessionStartResponse = {
-            additionalContext: injectedPrompt
-        };
-        process.stdout.write(JSON.stringify(payload));
+        process.stdout.write(injectedPrompt);
     } catch (err) {
-        const fallback: SessionStartResponse = { additionalContext: "" };
-        process.stdout.write(JSON.stringify(fallback));
+        process.stdout.write("Failed to load memory.");
     }
     process.exit(0);
 }
