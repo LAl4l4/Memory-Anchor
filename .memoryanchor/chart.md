@@ -14,7 +14,7 @@
 - /src/core/config.ts: Source code module.
 - /src/core/context.ts: Source code module.
 - /src/core/parser-loader.ts: Source code module.
-- /src/hooks/past-session.ts: Source code module.
+- /src/hooks/post-session.ts: Source code module.
 - /src/hooks/pre-session.ts: Source code module.
 - /src/hooks/types.ts: Source code module.
 - /src/index.ts: Main entry gate and routing aggregator for this directory.
@@ -111,12 +111,13 @@
 ### /src/core/parser-loader.ts
 - export function loadLanguage()
 
-### /src/hooks/past-session.ts
+### /src/hooks/post-session.ts
 - function logToUser()
 - function captureGitChanges()
 - function updateManifest()
 - function cleanBallastRules()
 - function sanitizeBallast()
+- function refreshChart()
 - function main()
 
 ### /src/hooks/pre-session.ts
@@ -166,4 +167,12 @@
 
 ### /tests/test-src/sample.ts
 - export function add()
+
+
+### /.memoryanchor/chart.md
+
+### /src/utils/sample.ts
+- export function buildGreeting()
+
+### /.memoryanchor/registry.json
 

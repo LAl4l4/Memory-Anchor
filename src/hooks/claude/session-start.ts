@@ -1,10 +1,15 @@
 #!/usr/bin/env node
 import * as fs from 'fs';
 import * as path from 'path';
-import { SessionStartResponse } from './types.js';
 
+/**
+ * sessionStart 钩子必须返回的响应体格式
+ */
+interface SessionStartResponse {
+    additionalContext: string;
+}
 
-const cwd = process.cwd(); // 用户运行命令的目录
+const cwd = process.cwd();
 const ANCHOR_PATH = path.join(cwd, '.memoryanchor');
 const CHART_PATH = path.join(ANCHOR_PATH, 'chart.md');
 const BALLAST_PATH = path.join(ANCHOR_PATH, 'ballast.md');
@@ -34,38 +39,34 @@ function loadMemory(): string {
             - Urgent Status: Some developer-enforced limits inside the [2. BALLAST RULES] section are currently flagged with '[STALE]'.
             - Your Action Required: These rules are likely obsolete due to recent code changes. You MUST evaluate and directly rewrite '.memoryanchor/ballast.md' to DELETE any invalid stale rules during this session.
             `;
-        }
+    }
 
-        // 💡 优化点 2：主干逻辑只负责总起，绝不自我嵌套
-        return `
-    ==================================================
-    [MEMORY ANCHOR: CONTEXT INJECTED]
-    System Status: Active.
-    Target: Assist the developer by ensuring all generated code aligns with local repository constraints.
+    return `
+==================================================
+[MEMORY ANCHOR: CONTEXT INJECTED]
+System Status: Active.
+Target: Assist the developer by ensuring all generated code aligns with local repository constraints.
 
-    ${taskSection}
+${taskSection}
 
-    [1. PROJECT CHART]
-    ${chart}
+[1. PROJECT CHART]
+${chart}
 
-    [2. BALLAST RULES]
-    ${ballastStr}
+[2. BALLAST RULES]
+${ballastStr}
 
-    [3. MISSION MANIFEST]
-    ${manifest}
-    ==================================================
+[3. MISSION MANIFEST]
+${manifest}
+==================================================
     `;
 }
 
 function main(): void {
     try {
         const injectedPrompt = loadMemory();
-        
         const payload: SessionStartResponse = {
             additionalContext: injectedPrompt
         };
-        
-        // Output the clean JSON protocol to stdout
         process.stdout.write(JSON.stringify(payload));
     } catch (err) {
         const fallback: SessionStartResponse = { additionalContext: "" };

@@ -13,3 +13,8 @@ node_modules/
 .vscode
 .vscode/*
 .memoryanchor
+.codegraph
+.codegraph/*
+.claude
+.wolf
+CLAUDE.md

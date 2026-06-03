@@ -1,10 +1,28 @@
 # Memory Anchor
 
-Memory Anchor is a Copilot CLI scaffold that saves tokens and improves long-term memory and cold-start time.
+**Memory Anchor** is a lightweight, local context scaffolding tool engineered for the AI-native coding era (GitHub Copilot, Claude Code, Cline, etc.). 
 
-The workflow revolves around a small set of files in `./.memoryanchor/`: a chart of the repository structure and exports, a ballast file for constraints and rules, and a manifest that captures ongoing and completed work. Pre-session hooks read these files to build the context payload; post-session hooks update the manifest/ballast and incrementally refresh the chart based on git changes.
+By maintaining a compact set of incremental metadata anchors directly within your repository, Memory Anchor drastically slashes LLM token consumption, eliminates context drift (the "Lost in the Middle" problem), and cuts down cold-start latencies in long-lived agent sessions.
 
-For AI behavior rules (what to read first and what to update at the end), see the `AGENTS.md` file created by `anchor init`.
+### 🔥 Key Features
+- 🪙 **Token Optimization**: Prevents AI agents from mindlessly rescanning your entire codebase. It feeds them precise, compact code signatures instead.
+- 🧠 **Long-Term Memory (Ballast)**: Persists repository-specific design constraints, architectural decisions, and "lessons learned" across sessions so your AI never repeats the same mistakes.
+- 📅 **State Synchronization (Manifest)**: Automatically synchronizes a cross-session TODO/DONE board, allowing AI agents to seamlessly resume work exactly where you left off.
+- 🔄 **Automated Lifecycle Hooks**: Seamless pre/post-session integration. Automatically injects compact payloads on session start, and incrementally refreshes the codebase chart based on Git diffs upon session end.
+
+---
+
+## 🧭 How It Works
+
+Memory Anchor operates via lightweight lifecycle hooks that orchestrate a tight loop between your source code, Git state, and the AI's system instructions:
+
+```text
+[Start Session] ──> sessionStart Hook ──> Aggregates Chart + Ballast + Manifest ──> Injects Compact Payload
+                                                                                              │
+                                                                                   [AI Co-Pilot Coding]
+                                                                                              │
+[End Session]   <──  sessionEnd Hook  <──  Incremental Git Diff Analysis  <───────────────────┘
+```
 
 ## Requirements
 - Node.js >= 18
@@ -14,6 +32,13 @@ For AI behavior rules (what to read first and what to update at the end), see th
 npm install -g memory-anchor
 anchor init
 ```
+
+## Extra Commands
+```bash
+anchor init-copilot 
+anchor init-claude
+```
+Used to initialize a specific agent.
 
 ## CLI Commands
 ### `anchor init`

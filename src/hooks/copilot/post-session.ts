@@ -1,10 +1,8 @@
 #!/usr/bin/env node
 import * as fs from 'fs';
 import * as path from 'path';
-import { execSync } from 'child_process';
-import { GitChange } from './types.js';
-import { buildChartFull, updateChartIncrementally } from '../core/build-chart.js';
-
+import { captureGitChanges, GitChange } from '../../utils/captureGitChanges.js';
+import { buildChartFull } from '../../core/build-chart.js';
 
 const cwd = process.cwd(); // 用户运行命令的目录
 const ANCHOR_PATH = path.join(cwd, '.memoryanchor');
@@ -17,24 +15,6 @@ void CHART_PATH; // make the linter silent about unused variables
  */
 function logToUser(message: string, colorCode: string = '36'): void {
     process.stderr.write(`\x1b[${colorCode}m[Memory Anchor] ${message}\x1b[0m\n`);
-}
-
-function captureGitChanges(): GitChange[] | null {
-    try {
-        const gitStatus = execSync('git status --porcelain', { encoding: 'utf-8' }).trim();
-        if (!gitStatus) return null;
-
-        return gitStatus.split('\n').map((line): GitChange => {
-            const trimmed = line.trim();
-            const parts = trimmed.split(/\s+/);
-            return {
-                status: parts[0],
-                file: parts[1]
-            };
-        });
-    } catch (e) {
-        return null;
-    }
 }
 
 /**
@@ -156,16 +136,6 @@ function sanitizeBallast(): void {
     );
 }
 
-async function refreshChart(changes: GitChange[] | null): Promise<void> {
-    if (!changes || changes.length === 0) {
-        await buildChartFull();
-        return;
-    }
-
-    const changedPaths = changes.map(c => c.file);
-    await updateChartIncrementally(changedPaths);
-}
-
 async function main(): Promise<void> {
     const changes = captureGitChanges();
     if (changes && changes.length > 0) {
@@ -174,8 +144,8 @@ async function main(): Promise<void> {
         sanitizeBallast();
     }
 
-    await refreshChart(changes);
-    
+    buildChartFull();  // Run full chart rebuild to ensure the sequence of files
+
     process.exit(0);
 }
 

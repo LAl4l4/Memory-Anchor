@@ -1,378 +1,48 @@
-import type { CAC } from 'cac';
-import { createReadStream } from 'node:fs';
-import { access, appendFile, mkdir, readFile, writeFile } from 'node:fs/promises';
-import path from 'node:path';
-import { createInterface } from 'node:readline';
+/**
+ * @file init.ts — Command entry point
+ *
+ * The `init` command runs the common init (initPublic) plus both Copilot
+ * and Claude specific setups in a single invocation.
+ *
+ * Standalone commands for each platform:
+ *   `init-copilot` — Copilot-only setup
+ *   `init-claude`  — Claude-only setup
+ */
+
+import { CAC } from 'cac';
 import type { CommandContext } from '../core/context.js';
-import { buildChartFull } from '../core/build-chart.js';
-
-interface HookCommand {
-  type: 'command';
-  bash: string;
-  powershell: string;
-  timeoutSec: number;
-}
-
-interface HooksConfig {
-  version?: number;
-  hooks?: {
-    sessionStart?: HookCommand[];
-    sessionEnd?: HookCommand[];
-    [key: string]: unknown;
-  };
-  [key: string]: unknown;
-}
-
-interface WorkspacePaths {
-  memoryAnchorDir: string;
-  chartPath: string;
-  ballastPath: string;
-  manifestPath: string;
-  hooksDir: string;
-  hookPath: string;
-  agentsPath: string;
-  copilotInstructionsPath: string;
-  gitignorePath: string;
-}
-
-const REQUIRED_HOOKS: Record<'sessionStart' | 'sessionEnd', HookCommand> = {
-  sessionStart: {
-    type: 'command',
-    bash: "memoryanchor-pre",
-    powershell: "memoryanchor-pre",
-    timeoutSec: 10
-  },
-  sessionEnd: {
-    type: 'command',
-    bash: "memoryanchor-post",
-    powershell: "memoryanchor-post",
-    timeoutSec: 10
-  }
-};
-
-const AGENTS_CONTENT = `# AGENTS
-
-## Memory Anchor Rules
-- Required memory files:
-  - ./.memoryanchor/chart.md
-  - ./.memoryanchor/ballast.md
-  - ./.memoryanchor/manifest.md
-- chart.md will injected in automatically, do not read it.
-- Only open repository files when the chart is insufficient.
-- Must follow all rules in ballast.md.
-- At the end of a session, update TODO/DONE entries in manifest.md.
-
-For '.memoryanchor/ballast.md':
-Keep only valid rules. Delete obsolete ones.
-Use one line per rule with exact format:
-'- [ ] Rule content'
-## Memory Anchor Ends
-`;
-
-const COPILOT_INSTRUCTIONS_LINE =
-  '- Follow `AGENTS.md` for Memory Anchor rules.';
-const GITIGNORE_ENTRY = '.memoryanchor';
-const BALLAST_DEFAULT_RULE = '- [ ] Follow AGENTS.md rules.';
-const BALLAST_DEFAULT_CONTENT = `${BALLAST_DEFAULT_RULE}\n`;
-const MANIFEST_DEFAULT_CONTENT = '## Todo:\n\n## Done:\n';
+import { initPublic } from './initHelper/initPublic.js';
+import { copilotSetup } from './initHelper/initCopilot.js';
+import { claudeSetup } from './initHelper/initClaude.js';
+import { initCopilotCommand } from './initHelper/initCopilot.js';
+import { initClaudeCommand } from './initHelper/initClaude.js';
 
 export function initCommand(cli: CAC, context: CommandContext): void {
-  cli.command('init', 'Initialize CopilotWolf workspace').action(async () => {
-    const paths = getWorkspacePaths(process.cwd());
+  // Combined init — runs public + Copilot + Claude
+  cli.command('init', 'Initialize Memory Anchor (Copilot + Claude)').action(async () => {
+    const cwd = process.cwd();
 
-    await ensureWorkspaceDirectories(paths);
+    const common = await initPublic(cwd);
+    const copilot = await copilotSetup(cwd);
+    const claude = await claudeSetup(cwd);
 
-    const gitignoreUpdated = await ensureGitignore(paths);
-    const anchorFilesCreated = await ensureAnchorFiles(paths);
-    const hooksUpdated = await ensureHookConfig(paths);
-    const agentsCreated = await ensureAgentsFile(paths);
-    const instructionsUpdated = await ensureCopilotInstructions(paths);
-    await buildChartFull();
+    const anythingUpdated =
+      common.gitignoreUpdated ||
+      common.anchorFilesCreated ||
+      common.agentsCreated ||
+      copilot.hooksUpdated ||
+      copilot.instructionsUpdated ||
+      claude.settingsUpdated ||
+      claude.claudeMdUpdated;
 
-    if (
-      gitignoreUpdated ||
-      anchorFilesCreated ||
-      hooksUpdated ||
-      agentsCreated ||
-      instructionsUpdated
-    ) {
-      context.logger.info(
-        'Memory anchor initialized in ./.memoryanchor and ./.github'
-      );
+    if (anythingUpdated) {
+      context.logger.info('Memory anchor initialized for Copilot and Claude');
     } else {
-      context.logger.info(
-        'Memory anchor already exists in ./.memoryanchor and ./.github'
-      );
+      context.logger.info('Memory anchor already exists for Copilot and Claude');
     }
   });
-}
 
-function getWorkspacePaths(cwd: string): WorkspacePaths {
-  const memoryAnchorDir = path.join(cwd, '.memoryanchor');
-  const hooksDir = path.join(cwd, '.github', 'hooks');
-
-  return {
-    memoryAnchorDir,
-    chartPath: path.join(memoryAnchorDir, 'chart.md'),
-    ballastPath: path.join(memoryAnchorDir, 'ballast.md'),
-    manifestPath: path.join(memoryAnchorDir, 'manifest.md'),
-    hooksDir,
-    hookPath: path.join(hooksDir, 'memory-anchor.json'),
-    agentsPath: path.join(cwd, 'AGENTS.md'),
-    copilotInstructionsPath: path.join(cwd, '.github', 'copilot-instructions.md'),
-    gitignorePath: path.join(cwd, '.gitignore')
-  };
-}
-
-async function ensureWorkspaceDirectories(paths: WorkspacePaths): Promise<void> {
-  await mkdir(paths.memoryAnchorDir, { recursive: true });
-  await mkdir(paths.hooksDir, { recursive: true });
-}
-
-async function ensureAnchorFiles(paths: WorkspacePaths): Promise<boolean> {
-  const chartCreated = await ensureFile(paths.chartPath);
-  const ballastCreated = await ensureFile(
-    paths.ballastPath,
-    BALLAST_DEFAULT_CONTENT
-  );
-  const manifestCreated = await ensureFile(
-    paths.manifestPath,
-    MANIFEST_DEFAULT_CONTENT
-  );
-
-  return chartCreated || ballastCreated || manifestCreated;
-}
-
-async function ensureAgentsFile(paths: WorkspacePaths): Promise<boolean> {
-  return ensureFileWithAppend(paths.agentsPath, AGENTS_CONTENT);
-}
-
-async function ensureCopilotInstructions(
-  paths: WorkspacePaths
-): Promise<boolean> {
-  const exists = await fileExists(paths.copilotInstructionsPath);
-  if (!exists) {
-    const contents = `# Copilot Instructions\n\n${COPILOT_INSTRUCTIONS_LINE}\n`;
-    await appendFile(paths.copilotInstructionsPath, contents);
-    return true;
-  }
-
-  if (await fileContainsLine(paths.copilotInstructionsPath, COPILOT_INSTRUCTIONS_LINE)) {
-    return false;
-  }
-
-  await appendFile(
-    paths.copilotInstructionsPath,
-    `\n\n${COPILOT_INSTRUCTIONS_LINE}\n`
-  );
-  return true;
-}
-
-async function ensureGitignore(paths: WorkspacePaths): Promise<boolean> {
-  const exists = await fileExists(paths.gitignorePath);
-  if (!exists) {
-    await appendFile(paths.gitignorePath, `${GITIGNORE_ENTRY}\n`);
-    return true;
-  }
-
-  if (await fileContainsLine(paths.gitignorePath, GITIGNORE_ENTRY)) {
-    return false;
-  }
-
-  await appendFile(paths.gitignorePath, `\n${GITIGNORE_ENTRY}\n`);
-  return true;
-}
-
-async function ensureHookConfig(paths: WorkspacePaths): Promise<boolean> {
-  const exists = await fileExists(paths.hookPath);
-  if (!exists) {
-    const config: HooksConfig = {
-      version: 1,
-      hooks: {
-        sessionStart: [REQUIRED_HOOKS.sessionStart],
-        sessionEnd: [REQUIRED_HOOKS.sessionEnd]
-      }
-    };
-    await writeJsonFile(paths.hookPath, config);
-    return true;
-  }
-
-  const config = await readJsonFile<HooksConfig>(paths.hookPath);
-  const updated = registerHooks(config);
-
-  if (updated) {
-    await writeJsonFile(paths.hookPath, config);
-  }
-
-  return updated;
-}
-
-function registerHooks(config: HooksConfig): boolean {
-  let updated = false;
-
-  if (config.version == null) {
-    config.version = 1;
-    updated = true;
-  }
-
-  if (!config.hooks) {
-    config.hooks = {};
-    updated = true;
-  }
-
-  updated =
-    ensureHookEntry(config.hooks, 'sessionStart', REQUIRED_HOOKS.sessionStart) ||
-    updated;
-  updated =
-    ensureHookEntry(config.hooks, 'sessionEnd', REQUIRED_HOOKS.sessionEnd) ||
-    updated;
-
-  return updated;
-}
-
-function ensureHookEntry(
-  hooks: HooksConfig['hooks'],
-  key: 'sessionStart' | 'sessionEnd',
-  entry: HookCommand
-): boolean {
-  if (!hooks) {
-    throw new Error('Hook configuration is missing the hooks object.');
-  }
-
-  const existing = hooks[key];
-  if (existing === undefined) {
-    hooks[key] = [entry];
-    return true;
-  }
-
-  if (!Array.isArray(existing)) {
-    throw new Error(`Hook list "${key}" must be an array.`);
-  }
-
-  if (existing.some((item) => isSameHook(item, entry))) {
-    return false;
-  }
-
-  existing.push(entry);
-  return true;
-}
-
-function isSameHook(left: HookCommand, right: HookCommand): boolean {
-  return (
-    left.type === right.type &&
-    left.bash === right.bash &&
-    left.powershell === right.powershell &&
-    left.timeoutSec === right.timeoutSec
-  );
-}
-
-async function fileExists(filePath: string): Promise<boolean> {
-  try {
-    await access(filePath);
-    return true;
-  } catch (error) {
-    if (error instanceof Error && 'code' in error) {
-      const { code } = error as NodeJS.ErrnoException;
-      if (code === 'ENOENT') {
-        return false;
-      }
-    }
-    throw error;
-  }
-}
-
-async function readJsonFile<T>(filePath: string): Promise<T> {
-  const contents = await readFile(filePath, 'utf8');
-  return JSON.parse(contents) as T;
-}
-
-async function writeJsonFile(filePath: string, data: unknown): Promise<void> {
-  const contents = `${JSON.stringify(data, null, 2)}\n`;
-  await writeFile(filePath, contents);
-}
-
-async function ensureFile(filePath: string, content = ''): Promise<boolean> {
-  try {
-    await access(filePath);
-    return false;
-  } catch (error) {
-    if (error instanceof Error && 'code' in error) {
-      const { code } = error as NodeJS.ErrnoException;
-      if (code === 'ENOENT') {
-        await appendFile(filePath, content);
-        return true;
-      }
-    }
-    throw error;
-  }
-}
-
-async function ensureFileWithAppend(
-  filePath: string,
-  content: string
-): Promise<boolean> {
-  const normalizedContent = content.trimEnd();
-  const exists = await fileExists(filePath);
-  if (!exists) {
-    await appendFile(filePath, `${normalizedContent}\n`);
-    return true;
-  }
-
-  if (await fileContains(filePath, normalizedContent)) {
-    return false;
-  }
-
-  await appendFile(filePath, `\n\n${normalizedContent}\n`);
-  return true;
-}
-
-async function fileContainsLine(
-  filePath: string,
-  lineValue: string
-): Promise<boolean> {
-  const stream = createReadStream(filePath, { encoding: 'utf8' });
-  const rl = createInterface({ input: stream, crlfDelay: Infinity });
-
-  try {
-    for await (const line of rl) {
-      if (line.trim() === lineValue) {
-        rl.close();
-        stream.destroy();
-        return true;
-      }
-    }
-  } finally {
-    rl.close();
-  }
-
-  return false;
-}
-
-async function fileContains(filePath: string, needle: string): Promise<boolean> {
-  if (needle.length === 0) {
-    return true;
-  }
-
-  return await new Promise<boolean>((resolve, reject) => {
-    const stream = createReadStream(filePath, { encoding: 'utf8' });
-    let buffer = '';
-    let found = false;
-
-    stream.on('data', (chunk) => {
-      buffer += chunk;
-      if (buffer.includes(needle)) {
-        found = true;
-        stream.destroy();
-        return;
-      }
-
-      const keepLength = Math.max(needle.length - 1, 0);
-      if (buffer.length > keepLength) {
-        buffer = keepLength > 0 ? buffer.slice(-keepLength) : '';
-      }
-    });
-
-    stream.on('error', (error) => reject(error));
-    stream.on('close', () => resolve(found));
-  });
+  // Standalone commands for individual platforms
+  initCopilotCommand(cli, context);
+  initClaudeCommand(cli, context);
 }
