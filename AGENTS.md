@@ -4,7 +4,7 @@
   - ./.memoryanchor/chart.md
   - ./.memoryanchor/ballast.md
   - ./.memoryanchor/manifest.md
-- Always read chart.md before accessing any repository files.
+- Significant! Always read chart.md before accessing any repository files.
 - Only open repository files when the chart is insufficient.
 - Must follow all rules in ballast.md.
 - After each turn, update TODO/DONE entries in manifest.md.

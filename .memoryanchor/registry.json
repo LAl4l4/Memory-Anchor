@@ -26,5 +26,25 @@
   "README.md": {
     "mtime": 1780484496909.5798,
     "content": ""
+  },
+  "src/commands/initHelper/initCodex.ts": {
+    "mtime": 1780577462852.721,
+    "content": "- interface CodexHookCommand\n- interface CodexHookEntry\n- interface CodexHooksConfig\n- interface CodexPaths\n- export interface CodexSetupResult\n- function getCodexPaths()\n- function ensureCodexHooks()\n- function registerCodexHooks()\n- function ensureCodexHookEntry()\n- export function codexSetup()\n- export function initCodexCommand()"
+  },
+  "src/commands/initHelper/initPublic.ts": {
+    "mtime": 1780577849800.078,
+    "content": "- export interface HookCommand\n- export function fileExists()\n- export function readJsonFile()\n- export function writeJsonFile()\n- export function ensureFile()\n- export function ensureFileWithAppend()\n- export function fileContainsLine()\n- export function fileContains()\n- export function ensureGitignore()\n- export function ensureAnchorFiles()\n- export function ensureAgentsFile()\n- export function ensureWorkspaceDirectories()\n- export interface BasePaths\n- export function getBasePaths()\n- export interface InitPublicResult\n- export function initPublic()"
+  },
+  "src/hooks/claude/session-end.ts": {
+    "mtime": 1780578071568.8623,
+    "content": "- function logToUser()\n- function updateManifest()\n- function cleanBallastRules()\n- function sanitizeBallast()\n- function main()"
+  },
+  "src/hooks/codex/session-end.ts": {
+    "mtime": 1780578071568.6729,
+    "content": "- function logToUser()\n- function updateManifest()\n- function cleanBallastRules()\n- function sanitizeBallast()\n- function main()"
+  },
+  "src/hooks/copilot/post-session.ts": {
+    "mtime": 1780578071569.0225,
+    "content": "- function logToUser()\n- function updateManifest()\n- function cleanBallastRules()\n- function sanitizeBallast()\n- function main()"
   }
 }

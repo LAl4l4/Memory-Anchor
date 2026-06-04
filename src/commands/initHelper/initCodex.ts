@@ -28,9 +28,9 @@ interface CodexHookEntry {
 
 interface CodexHooksConfig {
   hooks?: {
-    sessionStart?: CodexHookEntry[];
-    sessionEnd?: CodexHookEntry[];
-    stop?: CodexHookEntry[];
+    SessionStart?: CodexHookEntry[];
+    SessionEnd?: CodexHookEntry[];
+    Stop?: CodexHookEntry[];
   };
   [key: string]: unknown;
 }
@@ -50,7 +50,7 @@ export interface CodexSetupResult {
 
 const CODEX_START_HOOK: CodexHookEntry = {
   matcher: '',
-  hooks: [{ type: 'command', command: 'memoryanchor-codex-pre', timeout: 5 }],
+  hooks: [{ type: 'command', command: 'memoryanchor-codex-pre', timeout: 10 }],
 };
 
 const CODEX_STOP_HOOK: CodexHookEntry = {
@@ -90,9 +90,9 @@ async function ensureCodexHooks(paths: CodexPaths): Promise<boolean> {
   if (!exists) {
     const config: CodexHooksConfig = {
       hooks: {
-        sessionStart: [CODEX_START_HOOK],
-        stop: [CODEX_STOP_HOOK],
-        sessionEnd: [CODEX_END_HOOK],
+        SessionStart: [CODEX_START_HOOK],
+        Stop: [CODEX_STOP_HOOK],
+        SessionEnd: [CODEX_END_HOOK],
       }
     };
     await writeJsonFile(paths.hooksConfigPath, config);
@@ -112,16 +112,16 @@ async function ensureCodexHooks(paths: CodexPaths): Promise<boolean> {
 function registerCodexHooks(config: CodexHooksConfig): boolean {
   let updated = false;
 
-  updated = ensureCodexHookEntry(config, 'sessionStart', CODEX_START_HOOK) || updated;
-  updated = ensureCodexHookEntry(config, 'stop', CODEX_STOP_HOOK) || updated;
-  updated = ensureCodexHookEntry(config, 'sessionEnd', CODEX_END_HOOK) || updated;
+  updated = ensureCodexHookEntry(config, 'SessionStart', CODEX_START_HOOK) || updated;
+  updated = ensureCodexHookEntry(config, 'Stop', CODEX_STOP_HOOK) || updated;
+  updated = ensureCodexHookEntry(config, 'SessionEnd', CODEX_END_HOOK) || updated;
 
   return updated;
 }
 
 function ensureCodexHookEntry(
   config: CodexHooksConfig,
-  key: 'sessionStart' | 'stop' | 'sessionEnd',
+  key: 'SessionStart' | 'Stop' | 'SessionEnd',
   entry: CodexHookEntry,
 ): boolean {
   if (config.hooks === undefined) {

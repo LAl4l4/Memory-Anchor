@@ -39,7 +39,7 @@ release:
 	@echo "📤 [5/6] 正在推送代码及所有 Tags 到远程分支 ($(BRANCH))..."
 	git push origin $(BRANCH) --tags
 	
-	@echo "🌐 [6/6] 正在发布到 npm 镜像源..."
+	@echo "🌐 [6/6] 正在发布到 npm ..."
 	npm publish
 	
 	@echo "✨ [DONE] 所有的工作都做完了！这次绝对一路绿灯！"

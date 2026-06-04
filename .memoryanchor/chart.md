@@ -96,7 +96,6 @@
 - function ensureCodexHookEntry()
 - export function codexSetup()
 - export function initCodexCommand()
-
 ### /src/commands/initHelper/initCopilot.ts
 - interface CopilotHooksConfig
 - interface CopilotPaths
@@ -127,7 +126,6 @@
 - export function getBasePaths()
 - export interface InitPublicResult
 - export function initPublic()
-
 ### /src/commands/status.ts
 - export function statusCommand()
 
@@ -170,7 +168,6 @@
 - function cleanBallastRules()
 - function sanitizeBallast()
 - function main()
-
 ### /src/hooks/claude/session-start.ts
 - function loadMemory()
 - function main()
@@ -185,7 +182,6 @@
 - function cleanBallastRules()
 - function sanitizeBallast()
 - function main()
-
 ### /src/hooks/codex/session-start.ts
 - function loadMemory()
 - function main()
@@ -204,7 +200,6 @@
 - function cleanBallastRules()
 - function sanitizeBallast()
 - function main()
-
 ### /src/hooks/copilot/pre-session.ts
 - interface SessionStartResponse
 - function loadMemory()
