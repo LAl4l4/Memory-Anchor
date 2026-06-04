@@ -423,6 +423,7 @@ export async function updateChartIncrementally(changedFiles: string[]): Promise<
     }
 }
 
+// async, must await
 export async function buildChartFull(): Promise<void> {
     logToUser("Compiling repository architecture into LLM-Native Chart...", "36");
 

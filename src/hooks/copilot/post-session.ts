@@ -144,9 +144,9 @@ async function main(): Promise<void> {
         sanitizeBallast();
     }
 
-    buildChartFull();  // Run full chart rebuild to ensure the sequence of files
+    await buildChartFull();  // Run full chart rebuild to ensure the sequence of files
 
     process.exit(0);
 }
 
-void main();
+main();

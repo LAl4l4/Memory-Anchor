@@ -25,7 +25,6 @@
 - /src/hooks/copilot/post-session.ts: Source code module.
 - /src/hooks/copilot/pre-session.ts: Source code module.
 - /src/index.ts: Main entry gate and routing aggregator for this directory.
-- /src/test-stop-hook.ts: Automated test suites and verification scripts.
 - /src/types.ts: Source code module.
 - /src/utils/captureGitChanges.ts: Source code module.
 - /src/utils/ext-to-lang.ts: Source code module.
@@ -116,13 +115,13 @@
 - export function ensureParserInit()
 - interface WorkspacePaths
 - function resolveWorkspacePaths()
-- interface FileExport
+- interface FileSymbol
 - interface FileNode
 - function logToUser()
 - export function parseFileArchitecture()
 - function extractSymbols()
 - function getExportInfo()
-- function formatExport()
+- function formatSymbol()
 - function getNodeName()
 - function findIdentifier()
 - function generateTreeSkeleton()
@@ -134,6 +133,7 @@
 - function writeChart()
 - export function updateChartIncrementally()
 - export function buildChartFull()
+
 ### /src/core/config.ts
 - export interface AppConfig
 - export function createDefaultConfig()
@@ -218,12 +218,4 @@
 
 ### /tests/test-src/sample.ts
 - export function add()
-
-
-### /.memoryanchor/chart.md
-
-### /.memoryanchor/registry.json
-
-
-### /README.md
 

@@ -97,6 +97,7 @@ async function ensureClaudeSettings(paths: ClaudePaths): Promise<boolean> {
       hooks: {
         SessionStart: [CLAUDE_START_HOOK],
         Stop: [CLAUDE_STOP_HOOK],
+        SessionEnd: [CLAUDE_END_HOOK],
       },
     };
     await writeJsonFile(paths.claudeSettingsPath, config);

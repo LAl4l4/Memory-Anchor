@@ -14,7 +14,10 @@
     "memoryanchor-copilot-stop": "dist/hooks/copilot/agent-stop.js",
     "memoryanchor-claude-pre": "dist/hooks/claude/session-start.js",
     "memoryanchor-claude-post": "dist/hooks/claude/session-end.js",
-    "memoryanchor-claude-stop": "dist/hooks/claude/stop.js"
+    "memoryanchor-claude-stop": "dist/hooks/claude/stop.js",
+    "memoryanchor-codex-pre": "dist/hooks/codex/session-start.js",
+    "memoryanchor-codex-post": "dist/hooks/codex/session-end.js",
+    "memoryanchor-codex-stop": "dist/hooks/codex/stop.js"
   },
   "files": [
     "dist/",

@@ -101,7 +101,7 @@ function sanitizeBallast(): void {
     logToUser(`Ballast normalized (${unique.length} rules)`, "35");
 }
 
-function main(): void {
+async function main(): Promise<void> {
     const changes = captureGitChanges();
     if (changes && changes.length > 0) {
         updateManifest(changes);
@@ -110,7 +110,7 @@ function main(): void {
     }
 
     // Run full chart rebuild to ensure the sequence of files
-    buildChartFull();  
+    await buildChartFull();  
 
     process.exit(0);
 }
