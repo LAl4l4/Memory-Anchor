@@ -86,6 +86,7 @@
 
 ### /src/commands/initHelper/initCodex.ts
 - interface CodexHookCommand
+- interface CodexHookEntry
 - interface CodexHooksConfig
 - interface CodexPaths
 - export interface CodexSetupResult

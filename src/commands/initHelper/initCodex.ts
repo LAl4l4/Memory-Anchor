@@ -89,9 +89,11 @@ async function ensureCodexHooks(paths: CodexPaths): Promise<boolean> {
   const exists = await fileExists(paths.hooksConfigPath);
   if (!exists) {
     const config: CodexHooksConfig = {
-      sessionStart: [CODEX_START_HOOK],
-      stop: [CODEX_STOP_HOOK],
-      sessionEnd: [CODEX_END_HOOK],
+      hooks: {
+        sessionStart: [CODEX_START_HOOK],
+        stop: [CODEX_STOP_HOOK],
+        sessionEnd: [CODEX_END_HOOK],
+      }
     };
     await writeJsonFile(paths.hooksConfigPath, config);
     return true;
@@ -123,7 +125,11 @@ function ensureCodexHookEntry(
   entry: CodexHookEntry,
 ): boolean {
   if (config.hooks === undefined) {
-    config.hooks = { [key]: [entry] };
+    config.hooks = {};
+  }
+
+  if (config.hooks[key] === undefined) {
+    config.hooks[key] = [entry];
     return true;
   }
 
