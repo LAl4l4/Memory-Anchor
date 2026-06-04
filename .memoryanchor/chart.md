@@ -28,6 +28,9 @@
 - /src/hooks/copilot/agent-stop.ts: Source code module.
 - /src/hooks/copilot/post-session.ts: Source code module.
 - /src/hooks/copilot/pre-session.ts: Source code module.
+- /src/hooks/public/sessionEndPublic.ts: Source code module.
+- /src/hooks/public/sessionStartPublic.ts: Source code module.
+- /src/hooks/public/stopPublic.ts: Source code module.
 - /src/index.ts: Main entry gate and routing aggregator for this directory.
 - /src/types.ts: Source code module.
 - /src/utils/captureGitChanges.ts: Source code module.
@@ -96,6 +99,7 @@
 - function ensureCodexHookEntry()
 - export function codexSetup()
 - export function initCodexCommand()
+
 ### /src/commands/initHelper/initCopilot.ts
 - interface CopilotHooksConfig
 - interface CopilotPaths
@@ -126,6 +130,7 @@
 - export function getBasePaths()
 - export interface InitPublicResult
 - export function initPublic()
+
 ### /src/commands/status.ts
 - export function statusCommand()
 
@@ -162,48 +167,22 @@
 ### /src/core/parser-loader.ts
 - export function loadLanguage()
 
-### /src/hooks/claude/session-end.ts
-- function logToUser()
-- function updateManifest()
-- function cleanBallastRules()
-- function sanitizeBallast()
-- function main()
-### /src/hooks/claude/session-start.ts
-- function loadMemory()
-- function main()
-
-### /src/hooks/claude/stop.ts
-- function refreshChart()
-- function main()
-
-### /src/hooks/codex/session-end.ts
-- function logToUser()
-- function updateManifest()
-- function cleanBallastRules()
-- function sanitizeBallast()
-- function main()
-### /src/hooks/codex/session-start.ts
-- function loadMemory()
-- function main()
-
-### /src/hooks/codex/stop.ts
-- function refreshChart()
-- function main()
-
-### /src/hooks/copilot/agent-stop.ts
-- function refreshChart()
-- function main()
-
-### /src/hooks/copilot/post-session.ts
-- function logToUser()
-- function updateManifest()
-- function cleanBallastRules()
-- function sanitizeBallast()
-- function main()
 ### /src/hooks/copilot/pre-session.ts
 - interface SessionStartResponse
-- function loadMemory()
-- function main()
+
+### /src/hooks/public/sessionEndPublic.ts
+- function logToUser()
+- export function updateManifest()
+- export function cleanBallastRules()
+- export function sanitizeBallast()
+- export function runSessionEnd()
+
+### /src/hooks/public/sessionStartPublic.ts
+- export function loadMemoryCore()
+
+### /src/hooks/public/stopPublic.ts
+- function refreshChart()
+- export function runStop()
 
 ### /src/index.ts
 - export function runCli()

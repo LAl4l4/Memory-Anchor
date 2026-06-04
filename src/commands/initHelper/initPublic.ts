@@ -31,8 +31,7 @@ export const BALLAST_DEFAULT_RULE =
 `
 - [ ] Important! Always check the chart.md before accessing any repositpory files. Only open files when the chart is insufficient. This is the single most important rule to follow.
 - [ ] Follow AGENTS.md rules.
-- [ ] Do not repeat yourself.
-`;
+- [ ] Do not repeat yourself.`;
 export const BALLAST_DEFAULT_CONTENT = `${BALLAST_DEFAULT_RULE}\n`;
 export const MANIFEST_DEFAULT_CONTENT = '## Todo:\n\n## Done:\n';
 
