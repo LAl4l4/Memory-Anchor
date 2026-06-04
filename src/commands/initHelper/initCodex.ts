@@ -16,14 +16,22 @@ import {
 // =============================================================================
 
 interface CodexHookCommand {
+  type: 'command';
   command: string;
   timeout: number;
 }
 
+interface CodexHookEntry {
+  matcher: string;
+  hooks: CodexHookCommand[];
+}
+
 interface CodexHooksConfig {
-  sessionStart?: CodexHookCommand[];
-  sessionEnd?: CodexHookCommand[];
-  stop?: CodexHookCommand[];
+  hooks?: {
+    sessionStart?: CodexHookEntry[];
+    sessionEnd?: CodexHookEntry[];
+    stop?: CodexHookEntry[];
+  };
   [key: string]: unknown;
 }
 
@@ -40,19 +48,19 @@ export interface CodexSetupResult {
 // Codex-Specific Constants
 // =============================================================================
 
-const CODEX_START_HOOK: CodexHookCommand = {
-  command: 'memoryanchor-codex-pre',
-  timeout: 5,
+const CODEX_START_HOOK: CodexHookEntry = {
+  matcher: '',
+  hooks: [{ type: 'command', command: 'memoryanchor-codex-pre', timeout: 5 }],
 };
 
-const CODEX_STOP_HOOK: CodexHookCommand = {
-  command: 'memoryanchor-codex-stop',
-  timeout: 10,
+const CODEX_STOP_HOOK: CodexHookEntry = {
+  matcher: '',
+  hooks: [{ type: 'command', command: 'memoryanchor-codex-stop', timeout: 10 }],
 };
 
-const CODEX_END_HOOK: CodexHookCommand = {
-  command: 'memoryanchor-codex-post',
-  timeout: 10,
+const CODEX_END_HOOK: CodexHookEntry = {
+  matcher: '',
+  hooks: [{ type: 'command', command: 'memoryanchor-codex-post', timeout: 10 }],
 };
 
 // =============================================================================
@@ -111,29 +119,29 @@ function registerCodexHooks(config: CodexHooksConfig): boolean {
 
 function ensureCodexHookEntry(
   config: CodexHooksConfig,
-  key: string,
-  entry: CodexHookCommand,
+  key: 'sessionStart' | 'stop' | 'sessionEnd',
+  entry: CodexHookEntry,
 ): boolean {
-  const existing = config[key];
-  if (existing === undefined) {
-    config[key] = [entry];
+  if (config.hooks === undefined) {
+    config.hooks = { [key]: [entry] };
     return true;
   }
 
-  if (!Array.isArray(existing)) {
+  if (!Array.isArray(config.hooks[key])) {
     throw new Error(`Hook list "${key}" must be an array.`);
   }
 
   // Check if a memoryanchor hook with the same command already exists
-  const alreadyExists = existing.some(
-    (hookCmd) => hookCmd.command === entry.command,
+  const alreadyExists = config.hooks[key]?.some(
+    (hookEntry) =>
+      hookEntry.hooks?.some((cmd: CodexHookCommand) => cmd.command === entry.hooks[0].command),
   );
 
   if (alreadyExists) {
     return false;
   }
 
-  existing.push(entry);
+  config.hooks[key].push(entry);
   return true;
 }
 

@@ -31,6 +31,7 @@ interface ClaudeHooksConfig {
   hooks?: {
     SessionStart?: ClaudeHookEntry[];
     Stop?: ClaudeHookEntry[];
+    SessionEnd?: ClaudeHookEntry[];
     [key: string]: unknown;
   };
   [key: string]: unknown;

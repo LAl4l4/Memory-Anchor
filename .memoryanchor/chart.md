@@ -11,6 +11,7 @@
 - /src/commands/index.ts: Main entry gate and routing aggregator for this directory.
 - /src/commands/init.ts: Source code module.
 - /src/commands/initHelper/initClaude.ts: Source code module.
+- /src/commands/initHelper/initCodex.ts: Source code module.
 - /src/commands/initHelper/initCopilot.ts: Source code module.
 - /src/commands/initHelper/initPublic.ts: Source code module.
 - /src/commands/status.ts: Source code module.
@@ -21,6 +22,9 @@
 - /src/hooks/claude/session-end.ts: Source code module.
 - /src/hooks/claude/session-start.ts: Source code module.
 - /src/hooks/claude/stop.ts: Source code module.
+- /src/hooks/codex/session-end.ts: Source code module.
+- /src/hooks/codex/session-start.ts: Source code module.
+- /src/hooks/codex/stop.ts: Source code module.
 - /src/hooks/copilot/agent-stop.ts: Source code module.
 - /src/hooks/copilot/post-session.ts: Source code module.
 - /src/hooks/copilot/pre-session.ts: Source code module.
@@ -32,7 +36,10 @@
 - /src/utils/wasmbuilder.ts: Source code module.
 - /tests/init-ballast.test.js: Automated test suites and verification scripts.
 - /tests/init-chart.test.js: Automated test suites and verification scripts.
+- /tests/init-claude.test.js: Automated test suites and verification scripts.
+- /tests/init-copilot.test.js: Automated test suites and verification scripts.
 - /tests/init-manifest.test.js: Automated test suites and verification scripts.
+- /tests/init-public.test.js: Automated test suites and verification scripts.
 - /tests/test-src/Sample.java: Automated test suites and verification scripts.
 - /tests/test-src/sample.c: Automated test suites and verification scripts.
 - /tests/test-src/sample.js: Automated test suites and verification scripts.
@@ -76,6 +83,18 @@
 - function ensureClaudeMd()
 - export function claudeSetup()
 - export function initClaudeCommand()
+
+### /src/commands/initHelper/initCodex.ts
+- interface CodexHookCommand
+- interface CodexHooksConfig
+- interface CodexPaths
+- export interface CodexSetupResult
+- function getCodexPaths()
+- function ensureCodexHooks()
+- function registerCodexHooks()
+- function ensureCodexHookEntry()
+- export function codexSetup()
+- export function initCodexCommand()
 
 ### /src/commands/initHelper/initCopilot.ts
 - interface CopilotHooksConfig
@@ -159,6 +178,21 @@
 - function refreshChart()
 - function main()
 
+### /src/hooks/codex/session-end.ts
+- function logToUser()
+- function updateManifest()
+- function cleanBallastRules()
+- function sanitizeBallast()
+- function main()
+
+### /src/hooks/codex/session-start.ts
+- function loadMemory()
+- function main()
+
+### /src/hooks/codex/stop.ts
+- function refreshChart()
+- function main()
+
 ### /src/hooks/copilot/agent-stop.ts
 - function refreshChart()
 - function main()
@@ -197,8 +231,17 @@
 - function cleanupAnchor()
 - function seedFixtures()
 
+### /tests/init-claude.test.js
+- function runInitClaude()
+
+### /tests/init-copilot.test.js
+- function runInitCopilot()
+
 ### /tests/init-manifest.test.js
 - function runInit()
+
+### /tests/init-public.test.js
+- function runInitClaude()
 
 ### /tests/test-src/Sample.java
 - class Sample
