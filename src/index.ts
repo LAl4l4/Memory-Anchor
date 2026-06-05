@@ -1,11 +1,14 @@
 import cac from 'cac';
 import { registerBuiltInCommands } from './commands/index.js';
+import { getVersion } from './commands/version.js';
 import { createDefaultConfig } from './core/config.js';
 import { logger } from './utils/logger.js';
 
 export async function runCli(argv: string[]): Promise<void> {
   const cli = cac('memory-anchor');
   const context = { config: createDefaultConfig(), logger };
+
+  cli.version(`v${getVersion()}`);
 
   const showScaffoldHelp = (withUsage: boolean): void => {
     context.logger.info('Memory Anchor CLI scaffold is ready.');

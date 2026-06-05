@@ -40,6 +40,7 @@
 - /tests/init-ballast.test.js: Automated test suites and verification scripts.
 - /tests/init-chart.test.js: Automated test suites and verification scripts.
 - /tests/init-claude.test.js: Automated test suites and verification scripts.
+- /tests/init-codex.test.js: Automated test suites and verification scripts.
 - /tests/init-copilot.test.js: Automated test suites and verification scripts.
 - /tests/init-manifest.test.js: Automated test suites and verification scripts.
 - /tests/init-public.test.js: Automated test suites and verification scripts.
@@ -69,10 +70,8 @@
 ## 2. Key Architecture Nodes
 ### /src/commands/index.ts
 - export function registerBuiltInCommands()
-
 ### /src/commands/init.ts
 - export function initCommand()
-
 ### /src/commands/initHelper/initClaude.ts
 - interface ClaudeHookCommand
 - interface ClaudeHookEntry
@@ -130,10 +129,9 @@
 - export function getBasePaths()
 - export interface InitPublicResult
 - export function initPublic()
-
 ### /src/commands/status.ts
+- function fileExists()
 - export function statusCommand()
-
 ### /src/core/build-chart.ts
 - export function ensureParserInit()
 - interface WorkspacePaths
@@ -186,7 +184,6 @@
 
 ### /src/index.ts
 - export function runCli()
-
 ### /src/utils/captureGitChanges.ts
 - interface GitChange
 - function captureGitChanges()
@@ -209,6 +206,8 @@
 ### /tests/init-claude.test.js
 - function runInitClaude()
 
+### /tests/init-codex.test.js
+- function runInitCodex()
 ### /tests/init-copilot.test.js
 - function runInitCopilot()
 
@@ -216,8 +215,7 @@
 - function runInit()
 
 ### /tests/init-public.test.js
-- function runInitClaude()
-
+- function runInitPublic()
 ### /tests/test-src/Sample.java
 - class Sample
 - function add()
@@ -237,3 +235,10 @@
 ### /tests/test-src/sample.ts
 - export function add()
 
+
+### /src/commands/version.ts
+- export function getVersion()
+- export function versionCommand()
+
+### /tests/status.test.js
+- function runStatus()

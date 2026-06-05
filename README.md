@@ -53,6 +53,8 @@ anchor init
 ```bash
 anchor init-copilot 
 anchor init-claude
+anchor init-codex
+anchor init-public
 ```
 Used to initialize a specific agent.
 
@@ -69,6 +71,7 @@ Initializes a workspace by creating:
 ## Hooks
 The init command registers hooks in `./.github/hooks/memory-anchor.json`:
 - **sessionStart**: runs `.memoryanchor/dist/pre-session.js`
+- **agentStop**: runs after a turn finished.
 - **sessionEnd**: runs `.memoryanchor/dist/post-session.js`
 
 These hooks are expected to read/write the Memory Anchor files above. The build-chart logic generates the project chart, and the post-session hook updates the manifest/ballast and refreshes the chart every session (incremental when git changes exist).

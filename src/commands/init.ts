@@ -47,6 +47,18 @@ export function initCommand(cli: CAC, context: CommandContext): void {
     }
   });
 
+  // Standalone public init — runs only the common steps
+  cli.command('init-public', 'Initialize Memory Anchor (public/common steps only)').action(async () => {
+    const cwd = process.cwd();
+    const common = await initPublic(cwd);
+
+    if (common.gitignoreUpdated || common.anchorFilesCreated || common.agentsCreated) {
+      context.logger.info('Memory anchor public files initialized');
+    } else {
+      context.logger.info('Memory anchor public files already exist');
+    }
+  });
+
   // Standalone commands for individual platforms
   initCopilotCommand(cli, context);
   initClaudeCommand(cli, context);
