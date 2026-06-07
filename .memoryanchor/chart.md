@@ -11,10 +11,13 @@
 - /src/commands/index.ts: Main entry gate and routing aggregator for this directory.
 - /src/commands/init.ts: Source code module.
 - /src/commands/initHelper/initClaude.ts: Source code module.
+- /src/commands/initHelper/initCodebuddy.ts: Source code module.
 - /src/commands/initHelper/initCodex.ts: Source code module.
 - /src/commands/initHelper/initCopilot.ts: Source code module.
+- /src/commands/initHelper/initOpencode.ts: Source code module.
 - /src/commands/initHelper/initPublic.ts: Source code module.
 - /src/commands/status.ts: Source code module.
+- /src/commands/version.ts: Source code module.
 - /src/core/build-chart.ts: Source code module.
 - /src/core/config.ts: Source code module.
 - /src/core/context.ts: Source code module.
@@ -22,12 +25,18 @@
 - /src/hooks/claude/session-end.ts: Source code module.
 - /src/hooks/claude/session-start.ts: Source code module.
 - /src/hooks/claude/stop.ts: Source code module.
+- /src/hooks/codebuddy/session-end.ts: Source code module.
+- /src/hooks/codebuddy/session-start.ts: Source code module.
+- /src/hooks/codebuddy/stop.ts: Source code module.
 - /src/hooks/codex/session-end.ts: Source code module.
 - /src/hooks/codex/session-start.ts: Source code module.
 - /src/hooks/codex/stop.ts: Source code module.
 - /src/hooks/copilot/agent-stop.ts: Source code module.
 - /src/hooks/copilot/post-session.ts: Source code module.
 - /src/hooks/copilot/pre-session.ts: Source code module.
+- /src/hooks/opencode/session-end.ts: Source code module.
+- /src/hooks/opencode/session-start.ts: Source code module.
+- /src/hooks/opencode/stop.ts: Source code module.
 - /src/hooks/public/sessionEndPublic.ts: Source code module.
 - /src/hooks/public/sessionStartPublic.ts: Source code module.
 - /src/hooks/public/stopPublic.ts: Source code module.
@@ -43,7 +52,9 @@
 - /tests/init-codex.test.js: Automated test suites and verification scripts.
 - /tests/init-copilot.test.js: Automated test suites and verification scripts.
 - /tests/init-manifest.test.js: Automated test suites and verification scripts.
+- /tests/init-opencode.test.js: Automated test suites and verification scripts.
 - /tests/init-public.test.js: Automated test suites and verification scripts.
+- /tests/status.test.js: Automated test suites and verification scripts.
 - /tests/test-src/Sample.java: Automated test suites and verification scripts.
 - /tests/test-src/sample.c: Automated test suites and verification scripts.
 - /tests/test-src/sample.js: Automated test suites and verification scripts.
@@ -70,8 +81,10 @@
 ## 2. Key Architecture Nodes
 ### /src/commands/index.ts
 - export function registerBuiltInCommands()
+
 ### /src/commands/init.ts
 - export function initCommand()
+
 ### /src/commands/initHelper/initClaude.ts
 - interface ClaudeHookCommand
 - interface ClaudeHookEntry
@@ -85,6 +98,20 @@
 - function ensureClaudeMd()
 - export function claudeSetup()
 - export function initClaudeCommand()
+
+### /src/commands/initHelper/initCodebuddy.ts
+- interface CodebuddyHookCommand
+- interface CodebuddyHookEntry
+- interface CodebuddyHooksConfig
+- interface CodebuddyPaths
+- export interface CodebuddySetupResult
+- function getCodebuddyPaths()
+- function ensureCodebuddySettings()
+- function registerCodebuddyHooks()
+- function ensureCodebuddyHookEntry()
+- function ensureCodebuddyMd()
+- export function codebuddySetup()
+- export function initCodebuddyCommand()
 
 ### /src/commands/initHelper/initCodex.ts
 - interface CodexHookCommand
@@ -112,6 +139,17 @@
 - export function copilotSetup()
 - export function initCopilotCommand()
 
+### /src/commands/initHelper/initOpencode.ts
+- interface OpencodeConfig
+- interface OpencodePaths
+- export interface OpencodeSetupResult
+- function getOpencodePaths()
+- function ensurePluginFile()
+- function ensureOpencodeConfig()
+- function mergeOpencodeConfig()
+- export function opencodeSetup()
+- export function initOpencodeCommand()
+
 ### /src/commands/initHelper/initPublic.ts
 - export interface HookCommand
 - export function fileExists()
@@ -129,9 +167,15 @@
 - export function getBasePaths()
 - export interface InitPublicResult
 - export function initPublic()
+
 ### /src/commands/status.ts
 - function fileExists()
 - export function statusCommand()
+
+### /src/commands/version.ts
+- export function getVersion()
+- export function versionCommand()
+
 ### /src/core/build-chart.ts
 - export function ensureParserInit()
 - interface WorkspacePaths
@@ -184,6 +228,7 @@
 
 ### /src/index.ts
 - export function runCli()
+
 ### /src/utils/captureGitChanges.ts
 - interface GitChange
 - function captureGitChanges()
@@ -208,14 +253,22 @@
 
 ### /tests/init-codex.test.js
 - function runInitCodex()
+
 ### /tests/init-copilot.test.js
 - function runInitCopilot()
 
 ### /tests/init-manifest.test.js
 - function runInit()
 
+### /tests/init-opencode.test.js
+- function runInitOpencode()
+
 ### /tests/init-public.test.js
 - function runInitPublic()
+
+### /tests/status.test.js
+- function runStatus()
+
 ### /tests/test-src/Sample.java
 - class Sample
 - function add()
@@ -235,10 +288,3 @@
 ### /tests/test-src/sample.ts
 - export function add()
 
-
-### /src/commands/version.ts
-- export function getVersion()
-- export function versionCommand()
-
-### /tests/status.test.js
-- function runStatus()

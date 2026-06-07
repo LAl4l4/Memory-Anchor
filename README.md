@@ -54,6 +54,7 @@ anchor init
 anchor init-copilot 
 anchor init-claude
 anchor init-codex
+anchor init-opencode
 anchor init-public
 ```
 Used to initialize a specific agent.
@@ -67,6 +68,12 @@ Initializes a workspace by creating:
 - `./AGENTS.md` (AI behavior rules and memory workflow)
 - `./.github/hooks/memory-anchor.json` (hook entry for pre/post session)
 - `./.github/copilot-instructions.md` (points Copilot to AGENTS.md)
+- `./opencode.json` + `./.opencode/plugins/memory-anchor.js` (OpenCode plugin + AGENTS.md wired into `instructions`)
+
+### `anchor init-opencode`
+OpenCode-only setup. Creates:
+- `./.opencode/plugins/memory-anchor.js` — a plugin that subscribes to `session.idle` / `session.deleted` / `tool.execute.after` and invokes the `memoryanchor-opencode-{pre,stop,post}` hooks.
+- `./opencode.json` — adds `AGENTS.md` + the three anchor files to the `instructions` array so the LLM sees them on every turn. Existing keys (`model`, `provider`, `mcp`, …) are preserved.
 
 ## Hooks
 The init command registers hooks in `./.github/hooks/memory-anchor.json`:

@@ -1,13 +1,15 @@
 /**
  * @file init.ts — Command entry point
  *
- * The `init` command runs the common init (initPublic) plus both Copilot
- * and Claude specific setups in a single invocation.
+ * The `init` command runs the common init (initPublic) plus all platform
+ * specific setups in a single invocation.
  *
  * Standalone commands for each platform:
- *   `init-copilot` — Copilot-only setup
- *   `init-claude`  — Claude-only setup
- *   `init-codex`   — Codex CLI-only setup
+ *   `init-copilot`   — Copilot-only setup
+ *   `init-claude`    — Claude-only setup
+ *   `init-codex`     — Codex CLI-only setup
+ *   `init-codebuddy` — CodeBuddy Code-only setup
+ *   `init-opencode`  — OpenCode-only setup
  */
 
 import { CAC } from 'cac';
@@ -19,16 +21,22 @@ import { initCopilotCommand } from './initHelper/initCopilot.js';
 import { initClaudeCommand } from './initHelper/initClaude.js';
 import { codexSetup } from './initHelper/initCodex.js';
 import { initCodexCommand } from './initHelper/initCodex.js';
+import { codebuddySetup } from './initHelper/initCodebuddy.js';
+import { initCodebuddyCommand } from './initHelper/initCodebuddy.js';
+import { opencodeSetup } from './initHelper/initOpencode.js';
+import { initOpencodeCommand } from './initHelper/initOpencode.js';
 
 export function initCommand(cli: CAC, context: CommandContext): void {
-  // Combined init — runs public + Copilot + Claude + Codex CLI
-  cli.command('init', 'Initialize Memory Anchor (Copilot + Claude + Codex CLI)').action(async () => {
+  // Combined init — runs public + Copilot + Claude + Codex CLI + CodeBuddy + OpenCode
+  cli.command('init', 'Initialize Memory Anchor (Copilot + Claude + Codex CLI + CodeBuddy + OpenCode)').action(async () => {
     const cwd = process.cwd();
 
     const common = await initPublic(cwd);
     const copilot = await copilotSetup(cwd);
     const claude = await claudeSetup(cwd);
     const codex = await codexSetup(cwd);
+    const codebuddy = await codebuddySetup(cwd);
+    const opencode = await opencodeSetup(cwd);
 
     const anythingUpdated =
       common.gitignoreUpdated ||
@@ -38,12 +46,16 @@ export function initCommand(cli: CAC, context: CommandContext): void {
       copilot.instructionsUpdated ||
       claude.settingsUpdated ||
       claude.claudeMdUpdated ||
-      codex.hooksUpdated;
+      codex.hooksUpdated ||
+      codebuddy.settingsUpdated ||
+      codebuddy.codebuddyMdUpdated ||
+      opencode.pluginWritten ||
+      opencode.configUpdated;
 
     if (anythingUpdated) {
-      context.logger.info('Memory anchor initialized for Copilot, Claude, and Codex CLI');
+      context.logger.info('Memory anchor initialized for Copilot, Claude, Codex CLI, CodeBuddy, and OpenCode');
     } else {
-      context.logger.info('Memory anchor already exists for Copilot, Claude, and Codex CLI');
+      context.logger.info('Memory anchor already exists for Copilot, Claude, Codex CLI, CodeBuddy, and OpenCode');
     }
   });
 
@@ -63,4 +75,6 @@ export function initCommand(cli: CAC, context: CommandContext): void {
   initCopilotCommand(cli, context);
   initClaudeCommand(cli, context);
   initCodexCommand(cli, context);
+  initCodebuddyCommand(cli, context);
+  initOpencodeCommand(cli, context);
 }
