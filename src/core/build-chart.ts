@@ -6,12 +6,27 @@ import { Parser } from "web-tree-sitter";
 import { loadLanguage } from './parser-loader.js';
 import { EXT_TO_LANGUAGE } from '../utils/ext-to-lang.js';
 
+const IGNORED_DIR_NAMES = new Set([
+    'node_modules',
+    '.git',
+    'dist',
+    'build',
+    '.memoryanchor'
+]);
+
+const IGNORED_FILE_NAMES = new Set([
+    'package-lock.json',
+    'pnpm-lock.yaml',
+    'yarn.lock',
+    '.DS_Store'
+]);
+
 const IGNORE_PATTERNS = [
-    'node_modules/**',
-    '.git/**',
-    'dist/**',
-    'build/**',
-    '.memoryanchor/**',
+    '**/node_modules/**',
+    '**/.git/**',
+    '**/dist/**',
+    '**/build/**',
+    '**/.memoryanchor/**',
     'package-lock.json',
     'pnpm-lock.yaml',
     'yarn.lock',
@@ -310,6 +325,15 @@ function generateTreeSkeleton(files: string[]): string {
     return skeletonStr;
 }
 
+function isIgnored(relPath: string): boolean {
+    const normalized = relPath.split(path.sep).join('/');
+    const segments = normalized.split('/');
+    for (const segment of segments) {
+        if (IGNORED_DIR_NAMES.has(segment)) return true;
+    }
+    return IGNORED_FILE_NAMES.has(segments[segments.length - 1]);
+}
+
 function listProjectFiles(): string[] {
     return globSync('**/*', {
         cwd: PROJECT_ROOT,
@@ -363,6 +387,9 @@ function writeChart(content: string): void {
 
 // 增量逻辑核心：只处理给定的文件列表
 export async function updateChartIncrementally(changedFiles: string[]): Promise<void> {
+    const files = changedFiles.filter((f) => !isIgnored(f));
+    if (files.length === 0) return;
+
     const registryPath = path.join(ANCHOR_DIR, 'registry.json');
     let registry = fs.existsSync(registryPath) 
         ? JSON.parse(fs.readFileSync(registryPath, 'utf-8')) 
@@ -371,7 +398,7 @@ export async function updateChartIncrementally(changedFiles: string[]): Promise<
     let chartContent = fs.readFileSync(CHART_PATH, 'utf-8');
     let hasUpdated = false;
 
-    for (const file of changedFiles) {
+    for (const file of files) {
         const absPath = path.join(PROJECT_ROOT, file);
         if (!fs.existsSync(absPath)) {
             // 文件被删除了：从 Chart 中彻底移除该块

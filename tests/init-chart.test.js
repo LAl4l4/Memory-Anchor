@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, expect, test } from '@jest/globals';
-import { copyFile, mkdtemp, mkdir, readFile, rm } from 'node:fs/promises';
+import { copyFile, mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -126,5 +126,67 @@ test('updateChartIncrementally adds fixture nodes and registry', async () => {
 
   for (const relPath of incrementalRelPaths) {
     expect(registry[relPath]).toBeDefined();
+  }
+});
+
+test('buildChartFull ignores build directories at any depth', async () => {
+  const ignoredDirs = [
+    path.join(tempDir, 'build'),
+    path.join(tempDir, 'packages', 'foo', 'build'),
+    path.join(tempDir, 'src', 'build')
+  ];
+  for (const dir of ignoredDirs) {
+    await mkdir(dir, { recursive: true });
+    await writeFile(
+      path.join(dir, 'ignored.ts'),
+      'export function shouldBeHidden() {}\n'
+    );
+  }
+
+  await buildChartFull();
+
+  const chartContent = await readFile(chartPath, 'utf8');
+  const normalizedChart = chartContent.replace(/\\/g, '/');
+
+  expect(normalizedChart).not.toContain('build/ignored.ts');
+  expect(normalizedChart).not.toContain('packages/foo/build/ignored.ts');
+  expect(normalizedChart).not.toContain('src/build/ignored.ts');
+  expect(normalizedChart).not.toContain('shouldBeHidden');
+});
+
+test('updateChartIncrementally skips files inside build directories', async () => {
+  await buildChartFull();
+
+  const ignored = [
+    'build/ignored.ts',
+    'packages/foo/build/ignored.ts',
+    'src/build/ignored.ts'
+  ];
+  const realFile = 'tests/test-src/real.ts';
+  for (const rel of ignored) {
+    const abs = path.join(tempDir, rel);
+    await mkdir(path.dirname(abs), { recursive: true });
+    await writeFile(abs, 'export function shouldBeHidden() {}\n');
+  }
+  await writeFile(
+    path.join(tempDir, realFile),
+    'export function shouldShow() {}\n'
+  );
+
+  await updateChartIncrementally([...ignored, realFile]);
+
+  const chartContent = await readFile(chartPath, 'utf8');
+  const normalizedChart = chartContent.replace(/\\/g, '/');
+
+  for (const rel of ignored) {
+    expect(normalizedChart).not.toContain(`### /${rel}`);
+    expect(normalizedChart).not.toContain(`- /${rel}:`);
+  }
+  expect(normalizedChart).not.toContain('shouldBeHidden');
+
+  const registryRaw = await readFile(registryPath, 'utf8');
+  const registry = JSON.parse(registryRaw);
+  for (const rel of ignored) {
+    expect(registry[rel]).toBeUndefined();
   }
 });

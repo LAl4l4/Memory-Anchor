@@ -7,6 +7,7 @@
 - /LICENSE: Source code module.
 - /Makefile: Source code module.
 - /README.md: Local documentation asset.
+- /opencode.json: Source code module.
 - /package.json: Project manifest, dependency definitions, and entry scripts.
 - /src/cli.ts: Source code module.
 - /src/commands/index.ts: Main entry gate and routing aggregator for this directory.
@@ -192,6 +193,7 @@
 - function getNodeName()
 - function findIdentifier()
 - function generateTreeSkeleton()
+- function isIgnored()
 - function listProjectFiles()
 - function buildSkeletonSection()
 - function buildNodesSection()
@@ -200,7 +202,6 @@
 - function writeChart()
 - export function updateChartIncrementally()
 - export function buildChartFull()
-
 ### /src/core/config.ts
 - export interface AppConfig
 - export function createDefaultConfig()
@@ -249,7 +250,6 @@
 - function getNodeBlock()
 - function cleanupAnchor()
 - function seedFixtures()
-
 ### /tests/init-claude.test.js
 - function runInitClaude()
 
