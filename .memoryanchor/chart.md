@@ -3,6 +3,7 @@
 ## 1. Directory Skeleton
 - /AGENTS.md: Local documentation asset.
 - /CLAUDE.md: Local documentation asset.
+- /CODEBUDDY.md: Local documentation asset.
 - /LICENSE: Source code module.
 - /Makefile: Source code module.
 - /README.md: Local documentation asset.
@@ -49,6 +50,7 @@
 - /tests/init-ballast.test.js: Automated test suites and verification scripts.
 - /tests/init-chart.test.js: Automated test suites and verification scripts.
 - /tests/init-claude.test.js: Automated test suites and verification scripts.
+- /tests/init-codebuddy.test.js: Automated test suites and verification scripts.
 - /tests/init-codex.test.js: Automated test suites and verification scripts.
 - /tests/init-copilot.test.js: Automated test suites and verification scripts.
 - /tests/init-manifest.test.js: Automated test suites and verification scripts.
@@ -250,6 +252,9 @@
 
 ### /tests/init-claude.test.js
 - function runInitClaude()
+
+### /tests/init-codebuddy.test.js
+- function runInitCodebuddy()
 
 ### /tests/init-codex.test.js
 - function runInitCodex()

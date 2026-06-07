@@ -5,17 +5,7 @@
 BRANCH := $(shell git rev-parse --abbrev-ref HEAD)
 VERSION ?= patch
 
-# 🧙‍♂️ 核心魔法：提取输入的第二个参数
-# 当你输入 `make patch "feat: 修复登录 Bug"` 时：
-# 第一个参数是 patch，第二个参数就是整个双引号里的句子
-RAW_MSG := $(word 2,$(MAKECMDGOALS))
-
-# 如果没传第二个参数，就用默认的 Commit 信息
-ifeq ($(RAW_MSG),)
-    MSG := chore: save work before release
-else
-    MSG := $(RAW_MSG)
-endif
+MSG ?= chore: save work before release
 
 .PHONY: patch minor major release
 
