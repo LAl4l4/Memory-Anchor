@@ -13,7 +13,7 @@
  */
 
 import { CAC } from 'cac';
-import type { CommandContext } from '../core/context.js';
+import type { CommandContext } from '../types.js';
 import { initPublic } from './initHelper/initPublic.js';
 import { copilotSetup } from './initHelper/initCopilot.js';
 import { claudeSetup } from './initHelper/initClaude.js';

@@ -1,7 +1,8 @@
 import { CAC } from 'cac';
 import path from 'node:path';
 import { mkdir } from 'node:fs/promises';
-import type { CommandContext } from '../../core/context.js';
+import type { CommandContext } from '../../types.js';
+import { HOOK_COMMANDS } from '../../constant.js';
 import {
   type BasePaths,
   getBasePaths,
@@ -50,17 +51,17 @@ export interface CodexSetupResult {
 
 const CODEX_START_HOOK: CodexHookEntry = {
   matcher: '',
-  hooks: [{ type: 'command', command: 'memoryanchor-codex-pre', timeout: 10 }],
+  hooks: [{ type: 'command', command: HOOK_COMMANDS.CODEX_PRE, timeout: 10 }],
 };
 
 const CODEX_STOP_HOOK: CodexHookEntry = {
   matcher: '',
-  hooks: [{ type: 'command', command: 'memoryanchor-codex-stop', timeout: 10 }],
+  hooks: [{ type: 'command', command: HOOK_COMMANDS.CODEX_STOP, timeout: 10 }],
 };
 
 const CODEX_END_HOOK: CodexHookEntry = {
   matcher: '',
-  hooks: [{ type: 'command', command: 'memoryanchor-codex-post', timeout: 10 }],
+  hooks: [{ type: 'command', command: HOOK_COMMANDS.CODEX_POST, timeout: 10 }],
 };
 
 // =============================================================================

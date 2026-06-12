@@ -5,6 +5,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { GITIGNORE_ENTRY, ANCHOR_DIR_NAME, CHART_FILE_NAME, BALLAST_FILE_NAME, MANIFEST_FILE_NAME } from '../dist/constant.js';
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, '..');
@@ -40,7 +42,7 @@ afterEach(async () => {
 test('creates .memoryanchor directory', async () => {
   await runInitPublic(tempDir);
 
-  const anchorDir = path.join(tempDir, '.memoryanchor');
+  const anchorDir = path.join(tempDir, ANCHOR_DIR_NAME);
   const stat = await import('node:fs/promises').then((fs) => fs.stat(anchorDir));
   expect(stat.isDirectory()).toBe(true);
 });
@@ -49,21 +51,21 @@ test('creates .gitignore with .memoryanchor entry', async () => {
   await runInitPublic(tempDir);
 
   const gitignore = await readFile(path.join(tempDir, '.gitignore'), 'utf8');
-  expect(gitignore).toContain('.memoryanchor');
+  expect(gitignore).toContain(ANCHOR_DIR_NAME);
 });
 
 test('creates ballast.md with default rules', async () => {
   await runInitPublic(tempDir);
 
-  const ballast = await readFile(path.join(tempDir, '.memoryanchor', 'ballast.md'), 'utf8');
+  const ballast = await readFile(path.join(tempDir, ANCHOR_DIR_NAME, BALLAST_FILE_NAME), 'utf8');
   expect(ballast).toContain('- [ ] Follow AGENTS.md rules.');
-  expect(ballast).toContain('- [ ] Do not repeat yourself.');
+  expect(ballast).toContain('Do not rebuild a function');
 });
 
 test('creates manifest.md with Todo and Done sections', async () => {
   await runInitPublic(tempDir);
 
-  const manifest = await readFile(path.join(tempDir, '.memoryanchor', 'manifest.md'), 'utf8');
+  const manifest = await readFile(path.join(tempDir, ANCHOR_DIR_NAME, MANIFEST_FILE_NAME), 'utf8');
   expect(manifest).toContain('## Todo:');
   expect(manifest).toContain('## Done:');
 });
@@ -79,7 +81,7 @@ test('creates AGENTS.md with memory anchor rules', async () => {
 test('creates and populates chart.md', async () => {
   await runInitPublic(tempDir);
 
-  const chart = await readFile(path.join(tempDir, '.memoryanchor', 'chart.md'), 'utf8');
+  const chart = await readFile(path.join(tempDir, ANCHOR_DIR_NAME, CHART_FILE_NAME), 'utf8');
   expect(chart).toContain('# PROJECT CHART');
 });
 
@@ -87,16 +89,18 @@ test('re-running does not duplicate ballast rules', async () => {
   await runInitPublic(tempDir);
   await runInitPublic(tempDir);
 
-  const ballast = await readFile(path.join(tempDir, '.memoryanchor', 'ballast.md'), 'utf8');
+  const ballast = await readFile(path.join(tempDir, ANCHOR_DIR_NAME, BALLAST_FILE_NAME), 'utf8');
   const matches = ballast.match(/Follow AGENTS\.md rules\./g);
   expect(matches).toHaveLength(1);
 });
 
-test('re-running does not duplicate .gitignore entry', async () => {
+test('re-running does not duplicate .gitignore entries', async () => {
   await runInitPublic(tempDir);
   await runInitPublic(tempDir);
 
   const gitignore = await readFile(path.join(tempDir, '.gitignore'), 'utf8');
-  const lines = gitignore.split('\n').filter((l) => l.trim() === '.memoryanchor');
-  expect(lines).toHaveLength(1);
+  GITIGNORE_ENTRY.forEach((entry) => {
+    const lines = gitignore.split('\n').filter((l) => l.trim() === entry);
+    expect(lines).toHaveLength(1);
+  });
 });

@@ -6,6 +6,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { ANCHOR_DIR_NAME, CHART_FILE_NAME, BALLAST_FILE_NAME, MANIFEST_FILE_NAME } from '../dist/constant.js';
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, '..');
@@ -49,20 +51,20 @@ test('shows Not initialized status when no anchor files exist', async () => {
 });
 
 test('shows Active status when all anchor files exist', async () => {
-  const anchorDir = path.join(tempDir, '.memoryanchor');
+  const anchorDir = path.join(tempDir, ANCHOR_DIR_NAME);
   await mkdir(anchorDir, { recursive: true });
-  await writeFile(path.join(anchorDir, 'chart.md'), '# chart');
-  await writeFile(path.join(anchorDir, 'ballast.md'), '- [ ] rule');
-  await writeFile(path.join(anchorDir, 'manifest.md'), '## Todo');
+  await writeFile(path.join(anchorDir, CHART_FILE_NAME), '# chart');
+  await writeFile(path.join(anchorDir, BALLAST_FILE_NAME), '- [ ] rule');
+  await writeFile(path.join(anchorDir, MANIFEST_FILE_NAME), '## Todo');
 
   const stdout = await runStatus(tempDir);
   expect(stdout).toContain('Status:     Active');
 });
 
 test('shows Partial status when only some anchor files exist', async () => {
-  const anchorDir = path.join(tempDir, '.memoryanchor');
+  const anchorDir = path.join(tempDir, ANCHOR_DIR_NAME);
   await mkdir(anchorDir, { recursive: true });
-  await writeFile(path.join(anchorDir, 'chart.md'), '# chart');
+  await writeFile(path.join(anchorDir, CHART_FILE_NAME), '# chart');
 
   const stdout = await runStatus(tempDir);
   expect(stdout).toContain('Status:     Partial');
@@ -75,14 +77,14 @@ test('shows CWD matching the working directory', async () => {
 
 test('shows dataDir and indexDir from config', async () => {
   const stdout = await runStatus(tempDir);
-  expect(stdout).toContain('Data Dir:   .memoryanchor');
-  expect(stdout).toContain('Index Dir:  .memoryanchor/index');
+  expect(stdout).toContain(`Data Dir:   ${ANCHOR_DIR_NAME}`);
+  expect(stdout).toContain(`Index Dir:  ${ANCHOR_DIR_NAME}/index`);
 });
 
 test('shows chart.md and ballast.md and manifest.md with check/cross marks', async () => {
-  const anchorDir = path.join(tempDir, '.memoryanchor');
+  const anchorDir = path.join(tempDir, ANCHOR_DIR_NAME);
   await mkdir(anchorDir, { recursive: true });
-  await writeFile(path.join(anchorDir, 'chart.md'), '# chart');
+  await writeFile(path.join(anchorDir, CHART_FILE_NAME), '# chart');
 
   const stdout = await runStatus(tempDir);
 

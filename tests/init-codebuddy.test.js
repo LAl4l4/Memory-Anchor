@@ -5,6 +5,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { HOOK_COMMANDS, AGENTS_ANCHOR_LINE } from '../dist/constant.js';
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, '..');
@@ -45,7 +47,7 @@ test('creates .codebuddy/settings.json with SessionStart hook', async () => {
   );
   expect(settings.hooks.SessionStart).toBeDefined();
   expect(settings.hooks.SessionStart[0].hooks[0].type).toBe('command');
-  expect(settings.hooks.SessionStart[0].hooks[0].command).toBe('memoryanchor-codebuddy-pre');
+  expect(settings.hooks.SessionStart[0].hooks[0].command).toBe(HOOK_COMMANDS.CODEBUDDY_PRE);
 });
 
 test('creates .codebuddy/settings.json with Stop hook', async () => {
@@ -55,7 +57,7 @@ test('creates .codebuddy/settings.json with Stop hook', async () => {
     await readFile(path.join(tempDir, '.codebuddy', 'settings.json'), 'utf8'),
   );
   expect(settings.hooks.Stop).toBeDefined();
-  expect(settings.hooks.Stop[0].hooks[0].command).toBe('memoryanchor-codebuddy-stop');
+  expect(settings.hooks.Stop[0].hooks[0].command).toBe(HOOK_COMMANDS.CODEBUDDY_STOP);
   // Stop event does not have matcher field
   expect(settings.hooks.Stop[0].matcher).toBeUndefined();
 });
@@ -67,14 +69,14 @@ test('creates .codebuddy/settings.json with SessionEnd hook', async () => {
     await readFile(path.join(tempDir, '.codebuddy', 'settings.json'), 'utf8'),
   );
   expect(settings.hooks.SessionEnd).toBeDefined();
-  expect(settings.hooks.SessionEnd[0].hooks[0].command).toBe('memoryanchor-codebuddy-post');
+  expect(settings.hooks.SessionEnd[0].hooks[0].command).toBe(HOOK_COMMANDS.CODEBUDDY_POST);
 });
 
 test('creates CODEBUDDY.md with memory anchor line', async () => {
   await runInitCodebuddy(tempDir);
 
   const codebuddyMd = await readFile(path.join(tempDir, 'CODEBUDDY.md'), 'utf8');
-  expect(codebuddyMd).toContain('- Follow `AGENTS.md` for Memory Anchor rules.');
+  expect(codebuddyMd).toContain(AGENTS_ANCHOR_LINE);
 });
 
 test('existing CODEBUDDY.md content is preserved', async () => {
@@ -86,7 +88,7 @@ test('existing CODEBUDDY.md content is preserved', async () => {
   const content = await readFile(codebuddyMdPath, 'utf8');
   expect(content).toContain('# My Custom Rules');
   expect(content).toContain('Be helpful.');
-  expect(content).toContain('- Follow `AGENTS.md` for Memory Anchor rules.');
+  expect(content).toContain(AGENTS_ANCHOR_LINE);
 });
 
 test('preserves existing settings.json content when adding hooks', async () => {
@@ -133,6 +135,8 @@ test('re-running does not duplicate CODEBUDDY.md anchor line', async () => {
   await runInitCodebuddy(tempDir);
 
   const codebuddyMd = await readFile(path.join(tempDir, 'CODEBUDDY.md'), 'utf8');
-  const matches = codebuddyMd.match(/Follow `AGENTS\.md` for Memory Anchor rules\./g);
+  const escaped = AGENTS_ANCHOR_LINE.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const re = new RegExp(escaped, 'g');
+  const matches = codebuddyMd.match(re);
   expect(matches).toHaveLength(1);
 });

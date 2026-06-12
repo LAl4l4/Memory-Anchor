@@ -5,6 +5,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { ANCHOR_DIR_NAME, BALLAST_FILE_NAME } from '../dist/constant.js';
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, '..');
@@ -40,7 +42,7 @@ afterEach(async () => {
 test('init creates ballast with default rule', async () => {
   await runInit(tempDir);
 
-  const ballastPath = path.join(tempDir, '.memoryanchor', 'ballast.md');
+  const ballastPath = path.join(tempDir, ANCHOR_DIR_NAME, BALLAST_FILE_NAME);
   const ballast = await readFile(ballastPath, 'utf8');
 
   expect(ballast).toContain('- [ ] Follow AGENTS.md rules.');

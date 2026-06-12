@@ -5,6 +5,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { HOOK_COMMANDS } from '../dist/constant.js';
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, '..');
@@ -45,7 +47,7 @@ test('creates .codex/hooks.json with SessionStart hook', async () => {
   );
   expect(hooks.hooks.SessionStart).toBeDefined();
   expect(hooks.hooks.SessionStart[0].hooks[0].type).toBe('command');
-  expect(hooks.hooks.SessionStart[0].hooks[0].command).toBe('memoryanchor-codex-pre');
+  expect(hooks.hooks.SessionStart[0].hooks[0].command).toBe(HOOK_COMMANDS.CODEX_PRE);
   expect(hooks.hooks.SessionStart[0].hooks[0].timeout).toBe(10);
 });
 
@@ -56,7 +58,7 @@ test('creates .codex/hooks.json with Stop hook', async () => {
     await readFile(path.join(tempDir, '.codex', 'hooks.json'), 'utf8'),
   );
   expect(hooks.hooks.Stop).toBeDefined();
-  expect(hooks.hooks.Stop[0].hooks[0].command).toBe('memoryanchor-codex-stop');
+  expect(hooks.hooks.Stop[0].hooks[0].command).toBe(HOOK_COMMANDS.CODEX_STOP);
 });
 
 test('creates .codex/hooks.json with SessionEnd hook', async () => {
@@ -66,7 +68,7 @@ test('creates .codex/hooks.json with SessionEnd hook', async () => {
     await readFile(path.join(tempDir, '.codex', 'hooks.json'), 'utf8'),
   );
   expect(hooks.hooks.SessionEnd).toBeDefined();
-  expect(hooks.hooks.SessionEnd[0].hooks[0].command).toBe('memoryanchor-codex-post');
+  expect(hooks.hooks.SessionEnd[0].hooks[0].command).toBe(HOOK_COMMANDS.CODEX_POST);
 });
 
 test('preserves existing hooks.json content when adding new hooks', async () => {

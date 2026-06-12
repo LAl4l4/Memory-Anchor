@@ -1,8 +1,17 @@
 import cac from 'cac';
 import { registerBuiltInCommands } from './commands/index.js';
 import { getVersion } from './commands/version.js';
-import { createDefaultConfig } from './core/config.js';
+import type { AppConfig } from './types.js';
+import { ANCHOR_DIR_NAME } from './constant.js';
 import { logger } from './utils/logger.js';
+
+function createDefaultConfig(): AppConfig {
+  return {
+    dataDir: ANCHOR_DIR_NAME,
+    indexDir: `${ANCHOR_DIR_NAME}/index`,
+    logLevel: 'info'
+  };
+}
 
 export async function runCli(argv: string[]): Promise<void> {
   const cli = cac('memory-anchor');

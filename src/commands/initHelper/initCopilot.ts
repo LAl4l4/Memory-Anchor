@@ -1,7 +1,8 @@
 import { CAC } from 'cac';
 import path from 'node:path';
 import { appendFile, mkdir } from 'node:fs/promises';
-import type { CommandContext } from '../../core/context.js';
+import type { CommandContext } from '../../types.js';
+import { AGENTS_ANCHOR_LINE, HOOK_COMMANDS } from '../../constant.js';
 import {
   type HookCommand,
   type BasePaths,
@@ -46,26 +47,23 @@ export interface CopilotSetupResult {
 const COPILOT_REQUIRED_HOOKS: Record<'sessionStart' | 'sessionEnd' | 'agentStop', HookCommand> = {
   sessionStart: {
     type: 'command',
-    bash: 'memoryanchor-copilot-pre',
-    powershell: 'memoryanchor-copilot-pre',
+    bash: HOOK_COMMANDS.COPILOT_PRE,
+    powershell: HOOK_COMMANDS.COPILOT_PRE,
     timeoutSec: 10,
   },
   agentStop: {
     type: 'command',
-    bash: 'memoryanchor-copilot-stop',
-    powershell: 'memoryanchor-copilot-stop',
+    bash: HOOK_COMMANDS.COPILOT_STOP,
+    powershell: HOOK_COMMANDS.COPILOT_STOP,
     timeoutSec: 10,
   },
   sessionEnd: {
     type: 'command',
-    bash: 'memoryanchor-copilot-post',
-    powershell: 'memoryanchor-copilot-post',
+    bash: HOOK_COMMANDS.COPILOT_POST,
+    powershell: HOOK_COMMANDS.COPILOT_POST,
     timeoutSec: 10,
   },
 };
-
-const COPILOT_INSTRUCTIONS_LINE =
-  '- Follow `AGENTS.md` for Memory Anchor rules.';
 
 // =============================================================================
 // Copilot Paths
@@ -177,18 +175,18 @@ function isSameHook(left: HookCommand, right: HookCommand): boolean {
 async function ensureCopilotInstructions(paths: CopilotPaths): Promise<boolean> {
   const exists = await fileExists(paths.copilotInstructionsPath);
   if (!exists) {
-    const contents = `# Copilot Instructions\n\n${COPILOT_INSTRUCTIONS_LINE}\n`;
+    const contents = `# Copilot Instructions\n\n${AGENTS_ANCHOR_LINE}\n`;
     await appendFile(paths.copilotInstructionsPath, contents);
     return true;
   }
 
-  if (await fileContainsLine(paths.copilotInstructionsPath, COPILOT_INSTRUCTIONS_LINE)) {
+  if (await fileContainsLine(paths.copilotInstructionsPath, AGENTS_ANCHOR_LINE)) {
     return false;
   }
 
   await appendFile(
     paths.copilotInstructionsPath,
-    `\n\n${COPILOT_INSTRUCTIONS_LINE}\n`,
+    `\n\n${AGENTS_ANCHOR_LINE}\n`,
   );
   return true;
 }

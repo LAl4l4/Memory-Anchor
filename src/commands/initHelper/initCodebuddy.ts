@@ -1,7 +1,8 @@
 import { CAC } from 'cac';
 import path from 'node:path';
 import { appendFile, mkdir } from 'node:fs/promises';
-import type { CommandContext } from '../../core/context.js';
+import type { CommandContext } from '../../types.js';
+import { AGENTS_ANCHOR_LINE, HOOK_COMMANDS } from '../../constant.js';
 import {
   type BasePaths,
   getBasePaths,
@@ -53,18 +54,16 @@ export interface CodebuddySetupResult {
 
 const CODEBUDDY_START_HOOK: CodebuddyHookEntry = {
   matcher: '',
-  hooks: [{ type: 'command', command: 'memoryanchor-codebuddy-pre' }],
+  hooks: [{ type: 'command', command: HOOK_COMMANDS.CODEBUDDY_PRE }],
 };
 
 const CODEBUDDY_STOP_HOOK: CodebuddyHookEntry = {
-  hooks: [{ type: 'command', command: 'memoryanchor-codebuddy-stop' }],
+  hooks: [{ type: 'command', command: HOOK_COMMANDS.CODEBUDDY_STOP }],
 };
 
 const CODEBUDDY_END_HOOK: CodebuddyHookEntry = {
-  hooks: [{ type: 'command', command: 'memoryanchor-codebuddy-post' }],
+  hooks: [{ type: 'command', command: HOOK_COMMANDS.CODEBUDDY_POST }],
 };
-
-const CODEBUDDY_MD_LINE = '- Follow `AGENTS.md` for Memory Anchor rules.';
 
 // =============================================================================
 // CodeBuddy Paths
@@ -163,16 +162,16 @@ function ensureCodebuddyHookEntry(
 async function ensureCodebuddyMd(paths: CodebuddyPaths): Promise<boolean> {
   const exists = await fileExists(paths.codebuddyMdPath);
   if (!exists) {
-    const content = `# Memory Anchor\n\n${CODEBUDDY_MD_LINE}\n`;
+    const content = `# Memory Anchor\n\n${AGENTS_ANCHOR_LINE}\n`;
     await appendFile(paths.codebuddyMdPath, content);
     return true;
   }
 
-  if (await fileContainsLine(paths.codebuddyMdPath, CODEBUDDY_MD_LINE)) {
+  if (await fileContainsLine(paths.codebuddyMdPath, AGENTS_ANCHOR_LINE)) {
     return false;
   }
 
-  await appendFile(paths.codebuddyMdPath, `\n\n${CODEBUDDY_MD_LINE}\n`);
+  await appendFile(paths.codebuddyMdPath, `\n\n${AGENTS_ANCHOR_LINE}\n`);
   return true;
 }
 

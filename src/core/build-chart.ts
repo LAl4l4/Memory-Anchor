@@ -3,34 +3,13 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { globSync } from 'glob';
 import { Parser } from "web-tree-sitter";
-import { loadLanguage } from './parser-loader.js';
+import { loadLanguage, getAvailableParsers } from './parser-loader.js';
 import { EXT_TO_LANGUAGE } from '../utils/ext-to-lang.js';
+import { IGNORED_DIR_NAMES, IGNORED_FILE_NAMES } from '../constant.js';
 
-const IGNORED_DIR_NAMES = new Set([
-    'node_modules',
-    '.git',
-    'dist',
-    'build',
-    '.memoryanchor'
-]);
-
-const IGNORED_FILE_NAMES = new Set([
-    'package-lock.json',
-    'pnpm-lock.yaml',
-    'yarn.lock',
-    '.DS_Store'
-]);
-
-const IGNORE_PATTERNS = [
-    '**/node_modules/**',
-    '**/.git/**',
-    '**/dist/**',
-    '**/build/**',
-    '**/.memoryanchor/**',
-    'package-lock.json',
-    'pnpm-lock.yaml',
-    'yarn.lock',
-    '.DS_Store'
+const IGNORE_PATTERNS: string[] = [
+    ...[...IGNORED_DIR_NAMES].map(dir => `**/${dir}/**`),
+    ...IGNORED_FILE_NAMES,
 ];
 
 let initialized = false;
@@ -101,6 +80,9 @@ export async function parseFileArchitecture(
 
     if (!lang) return fileNode;
 
+    const availableParsers = getAvailableParsers();
+    if (!availableParsers.has(lang)) return fileNode;
+
     try {
         const code = fs.readFileSync(absolutePath, "utf-8");
 
@@ -170,12 +152,12 @@ const TYPE_DECLARATION_TYPES = new Set([
 
 function extractSymbols(node: any, fileNode: FileNode) {
     for (const child of node.children) {
-        const exportInfo = getExportInfo(child, fileNode.language);
-        if (exportInfo) {
-            fileNode.symbols.push(exportInfo);
+        const symbolInfo = getSymbolInfo(child, fileNode.language);
+        if (symbolInfo) {
+            fileNode.symbols.push(symbolInfo);
             // 只有当它是一个函数、接口、枚举或类型声明时，才停止深入子节点
             // 类声明我们允许继续深入，因为它可能包含方法定义，我们也想捕获到
-            if (!CLASS_DECLARATION_TYPES.has(exportInfo.type))
+            if (!CLASS_DECLARATION_TYPES.has(symbolInfo.type))
             continue;
         }
 
@@ -183,7 +165,7 @@ function extractSymbols(node: any, fileNode: FileNode) {
     }
 }
 
-function getExportInfo(node: any, lang: string): FileSymbol | null {
+function getSymbolInfo(node: any, lang: string): FileSymbol | null {
     let isExported = false;
 
     // 针对 JavaScript/TypeScript 的 export 语法进行特殊处理
@@ -222,7 +204,7 @@ function getExportInfo(node: any, lang: string): FileSymbol | null {
     } else if (TYPE_DECLARATION_TYPES.has(node.type)) {
         type = 'type_declaration';
     }
-
+    
     if (isExported) {
         type = 'exported_' + type;
     }

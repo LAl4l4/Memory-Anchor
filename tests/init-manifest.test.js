@@ -5,6 +5,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { ANCHOR_DIR_NAME, MANIFEST_FILE_NAME } from '../dist/constant.js';
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, '..');
@@ -40,7 +42,7 @@ afterEach(async () => {
 test('init creates manifest with empty todo and done sections', async () => {
   await runInit(tempDir);
 
-  const manifestPath = path.join(tempDir, '.memoryanchor', 'manifest.md');
+  const manifestPath = path.join(tempDir, ANCHOR_DIR_NAME, MANIFEST_FILE_NAME);
   const manifest = await readFile(manifestPath, 'utf8');
 
   expect(manifest).toContain('## Todo:');

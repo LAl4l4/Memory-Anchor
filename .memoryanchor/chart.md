@@ -20,10 +20,12 @@
 - /src/commands/initHelper/initPublic.ts: Source code module.
 - /src/commands/status.ts: Source code module.
 - /src/commands/version.ts: Source code module.
+- /src/constant.ts: Source code module.
 - /src/core/build-chart.ts: Source code module.
 - /src/core/config.ts: Source code module.
 - /src/core/context.ts: Source code module.
 - /src/core/parser-loader.ts: Source code module.
+- /src/core/scan-parsers.ts: Source code module.
 - /src/hooks/claude/session-end.ts: Source code module.
 - /src/hooks/claude/session-start.ts: Source code module.
 - /src/hooks/claude/stop.ts: Source code module.
@@ -43,6 +45,7 @@
 - /src/hooks/public/sessionStartPublic.ts: Source code module.
 - /src/hooks/public/stopPublic.ts: Source code module.
 - /src/index.ts: Main entry gate and routing aggregator for this directory.
+- /src/parsers.json: Source code module.
 - /src/types.ts: Source code module.
 - /src/utils/captureGitChanges.ts: Source code module.
 - /src/utils/ext-to-lang.ts: Source code module.
@@ -84,10 +87,8 @@
 ## 2. Key Architecture Nodes
 ### /src/commands/index.ts
 - export function registerBuiltInCommands()
-
 ### /src/commands/init.ts
 - export function initCommand()
-
 ### /src/commands/initHelper/initClaude.ts
 - interface ClaudeHookCommand
 - interface ClaudeHookEntry
@@ -101,7 +102,6 @@
 - function ensureClaudeMd()
 - export function claudeSetup()
 - export function initClaudeCommand()
-
 ### /src/commands/initHelper/initCodebuddy.ts
 - interface CodebuddyHookCommand
 - interface CodebuddyHookEntry
@@ -115,7 +115,6 @@
 - function ensureCodebuddyMd()
 - export function codebuddySetup()
 - export function initCodebuddyCommand()
-
 ### /src/commands/initHelper/initCodex.ts
 - interface CodexHookCommand
 - interface CodexHookEntry
@@ -128,7 +127,6 @@
 - function ensureCodexHookEntry()
 - export function codexSetup()
 - export function initCodexCommand()
-
 ### /src/commands/initHelper/initCopilot.ts
 - interface CopilotHooksConfig
 - interface CopilotPaths
@@ -141,7 +139,6 @@
 - function ensureCopilotInstructions()
 - export function copilotSetup()
 - export function initCopilotCommand()
-
 ### /src/commands/initHelper/initOpencode.ts
 - interface OpencodeConfig
 - interface OpencodePaths
@@ -152,7 +149,6 @@
 - function mergeOpencodeConfig()
 - export function opencodeSetup()
 - export function initOpencodeCommand()
-
 ### /src/commands/initHelper/initPublic.ts
 - export interface HookCommand
 - export function fileExists()
@@ -174,11 +170,9 @@
 ### /src/commands/status.ts
 - function fileExists()
 - export function statusCommand()
-
 ### /src/commands/version.ts
 - export function getVersion()
 - export function versionCommand()
-
 ### /src/core/build-chart.ts
 - export function ensureParserInit()
 - interface WorkspacePaths
@@ -188,7 +182,7 @@
 - function logToUser()
 - export function parseFileArchitecture()
 - function extractSymbols()
-- function getExportInfo()
+- function getSymbolInfo()
 - function formatSymbol()
 - function getNodeName()
 - function findIdentifier()
@@ -202,15 +196,13 @@
 - function writeChart()
 - export function updateChartIncrementally()
 - export function buildChartFull()
-### /src/core/config.ts
-- export interface AppConfig
-- export function createDefaultConfig()
-
-### /src/core/context.ts
-- export interface CommandContext
 
 ### /src/core/parser-loader.ts
+- export function getAvailableParsers()
 - export function loadLanguage()
+
+### /src/core/scan-parsers.ts
+- export function scanAvailableParsers()
 
 ### /src/hooks/copilot/pre-session.ts
 - interface SessionStartResponse
@@ -221,7 +213,6 @@
 - export function cleanBallastRules()
 - export function sanitizeBallast()
 - export function runSessionEnd()
-
 ### /src/hooks/public/sessionStartPublic.ts
 - export function loadMemoryCore()
 
@@ -230,8 +221,8 @@
 - export function runStop()
 
 ### /src/index.ts
+- function createDefaultConfig()
 - export function runCli()
-
 ### /src/utils/captureGitChanges.ts
 - interface GitChange
 - function captureGitChanges()
@@ -250,6 +241,7 @@
 - function getNodeBlock()
 - function cleanupAnchor()
 - function seedFixtures()
+
 ### /tests/init-claude.test.js
 - function runInitClaude()
 
@@ -293,3 +285,7 @@
 ### /tests/test-src/sample.ts
 - export function add()
 
+
+### /src/types.ts
+- export interface AppConfig
+- export interface CommandContext

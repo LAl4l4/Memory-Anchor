@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import * as fs from 'fs';
 import * as path from 'path';
-import { CODE_EXTENSIONS, STALE_BLACKLIST } from '../../types.js';
+import { CODE_EXTENSIONS, STALE_BLACKLIST } from '../../constant.js';
 import { captureGitChanges, GitChange } from '../../utils/captureGitChanges.js';
 import { buildChartFull } from '../../core/build-chart.js';
 

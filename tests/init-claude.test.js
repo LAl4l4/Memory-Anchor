@@ -5,6 +5,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { HOOK_COMMANDS, AGENTS_ANCHOR_LINE } from '../dist/constant.js';
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, '..');
@@ -44,7 +46,7 @@ test('creates .claude/settings.json with SessionStart hook', async () => {
     await readFile(path.join(tempDir, '.claude', 'settings.json'), 'utf8'),
   );
   expect(settings.hooks.SessionStart).toBeDefined();
-  expect(settings.hooks.SessionStart[0].hooks[0].command).toBe('memoryanchor-claude-pre');
+  expect(settings.hooks.SessionStart[0].hooks[0].command).toBe(HOOK_COMMANDS.CLAUDE_PRE);
 });
 
 test('creates .claude/settings.json with Stop hook', async () => {
@@ -54,7 +56,7 @@ test('creates .claude/settings.json with Stop hook', async () => {
     await readFile(path.join(tempDir, '.claude', 'settings.json'), 'utf8'),
   );
   expect(settings.hooks.Stop).toBeDefined();
-  expect(settings.hooks.Stop[0].hooks[0].command).toBe('memoryanchor-claude-stop');
+  expect(settings.hooks.Stop[0].hooks[0].command).toBe(HOOK_COMMANDS.CLAUDE_STOP);
 });
 
 test('creates .claude/settings.json with SessionEnd hook', async () => {
@@ -64,14 +66,14 @@ test('creates .claude/settings.json with SessionEnd hook', async () => {
     await readFile(path.join(tempDir, '.claude', 'settings.json'), 'utf8'),
   );
   expect(settings.hooks.SessionEnd).toBeDefined();
-  expect(settings.hooks.SessionEnd[0].hooks[0].command).toBe('memoryanchor-claude-post');
+  expect(settings.hooks.SessionEnd[0].hooks[0].command).toBe(HOOK_COMMANDS.CLAUDE_POST);
 });
 
 test('creates CLAUDE.md with memory anchor line', async () => {
   await runInitClaude(tempDir);
 
   const claudeMd = await readFile(path.join(tempDir, 'CLAUDE.md'), 'utf8');
-  expect(claudeMd).toContain('- Follow `AGENTS.md` for Memory Anchor rules.');
+  expect(claudeMd).toContain(AGENTS_ANCHOR_LINE);
 });
 
 test('existing CLAUDE.md content is preserved', async () => {
@@ -83,7 +85,7 @@ test('existing CLAUDE.md content is preserved', async () => {
   const content = await readFile(claudeMdPath, 'utf8');
   expect(content).toContain('# My Custom Rules');
   expect(content).toContain('Be helpful.');
-  expect(content).toContain('- Follow `AGENTS.md` for Memory Anchor rules.');
+  expect(content).toContain(AGENTS_ANCHOR_LINE);
 });
 
 test('re-running does not duplicate hooks', async () => {
@@ -103,6 +105,8 @@ test('re-running does not duplicate CLAUDE.md anchor line', async () => {
   await runInitClaude(tempDir);
 
   const claudeMd = await readFile(path.join(tempDir, 'CLAUDE.md'), 'utf8');
-  const matches = claudeMd.match(/Follow `AGENTS\.md` for Memory Anchor rules\./g);
+  const escaped = AGENTS_ANCHOR_LINE.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const re = new RegExp(escaped, 'g');
+  const matches = claudeMd.match(re);
   expect(matches).toHaveLength(1);
 });

@@ -1,7 +1,7 @@
 import { access } from 'node:fs/promises';
 import path from 'node:path';
 import type { CAC } from 'cac';
-import type { CommandContext } from '../core/context.js';
+import type { CommandContext } from '../types.js';
 import { getVersion } from './version.js';
 
 async function fileExists(filePath: string): Promise<boolean> {

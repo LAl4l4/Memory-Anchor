@@ -1,5 +1,5 @@
 import type { CAC } from 'cac';
-import type { CommandContext } from '../core/context.js';
+import type { CommandContext } from '../types.js';
 import { initCommand } from './init.js';
 import { statusCommand } from './status.js';
 import { versionCommand } from './version.js';

@@ -1,47 +1,11 @@
-import { createReadStream } from 'node:fs';
+import { createReadStream, existsSync } from 'node:fs';
 import { access, appendFile, mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { createInterface } from 'node:readline';
+import { fileURLToPath } from 'node:url';
 import { buildChartFull } from '../../core/build-chart.js';
-
-// =============================================================================
-// Constants
-// =============================================================================
-
-export const AGENTS_CONTENT = `
-## Memory Anchor Rules
-- Required memory files:
-  - ./.memoryanchor/chart.md
-  - ./.memoryanchor/ballast.md
-  - ./.memoryanchor/manifest.md
-- Significant! Always read chart.md before accessing any repository files.
-- Only open repository files when the chart is insufficient.
-- Must follow all rules in ballast.md.
-- After each turn, update TODO/DONE entries in manifest.md.
-
-For '.memoryanchor/ballast.md':
-Keep only valid rules. Delete obsolete ones.
-Use one line per rule with exact format:
-'- [ ] Rule content'
-## Memory Anchor Ends
-`;
-
-export const GITIGNORE_ENTRY = 
-`.memoryanchor
-CLAUDE.md
-.codex
-CODEBUDDY.md
-.codebuddy
-.opencode
-opencode.json
-.claude
-.github`;
-export const BALLAST_DEFAULT_RULE = 
-`- [ ] Important! Always check the chart.md before accessing any repositpory files. Only open files when the chart is insufficient. This is the single most important rule to follow.
-- [ ] Follow AGENTS.md rules.
-- [ ] Do not repeat yourself.`;
-export const BALLAST_DEFAULT_CONTENT = `${BALLAST_DEFAULT_RULE}\n`;
-export const MANIFEST_DEFAULT_CONTENT = '## Todo:\n\n## Done:\n';
+import { AGENTS_CONTENT, BALLAST_DEFAULT_CONTENT, GITIGNORE_ENTRY, MANIFEST_DEFAULT_CONTENT } from '../../constant.js';
+import { scanAvailableParsers } from '../../core/scan-parsers.js';
 
 // =============================================================================
 // Types
@@ -175,15 +139,16 @@ export async function fileContains(
 export async function ensureGitignore(gitignorePath: string): Promise<boolean> {
   const exists = await fileExists(gitignorePath);
   if (!exists) {
-    await appendFile(gitignorePath, `${GITIGNORE_ENTRY}\n`);
+    await appendFile(gitignorePath, `${GITIGNORE_ENTRY.join('\n')}\n`);
     return true;
   }
 
-  if (await fileContainsLine(gitignorePath, GITIGNORE_ENTRY)) {
-    return false;
+  for (const entry of GITIGNORE_ENTRY) {
+    if (!(await fileContainsLine(gitignorePath, entry))) {
+      await appendFile(gitignorePath, `\n${entry}\n`);
+    }
   }
 
-  await appendFile(gitignorePath, `\n${GITIGNORE_ENTRY}\n`);
   return true;
 }
 
@@ -246,6 +211,18 @@ export interface InitPublicResult {
 
 /** Run the common initialization steps shared by all agents. */
 export async function initPublic(cwd: string): Promise<InitPublicResult> {
+  // Scan available WASM parsers and write to src/parsers.json (development mode)
+  const __initDirname = path.dirname(fileURLToPath(import.meta.url));
+  const wasmDir = path.resolve(__initDirname, '..', '..', '..', 'tree-sitter-parser');
+  const availableParsers = scanAvailableParsers(wasmDir);
+  const srcDir = path.resolve(__initDirname, '..', '..', '..', 'src');
+  if (existsSync(srcDir)) {
+    await writeFile(
+      path.join(srcDir, 'parsers.json'),
+      `${JSON.stringify([...availableParsers].sort(), null, 2)}\n`
+    );
+  }
+
   const paths = getBasePaths(cwd);
 
   await ensureWorkspaceDirectories(paths.memoryAnchorDir);

@@ -5,6 +5,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { HOOK_COMMANDS, OPENCODE_SCHEMA_URL, REQUIRED_INSTRUCTION_ENTRIES, ANCHOR_DIR_NAME, CHART_FILE_NAME, BALLAST_FILE_NAME, MANIFEST_FILE_NAME } from '../dist/constant.js';
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, '..');
@@ -45,7 +47,7 @@ test('creates .opencode/plugins/memory-anchor.js', async () => {
     'utf8',
   );
   expect(plugin).toContain('export const MemoryAnchorPlugin');
-  expect(plugin).toContain('memoryanchor-opencode');
+  expect(plugin).toContain(HOOK_COMMANDS.OPENCODE);
   expect(plugin).toContain('tool.execute.after');
   expect(plugin).toContain('session.idle');
 });
@@ -54,12 +56,12 @@ test('creates opencode.json with schema and instructions', async () => {
   await runInitOpencode(tempDir);
 
   const cfg = JSON.parse(await readFile(path.join(tempDir, 'opencode.json'), 'utf8'));
-  expect(cfg.$schema).toBe('https://opencode.ai/config.json');
+  expect(cfg.$schema).toBe(OPENCODE_SCHEMA_URL);
   expect(Array.isArray(cfg.instructions)).toBe(true);
-  expect(cfg.instructions).toContain('./AGENTS.md');
-  expect(cfg.instructions).toContain('./.memoryanchor/chart.md');
-  expect(cfg.instructions).toContain('./.memoryanchor/ballast.md');
-  expect(cfg.instructions).toContain('./.memoryanchor/manifest.md');
+  expect(cfg.instructions).toContain(REQUIRED_INSTRUCTION_ENTRIES[0]);
+  expect(cfg.instructions).toContain(REQUIRED_INSTRUCTION_ENTRIES[1]);
+  expect(cfg.instructions).toContain(REQUIRED_INSTRUCTION_ENTRIES[2]);
+  expect(cfg.instructions).toContain(REQUIRED_INSTRUCTION_ENTRIES[3]);
 });
 
 test('plugin file uses Bun shell ($) to invoke hooks', async () => {
@@ -98,8 +100,8 @@ test('preserves existing opencode.json keys (model, provider, mcp, …)', async 
   expect(cfg.provider.anthropic.options.apiKey).toBe('test-key');
   expect(cfg.mcp.jira.url).toBe('https://example.com');
   // and we still got our schema + instructions layered on top
-  expect(cfg.$schema).toBe('https://opencode.ai/config.json');
-  expect(cfg.instructions).toContain('./AGENTS.md');
+  expect(cfg.$schema).toBe(OPENCODE_SCHEMA_URL);
+  expect(cfg.instructions).toContain(REQUIRED_INSTRUCTION_ENTRIES[0]);
 });
 
 test('does not duplicate instructions across re-runs', async () => {
@@ -108,7 +110,7 @@ test('does not duplicate instructions across re-runs', async () => {
 
   const cfg = JSON.parse(await readFile(path.join(tempDir, 'opencode.json'), 'utf8'));
   const occurrences = cfg.instructions.filter(
-    (entry) => entry === './AGENTS.md' || entry.endsWith('AGENTS.md'),
+    (entry) => entry === REQUIRED_INSTRUCTION_ENTRIES[0],
   );
   expect(occurrences).toHaveLength(1);
 });
@@ -131,8 +133,8 @@ test('also runs the public init (AGENTS.md + .memoryanchor/*)', async () => {
   const agents = await readFile(path.join(tempDir, 'AGENTS.md'), 'utf8');
   expect(agents).toContain('Memory Anchor Rules');
 
-  const anchorDir = path.join(tempDir, '.memoryanchor');
-  for (const f of ['chart.md', 'ballast.md', 'manifest.md']) {
+  const anchorDir = path.join(tempDir, ANCHOR_DIR_NAME);
+  for (const f of [CHART_FILE_NAME, BALLAST_FILE_NAME, MANIFEST_FILE_NAME]) {
     const exists = await readFile(path.join(anchorDir, f), 'utf8');
     expect(exists.length).toBeGreaterThan(0);
   }
@@ -145,5 +147,5 @@ test('re-running on a clean second invocation reports no work to do', async () =
   await runInitOpencode(tempDir);
 
   const cfg = JSON.parse(await readFile(path.join(tempDir, 'opencode.json'), 'utf8'));
-  expect(cfg.$schema).toBe('https://opencode.ai/config.json');
+  expect(cfg.$schema).toBe(OPENCODE_SCHEMA_URL);
 });

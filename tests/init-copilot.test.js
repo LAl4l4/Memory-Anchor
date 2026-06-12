@@ -5,6 +5,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { HOOK_COMMANDS, AGENTS_ANCHOR_LINE } from '../dist/constant.js';
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, '..');
@@ -45,8 +47,8 @@ test('creates .github/hooks/memory-anchor.json with sessionStart hook', async ()
   );
   expect(hooks.hooks.sessionStart).toBeDefined();
   expect(hooks.hooks.sessionStart[0].type).toBe('command');
-  expect(hooks.hooks.sessionStart[0].bash).toBe('memoryanchor-copilot-pre');
-  expect(hooks.hooks.sessionStart[0].powershell).toBe('memoryanchor-copilot-pre');
+  expect(hooks.hooks.sessionStart[0].bash).toBe(HOOK_COMMANDS.COPILOT_PRE);
+  expect(hooks.hooks.sessionStart[0].powershell).toBe(HOOK_COMMANDS.COPILOT_PRE);
 });
 
 test('creates .github/hooks/memory-anchor.json with agentStop hook', async () => {
@@ -56,8 +58,8 @@ test('creates .github/hooks/memory-anchor.json with agentStop hook', async () =>
     await readFile(path.join(tempDir, '.github', 'hooks', 'memory-anchor.json'), 'utf8'),
   );
   expect(hooks.hooks.agentStop).toBeDefined();
-  expect(hooks.hooks.agentStop[0].bash).toBe('memoryanchor-copilot-stop');
-  expect(hooks.hooks.agentStop[0].powershell).toBe('memoryanchor-copilot-stop');
+  expect(hooks.hooks.agentStop[0].bash).toBe(HOOK_COMMANDS.COPILOT_STOP);
+  expect(hooks.hooks.agentStop[0].powershell).toBe(HOOK_COMMANDS.COPILOT_STOP);
 });
 
 test('creates .github/hooks/memory-anchor.json with sessionEnd hook', async () => {
@@ -67,8 +69,8 @@ test('creates .github/hooks/memory-anchor.json with sessionEnd hook', async () =
     await readFile(path.join(tempDir, '.github', 'hooks', 'memory-anchor.json'), 'utf8'),
   );
   expect(hooks.hooks.sessionEnd).toBeDefined();
-  expect(hooks.hooks.sessionEnd[0].bash).toBe('memoryanchor-copilot-post');
-  expect(hooks.hooks.sessionEnd[0].powershell).toBe('memoryanchor-copilot-post');
+  expect(hooks.hooks.sessionEnd[0].bash).toBe(HOOK_COMMANDS.COPILOT_POST);
+  expect(hooks.hooks.sessionEnd[0].powershell).toBe(HOOK_COMMANDS.COPILOT_POST);
 });
 
 test('creates .github/hooks/memory-anchor.json with version 1', async () => {
@@ -87,7 +89,7 @@ test('creates .github/copilot-instructions.md with memory anchor line', async ()
     path.join(tempDir, '.github', 'copilot-instructions.md'),
     'utf8',
   );
-  expect(instructions).toContain('- Follow `AGENTS.md` for Memory Anchor rules.');
+  expect(instructions).toContain(AGENTS_ANCHOR_LINE);
 });
 
 test('existing copilot-instructions.md content is preserved', async () => {
@@ -100,7 +102,7 @@ test('existing copilot-instructions.md content is preserved', async () => {
   const content = await readFile(instructionsPath, 'utf8');
   expect(content).toContain('# My Custom Rules');
   expect(content).toContain('Be helpful.');
-  expect(content).toContain('- Follow `AGENTS.md` for Memory Anchor rules.');
+  expect(content).toContain(AGENTS_ANCHOR_LINE);
 });
 
 test('re-running does not duplicate hooks', async () => {
@@ -123,6 +125,8 @@ test('re-running does not duplicate copilot-instructions.md anchor line', async 
     path.join(tempDir, '.github', 'copilot-instructions.md'),
     'utf8',
   );
-  const matches = instructions.match(/Follow `AGENTS\.md` for Memory Anchor rules\./g);
+  const escaped = AGENTS_ANCHOR_LINE.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const re = new RegExp(escaped, 'g');
+  const matches = instructions.match(re);
   expect(matches).toHaveLength(1);
 });

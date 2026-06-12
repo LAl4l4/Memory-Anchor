@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { CAC } from 'cac';
-import type { CommandContext } from '../core/context.js';
+import type { CommandContext } from '../types.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
