@@ -8,32 +8,22 @@ import { buildChartFull } from '../../core/build-chart.js';
 const cwd = process.cwd();
 const ANCHOR_PATH = path.join(cwd, '.memoryanchor');
 const BALLAST_PATH = path.join(ANCHOR_PATH, 'ballast.md');
-const MANIFEST_PATH = path.join(ANCHOR_PATH, 'manifest.md');
 
 function logToUser(message: string, colorCode: string = '36'): void {
   process.stderr.write(`\x1b[${colorCode}m[Memory Anchor] ${message}\x1b[0m\n`);
 }
 
 export function updateManifest(changes: GitChange[] | null): void {
-  if (!fs.existsSync(MANIFEST_PATH) || !changes || changes.length === 0) return;
+  if (!changes || changes.length === 0) return;
 
-  let content = fs.readFileSync(MANIFEST_PATH, 'utf-8');
-  const timestamp = new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
-
-  let incrementDone = `\n- [x] **[${timestamp} Session Captured]** AI triggered code changes in:`;
+  const parts: string[] = [];
   changes.forEach((c: GitChange) => {
     const statusMap: Record<string, string> = { M: 'Modified', A: 'Added', '??': 'Untracked' };
     const action = statusMap[c.status] || 'Changed';
-    incrementDone += ` \`${c.file}\` (${action});`;
+    parts.push(`\`${c.file}\` (${action})`);
   });
 
-  const targetHeaders = ['## Done:', '## ✅ 已完成事项 (Done List)'];
-  const targetHeader = targetHeaders.find((header) => content.includes(header));
-  if (targetHeader) {
-    content = content.replace(targetHeader, `${targetHeader}${incrementDone}`);
-    fs.writeFileSync(MANIFEST_PATH, content, 'utf-8');
-    logToUser('Local code changes captured. Mission Manifest updated.', '36');
-  }
+  logToUser(`Code changes captured: ${parts.join('; ')}`, '36');
 }
 
 export function cleanBallastRules(changes: GitChange[] | null): void {

@@ -66,9 +66,6 @@ Initializes a workspace by creating:
 - `./.memoryanchor/ballast.md` (lessons learned / constraints)
 - `./.memoryanchor/manifest.md` (cross-session TODO/DONE board)
 - `./AGENTS.md` (AI behavior rules and memory workflow)
-- `./.github/hooks/memory-anchor.json` (hook entry for pre/post session)
-- `./.github/copilot-instructions.md` (points Copilot to AGENTS.md)
-- `./opencode.json` + `./.opencode/plugins/memory-anchor.js` (OpenCode plugin + AGENTS.md wired into `instructions`)
 
 ### `anchor init-opencode`
 OpenCode-only setup. Creates:
@@ -77,9 +74,9 @@ OpenCode-only setup. Creates:
 
 ## Hooks
 The init command registers hooks in `./.github/hooks/memory-anchor.json`:
-- **sessionStart**: runs `.memoryanchor/dist/pre-session.js`
-- **agentStop**: runs after a turn finished.
-- **sessionEnd**: runs `.memoryanchor/dist/post-session.js`
+- **sessionStart**: runs `.memoryanchor/dist/hooks/public/sessionStartPublic.js`
+- **agentStop**: runs `.memoryanchor/dist/hooks/public/stopPublic.js`
+- **sessionEnd**: runs `.memoryanchor/dist/sessionEndPublic.js`
 
 These hooks are expected to read/write the Memory Anchor files above. The build-chart logic generates the project chart, and the post-session hook updates the manifest/ballast and refreshes the chart every session (incremental when git changes exist).
 

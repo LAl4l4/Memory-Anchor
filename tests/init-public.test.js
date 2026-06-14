@@ -62,12 +62,12 @@ test('creates ballast.md with default rules', async () => {
   expect(ballast).toContain('Do not rebuild a function');
 });
 
-test('creates manifest.md with Todo and Done sections', async () => {
+test('creates manifest.md with module status and key decisions', async () => {
   await runInitPublic(tempDir);
 
   const manifest = await readFile(path.join(tempDir, ANCHOR_DIR_NAME, MANIFEST_FILE_NAME), 'utf8');
-  expect(manifest).toContain('## Todo:');
-  expect(manifest).toContain('## Done:');
+  expect(manifest).toContain('## Module Status');
+  expect(manifest).toContain('## Key Decisions');
 });
 
 test('creates AGENTS.md with memory anchor rules', async () => {

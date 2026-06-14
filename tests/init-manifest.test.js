@@ -39,12 +39,12 @@ afterEach(async () => {
   }
 });
 
-test('init creates manifest with empty todo and done sections', async () => {
+test('init creates manifest with module status and key decisions', async () => {
   await runInit(tempDir);
 
   const manifestPath = path.join(tempDir, ANCHOR_DIR_NAME, MANIFEST_FILE_NAME);
   const manifest = await readFile(manifestPath, 'utf8');
 
-  expect(manifest).toContain('## Todo:');
-  expect(manifest).toContain('## Done:');
+  expect(manifest).toContain('## Module Status');
+  expect(manifest).toContain('## Key Decisions');
 });

@@ -38,10 +38,10 @@ Target: Assist the developer by ensuring all generated code aligns with local re
 
 ${taskSection}
 
-[1. BALLAST RULES]
+[1. BALLAST (rules must follow)]
 ${ballastStr}
 
-[2. MISSION MANIFEST]
+[2. MANIFEST (module status & key decisions)]
 ${manifest}
 ==================================================
 `;

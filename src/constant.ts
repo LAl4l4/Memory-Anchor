@@ -47,31 +47,52 @@ export const MANIFEST_FILE_NAME = 'manifest.md';
 // Default File Contents
 // =============================================================================
 
-export const BALLAST_DEFAULT_RULE =
-`- [ ] Always check the chart.md before accessing any repositpory files. Only open files when the chart is insufficient.
-- [ ] Do not change chart.md by yourself. Only do it when user explicitly instructs you to.
-- [ ] Follow AGENTS.md rules.
-- [ ] Do not rebuild a function that already exists and used by others, instead, pull it out to a separate file and import it`;
+export const BALLAST_DEFAULT_RULES: string[] = [  
+  '- [ ] Always check the chart.md before accessing any repositpory files. Only open files when the chart is insufficient.',
+  '- [ ] Do not change chart.md by yourself. Only do it when user explicitly instructs you to.',
+  '- [ ] Follow AGENTS.md rules.',
+  '- [ ] Do not rebuild a function that already exists and used by others, instead, pull it out to a separate file and import it',
+];
+
+export const BALLAST_DEFAULT_TITLE = '# Default Ballast Rules(You must not change these part)';
+
+export const BALLAST_SPECIFIC_TITLE = '# Specific Rules For This Repository(Change this after solve bugs or user add specific rules)';
+
+export const BALLAST_DEFAULT_RULE = BALLAST_DEFAULT_RULES.join('\n');
 
 export const BALLAST_DEFAULT_CONTENT = `${BALLAST_DEFAULT_RULE}\n`;
 
-export const MANIFEST_DEFAULT_CONTENT = '## Todo:\n\n## Done:\n';
+export const MANIFEST_DEFAULT_CONTENT = `
+    ## Module Status
+
+    ### sample-module-1(e.g. initialization): 
+    - functionality: The explanation of this module.
+    - status: Planned/In progress/Stable/Deprecated etc.
+    - dependencies: dependented modules(e.g. sample.ts)
+    - known_issues: Any known issues or limitations with this module.
+    - notes: Any additional notes or comments about this module.
+
+    ## Key Decisions
+    - sample decision: The explanation of this decision(e.g. Use jest to do automated testing because it is the most popular).
+`;
 
 export const AGENTS_CONTENT = `
 ## Memory Anchor Rules
-- Required memory files:
-  - ./.memoryanchor/chart.md
-  - ./.memoryanchor/ballast.md
-  - ./.memoryanchor/manifest.md
-- Significant! Always read chart.md before accessing any repository files.
-- Only open repository files when the chart is insufficient.
-- Must follow all rules in ballast.md.
-- After each turn, update TODO/DONE entries in manifest.md.
 
-For '.memoryanchor/ballast.md':
-Keep only valid rules. Delete obsolete ones.
-Use one line per rule with exact format:
-'- [ ] Rule content'
+### File Roles
+- ./.memoryanchor/chart.md: Auto-generated log of file changes per session. Read this FIRST to recover recent context.
+- ./.memoryanchor/manifest.md: Current project state — Module Status (functionality/status/known_issues/notes) and Key Decisions (architectural choices and rationale).
+- ./.memoryanchor/ballast.md: Persistent repo-specific rules/guardrails, one per line.
+
+### Workflow
+- Always read chart.md before accessing any repository files. Only open repository files when chart.md is insufficient.
+- Must follow all rules in ballast.md. After solving a bug, add a rule under "Ballast Specific Rules For This Repository" to prevent recurrence.
+- After each turn, update Module Status (and Key Decisions, if applicable) in manifest.md.
+
+### ballast.md format
+- Keep only valid rules. Delete obsolete ones.
+- One line per rule, exact format: '- [ ] Rule content'
+
 ## Memory Anchor Ends
 `;
 
@@ -151,6 +172,54 @@ export const LANGS = [
   "json",
   "yaml",
 ] as const;
+
+// =============================================================================
+// Tree-sitter Node Type Sets (for symbol extraction in build-chart)
+// =============================================================================
+
+/** Languages that use `export` keyword syntax */
+export const JS_EXPORT_LANGS = new Set(["javascript", "typescript", "tsx"]);
+
+/** Generic declaration node types matched by the tree-sitter parser */
+export const GENERIC_DECLARATIONS = new Set([
+  "function_definition",
+  "function_declaration",
+  "method_definition",
+  "method_declaration",
+  "class_definition",
+  "class_declaration",
+  "interface_declaration",
+  "enum_declaration",
+  "record_declaration",
+  "type_definition",
+  "struct_specifier",
+]);
+
+export const FUNCTION_DECLARATION_TYPES = new Set([
+  "function_definition",
+  "function_declaration",
+  "method_definition",
+  "method_declaration",
+]);
+
+export const CLASS_DECLARATION_TYPES = new Set([
+  "class_definition",
+  "class_declaration",
+]);
+
+export const INTERFACE_DECLARATION_TYPES = new Set([
+  "interface_declaration",
+]);
+
+export const ENUM_DECLARATION_TYPES = new Set([
+  "enum_declaration",
+]);
+
+export const TYPE_DECLARATION_TYPES = new Set([
+  "record_declaration",
+  "type_definition",
+  "struct_specifier",
+]);
 
 // =============================================================================
 // Code Extensions (for [STALE] marking on ballast rules)

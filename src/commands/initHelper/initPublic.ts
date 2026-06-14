@@ -4,7 +4,8 @@ import path from 'node:path';
 import { createInterface } from 'node:readline';
 import { fileURLToPath } from 'node:url';
 import { buildChartFull } from '../../core/build-chart.js';
-import { AGENTS_CONTENT, BALLAST_DEFAULT_CONTENT, GITIGNORE_ENTRY, MANIFEST_DEFAULT_CONTENT } from '../../constant.js';
+import { AGENTS_CONTENT, GITIGNORE_ENTRY, MANIFEST_DEFAULT_CONTENT } from '../../constant.js';
+import { ensureBallastFile } from '../../core/init-ballast.js';
 import { scanAvailableParsers } from '../../core/scan-parsers.js';
 
 // =============================================================================
@@ -154,9 +155,8 @@ export async function ensureGitignore(gitignorePath: string): Promise<boolean> {
 
 export async function ensureAnchorFiles(memoryAnchorDir: string): Promise<boolean> {
   const chartCreated = await ensureFile(path.join(memoryAnchorDir, 'chart.md'));
-  const ballastCreated = await ensureFile(
-    path.join(memoryAnchorDir, 'ballast.md'),
-    BALLAST_DEFAULT_CONTENT
+  const ballastCreated = await ensureBallastFile(
+    path.join(memoryAnchorDir, 'ballast.md')
   );
   const manifestCreated = await ensureFile(
     path.join(memoryAnchorDir, 'manifest.md'),

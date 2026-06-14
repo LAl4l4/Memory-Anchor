@@ -5,7 +5,7 @@ import { globSync } from 'glob';
 import { Parser } from "web-tree-sitter";
 import { loadLanguage, getAvailableParsers } from './parser-loader.js';
 import { EXT_TO_LANGUAGE } from '../utils/ext-to-lang.js';
-import { IGNORED_DIR_NAMES, IGNORED_FILE_NAMES } from '../constant.js';
+import { IGNORED_DIR_NAMES, IGNORED_FILE_NAMES, JS_EXPORT_LANGS, GENERIC_DECLARATIONS, FUNCTION_DECLARATION_TYPES, CLASS_DECLARATION_TYPES, INTERFACE_DECLARATION_TYPES, ENUM_DECLARATION_TYPES, TYPE_DECLARATION_TYPES } from '../constant.js';
 
 const IGNORE_PATTERNS: string[] = [
     ...[...IGNORED_DIR_NAMES].map(dir => `**/${dir}/**`),
@@ -113,42 +113,6 @@ export async function parseFileArchitecture(
 
     return fileNode;
 }
-
-const JS_EXPORT_LANGS = new Set(["javascript", "typescript", "tsx"]);
-const GENERIC_DECLARATIONS = new Set([
-    "function_definition",
-    "function_declaration",
-    "method_definition",
-    "method_declaration",
-    "class_definition",
-    "class_declaration",
-    "interface_declaration",
-    "enum_declaration",
-    "record_declaration",
-    "type_definition",
-    "struct_specifier"
-]);
-const FUNCTION_DECLARATION_TYPES = new Set([
-    "function_definition",
-    "function_declaration",
-    "method_definition",
-    "method_declaration"
-]);
-const CLASS_DECLARATION_TYPES = new Set([
-    "class_definition",
-    "class_declaration",
-]);
-const INTERFACE_DECLARATION_TYPES = new Set([
-    "interface_declaration"
-]);
-const ENUM_DECLARATION_TYPES = new Set([
-    "enum_declaration"
-]);
-const TYPE_DECLARATION_TYPES = new Set([
-    "record_declaration",
-    "type_definition",
-    "struct_specifier"
-]);
 
 function extractSymbols(node: any, fileNode: FileNode) {
     for (const child of node.children) {
@@ -283,28 +247,77 @@ function findIdentifier(node: any): any | null {
  * Step 2: Generate LLM-Native Flat Path Skeleton (Zero ASCII Noise)
  * Replaces hard-to-read tree lines with flat paths optimized for LLM attention weights.
  */
-function generateTreeSkeleton(files: string[]): string {
-    let skeletonStr = "";
-    
-    files.sort().forEach(f => {
-        let semanticHint = "Source code module.";
-        const ext = path.extname(f);
-        const base = path.basename(f);
+function getSemanticHint(filePath: string): string {
+    const ext = path.extname(filePath);
+    const base = path.basename(filePath);
 
-        // Rule-based automated directory layer sniffing
-        if (base === 'package.json') semanticHint = "Project manifest, dependency definitions, and entry scripts.";
-        else if (base === 'tsconfig.json') semanticHint = "TypeScript compiler options and workspace path mappings.";
-        else if (base.startsWith('index.')) semanticHint = "Main entry gate and routing aggregator for this directory.";
-        else if (f.includes('router') || f.includes('controller') || f.includes('api')) semanticHint = "Network interface layer handling endpoints and HTTP contracts.";
-        else if (f.includes('service') || f.includes('spider') || f.includes('scraper')) semanticHint = "Core business logic handler, scrapers, or background data operators.";
-        else if (f.includes('model') || f.includes('schema') || f.includes('entity')) semanticHint = "Data persistence layer, types, or database architecture blueprints.";
-        else if (f.includes('test') || f.includes('spec') || f.includes('jest')) semanticHint = "Automated test suites and verification scripts.";
-        else if (ext === '.md') semanticHint = "Local documentation asset.";
+    if (base === 'package.json') return "Project manifest, dependency definitions, and entry scripts.";
+    if (base === 'tsconfig.json') return "TypeScript compiler options and workspace path mappings.";
+    if (base.startsWith('index.')) return "Main entry gate and routing aggregator for this directory.";
+    if (filePath.includes('router') || filePath.includes('controller') || filePath.includes('api'))
+        return "Network interface layer handling endpoints and HTTP contracts.";
+    if (filePath.includes('service') || filePath.includes('spider') || filePath.includes('scraper'))
+        return "Core business logic handler, scrapers, or background data operators.";
+    if (filePath.includes('model') || filePath.includes('schema') || filePath.includes('entity'))
+        return "Data persistence layer, types, or database architecture blueprints.";
+    if (filePath.includes('test') || filePath.includes('spec') || filePath.includes('jest'))
+        return "Automated test suites and verification scripts.";
+    if (ext === '.md') return "Local documentation asset.";
 
-        skeletonStr += `- /${f}: ${semanticHint}\n`;
+    return "Source code module.";
+}
+
+function isCodeFile(filePath: string): boolean {
+    const ext = path.extname(filePath);
+    return ext in EXT_TO_LANGUAGE;
+}
+
+/**
+ * Generate directory-grouped file skeleton from pre-built dir-to-files mapping.
+ * - Root-level files (.) are listed directly without a heading.
+ * - Subdirectories with code files get a ### heading and list basenames with hints.
+ * - Subdirectories without code files get a ### heading and a generic "resources" note.
+ * - Directories are listed recursively — each directory containing files gets its own section.
+ */
+function generateTreeSkeleton(dirGroups: Map<string, string[]>): string {
+    // Sort directories: by depth first, then alphabetically
+    const sortedDirs = [...dirGroups.keys()].sort((a, b) => {
+        const depthA = a === '.' ? 0 : a.split(path.sep).length;
+        const depthB = b === '.' ? 0 : b.split(path.sep).length;
+        if (depthA !== depthB) return depthA - depthB;
+        return a.localeCompare(b);
     });
-    
-    return skeletonStr;
+
+    let skeletonStr = "";
+
+    for (const dir of sortedDirs) {
+        const dirFiles = dirGroups.get(dir)!.sort();
+
+        const hasCodeFile = dirFiles.some((f) => isCodeFile(f));
+
+        if (dir === '.') {
+            // Root-level files — no heading, use full path
+            for (const file of dirFiles) {
+                skeletonStr += `- /${file}: ${getSemanticHint(file)}\n`;
+            }
+            if (dirFiles.length > 0) {
+                skeletonStr += '\n';
+            }
+        } else if (hasCodeFile) {
+            skeletonStr += `### ${dir}\n`;
+            for (const file of dirFiles) {
+                const base = path.basename(file);
+                skeletonStr += `- ${base}: ${getSemanticHint(file)}\n`;
+            }
+            skeletonStr += '\n';
+        } else {
+            // Directory has files but none are code files
+            skeletonStr += `### ${dir}\n`;
+            skeletonStr += `- This is resources directory\n\n`;
+        }
+    }
+
+    return skeletonStr.trimEnd();
 }
 
 function isIgnored(relPath: string): boolean {
@@ -316,17 +329,27 @@ function isIgnored(relPath: string): boolean {
     return IGNORED_FILE_NAMES.has(segments[segments.length - 1]);
 }
 
-function listProjectFiles(): string[] {
-    return globSync('**/*', {
+function listProjectFiles(): Map<string, string[]> {
+    const allFiles = globSync('**/*', {
         cwd: PROJECT_ROOT,
         nodir: true,
         ignore: IGNORE_PATTERNS
     });
+
+    const dirGroups = new Map<string, string[]>();
+    for (const f of allFiles) {
+        const dir = path.dirname(f);
+        if (!dirGroups.has(dir)) {
+            dirGroups.set(dir, []);
+        }
+        dirGroups.get(dir)!.push(f);
+    }
+    return dirGroups;
 }
 
-function buildSkeletonSection(files: string[]): string {
+function buildSkeletonSection(dirGroups: Map<string, string[]>): string {
     let skeletonSection = "## 1. Directory Skeleton\n";
-    skeletonSection += generateTreeSkeleton(files);
+    skeletonSection += generateTreeSkeleton(dirGroups);
     return skeletonSection;
 }
 
@@ -351,9 +374,14 @@ async function buildNodesSection(files: string[]): Promise<string> {
     return nodesSection;
 }
 
-async function buildChartContent(files: string[]): Promise<string> {
-    const skeletonSection = buildSkeletonSection(files);
-    const nodesSection = await buildNodesSection(files);
+async function buildChartContent(dirGroups: Map<string, string[]>): Promise<string> {
+    const skeletonSection = buildSkeletonSection(dirGroups);
+    // Flatten for buildNodesSection which operates on a flat file list
+    const allFiles: string[] = [];
+    for (const files of dirGroups.values()) {
+        allFiles.push(...files);
+    }
+    const nodesSection = await buildNodesSection(allFiles);
     return `# PROJECT CHART\n\n${skeletonSection}\n${nodesSection}`;
 }
 
@@ -437,8 +465,8 @@ export async function buildChartFull(): Promise<void> {
     logToUser("Compiling repository architecture into LLM-Native Chart...", "36");
 
     try {
-        const allFiles = listProjectFiles();
-        const chartContent = await buildChartContent(allFiles);
+        const dirGroups = listProjectFiles();
+        const chartContent = await buildChartContent(dirGroups);
         ensureAnchorDirExists();
         writeChart(chartContent);
         logToUser(`Chart successfully compiled and rendered to: .memoryanchor/chart.md`, "32");
