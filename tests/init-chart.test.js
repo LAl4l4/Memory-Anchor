@@ -97,7 +97,7 @@ test('buildChartFull includes fixture paths in the skeleton', async () => {
   const normalizedChart = chartContent.replace(/\\/g, '/');
 
   // New grouped format: directory heading + basename
-  expect(normalizedChart).toContain('### tests/test-src');
+  expect(normalizedChart).toContain('### tests/test-src/');
   for (const { file } of fixtures) {
     expect(normalizedChart).toContain(`- ${file}:`);
   }

@@ -280,13 +280,8 @@ function isCodeFile(filePath: string): boolean {
  * - Directories are listed recursively — each directory containing files gets its own section.
  */
 function generateTreeSkeleton(dirGroups: Map<string, string[]>): string {
-    // Sort directories: by depth first, then alphabetically
-    const sortedDirs = [...dirGroups.keys()].sort((a, b) => {
-        const depthA = a === '.' ? 0 : a.split(path.sep).length;
-        const depthB = b === '.' ? 0 : b.split(path.sep).length;
-        if (depthA !== depthB) return depthA - depthB;
-        return a.localeCompare(b);
-    });
+    // Sort directories depth-first (parent before children, then alphabetically)
+    const sortedDirs = [...dirGroups.keys()].sort((a, b) => a.localeCompare(b));
 
     let skeletonStr = "";
 
@@ -304,7 +299,7 @@ function generateTreeSkeleton(dirGroups: Map<string, string[]>): string {
                 skeletonStr += '\n';
             }
         } else if (hasCodeFile) {
-            skeletonStr += `### ${dir}\n`;
+            skeletonStr += `### ${dir}/\n`;
             for (const file of dirFiles) {
                 const base = path.basename(file);
                 skeletonStr += `- ${base}: ${getSemanticHint(file)}\n`;
@@ -312,7 +307,7 @@ function generateTreeSkeleton(dirGroups: Map<string, string[]>): string {
             skeletonStr += '\n';
         } else {
             // Directory has files but none are code files
-            skeletonStr += `### ${dir}\n`;
+            skeletonStr += `### ${dir}/\n`;
             skeletonStr += `- This is resources directory\n\n`;
         }
     }

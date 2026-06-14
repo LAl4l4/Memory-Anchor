@@ -6,8 +6,8 @@ By maintaining a compact set of incremental metadata anchors directly within you
 
 ### 🔥 Key Features
 - 🪙 **Token Optimization**: Prevents AI agents from mindlessly rescanning your entire codebase. It feeds them precise, compact code signatures instead.
-- 🧠 **Long-Term Memory (Ballast)**: Persists repository-specific design constraints, architectural decisions, and "lessons learned" across sessions so your AI never repeats the same mistakes.
-- 📅 **State Synchronization (Manifest)**: Automatically synchronizes a cross-session TODO/DONE board, allowing AI agents to seamlessly resume work exactly where you left off.
+- 🧠 **Long-Term Memory (Ballast)**: Two-section rule system — default rules are auto-managed and refreshed on every init, while repository-specific rules (constraints, architectural decisions, "lessons learned") are preserved across sessions so your AI never repeats the same mistakes.
+- 📅 **State Synchronization (Manifest)**: Module status tracker and key decisions log that helps AI agents understand what state each module is in and what critical design choices have been made.
 - 🔄 **Automated Lifecycle Hooks**: Seamless pre/post-session integration. Automatically injects compact payloads on session start, and incrementally refreshes the codebase chart based on Git diffs upon session end.
 
 ---
@@ -62,9 +62,9 @@ Used to initialize a specific agent.
 ## CLI Commands
 ### `anchor init`
 Initializes a workspace by creating:
-- `./.memoryanchor/chart.md` (project map: directory skeleton + export signatures)
-- `./.memoryanchor/ballast.md` (lessons learned / constraints)
-- `./.memoryanchor/manifest.md` (cross-session TODO/DONE board)
+- `./.memoryanchor/chart.md` (project map: directory-grouped skeleton + export signatures)
+- `./.memoryanchor/ballast.md` (two-section rules: default system rules + repo-specific rules)
+- `./.memoryanchor/manifest.md` (module status tracker + key decisions log)
 - `./AGENTS.md` (AI behavior rules and memory workflow)
 
 ### `anchor init-opencode`

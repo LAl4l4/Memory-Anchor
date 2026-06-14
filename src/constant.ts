@@ -63,17 +63,17 @@ export const BALLAST_DEFAULT_RULE = BALLAST_DEFAULT_RULES.join('\n');
 export const BALLAST_DEFAULT_CONTENT = `${BALLAST_DEFAULT_RULE}\n`;
 
 export const MANIFEST_DEFAULT_CONTENT = `
-    ## Module Status
+## Module Status
 
-    ### sample-module-1(e.g. initialization): 
-    - functionality: The explanation of this module.
-    - status: Planned/In progress/Stable/Deprecated etc.
-    - dependencies: dependented modules(e.g. sample.ts)
-    - known_issues: Any known issues or limitations with this module.
-    - notes: Any additional notes or comments about this module.
+### sample-module-1(e.g. initialization): 
+- functionality: The explanation of this module.
+- status: Planned/In progress/Stable/Deprecated etc.
+- dependencies: dependented modules(e.g. sample.ts)
+- known_issues: Any known issues or limitations with this module.
+- notes: Any additional notes or comments about this module.
 
-    ## Key Decisions
-    - sample decision: The explanation of this decision(e.g. Use jest to do automated testing because it is the most popular).
+## Key Decisions
+- sample decision: The explanation of this decision(e.g. Use jest to do automated testing because it is the most popular).
 `;
 
 export const AGENTS_CONTENT = `

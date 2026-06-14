@@ -1,17 +1,18 @@
 
 ## Memory Anchor Rules
-- Memory files directory:
-  - ./.memoryanchor/chart.md
-  - ./.memoryanchor/ballast.md
-  - ./.memoryanchor/manifest.md
-- Significant! Always read chart.md before accessing any repository files.
-- Only open repository files when the chart is insufficient.
-- Must follow all rules in ballast.md. After solve bugs, add a rules in Ballast Specific Rules For This Repository to prevent this in future;
-- After each turn, update DONE entries in manifest.md.
 
-For '.memoryanchor/ballast.md':
-Keep only valid rules. Delete obsolete ones.
-Use one line per rule with exact format:
-'- [ ] Rule content'
+### File Roles
+- ./.memoryanchor/chart.md: Auto-generated log of file changes per session. Read this FIRST to recover recent context.
+- ./.memoryanchor/manifest.md: Current project state — Module Status (functionality/status/known_issues/notes) and Key Decisions (architectural choices and rationale).
+- ./.memoryanchor/ballast.md: Persistent repo-specific rules/guardrails, one per line.
+
+### Workflow
+- Always read chart.md before accessing any repository files. Only open repository files when chart.md is insufficient.
+- Must follow all rules in ballast.md. After solving a bug, add a rule under "Ballast Specific Rules For This Repository" to prevent recurrence.
+- After each turn, update Module Status (and Key Decisions, if applicable) in manifest.md.
+
+### ballast.md format
+- Keep only valid rules. Delete obsolete ones.
+- One line per rule, exact format: '- [ ] Rule content'
+
 ## Memory Anchor Ends
-
