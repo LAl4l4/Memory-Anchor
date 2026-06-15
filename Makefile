@@ -7,7 +7,7 @@ VERSION ?= patch
 
 MSG ?= chore: save work before release
 
-.PHONY: patch minor major release
+.PHONY: patch minor major release chart-full chart-inc
 
 patch:
 	@$(MAKE) release VERSION=patch
@@ -42,3 +42,22 @@ release:
 	npm publish
 	
 	@echo "✨ [DONE] 所有的工作都做完了！这次绝对一路绿灯！"
+
+# ------------------------------------------------------------------------------
+# 调试命令：手动触发 chart 构建
+# ------------------------------------------------------------------------------
+
+# 全量重建 chart
+chart-full:
+	@npm run build
+	@node -e "require('./dist/core/build-chart.js').buildChartFull()"
+
+# 增量更新 chart，通过 FILES 变量传入文件列表
+# Usage: make chart-inc FILES="src/index.ts src/utils/logger.ts"
+FILES ?=
+chart-inc:
+	@npm run build
+	@node -e "\
+		var files = '$(FILES)'.split(' ').filter(function(f){return f.length>0}); \
+		if (!files.length) { console.error('Usage: make chart-inc FILES=\"file1.ts file2.ts\"'); process.exit(1); } \
+		require('./dist/core/build-chart.js').updateChartIncrementally(files)"

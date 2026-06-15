@@ -371,13 +371,15 @@ async function buildNodesSection(files: string[]): Promise<string> {
 
 async function buildChartContent(dirGroups: Map<string, string[]>): Promise<string> {
     const skeletonSection = buildSkeletonSection(dirGroups);
-    // Flatten for buildNodesSection which operates on a flat file list
+    // Flatten for buildNodesSection, but preserve skeleton ordering (dirs alpha, files alpha)
+    const sortedDirs = [...dirGroups.keys()].sort((a, b) => a.localeCompare(b));
     const allFiles: string[] = [];
-    for (const files of dirGroups.values()) {
+    for (const dir of sortedDirs) {
+        const files = [...dirGroups.get(dir)!].sort();
         allFiles.push(...files);
     }
     const nodesSection = await buildNodesSection(allFiles);
-    return `# PROJECT CHART\n\n${skeletonSection}\n${nodesSection}`;
+    return `# PROJECT CHART\n\n${skeletonSection}\n\n${nodesSection}`;
 }
 
 function ensureAnchorDirExists(): void {
@@ -390,66 +392,278 @@ function writeChart(content: string): void {
     fs.writeFileSync(CHART_PATH, content, 'utf-8');
 }
 
-// 增量逻辑核心：只处理给定的文件列表
+function escapeRegex(str: string): string {
+    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * Parse the Directory Skeleton section to produce an ordered list of file paths
+ * (e.g. ["/AGENTS.md", "/src/index.ts", "/src/cli.ts", ...]).
+ * This ordering is the canonical reference for Key Nodes ordering.
+ */
+function getSkeletonFileOrder(skeletonSection: string): string[] {
+    const order: string[] = [];
+    const lines = skeletonSection.split('\n');
+    let currentDir = '';
+
+    for (const line of lines) {
+        const dirMatch = line.match(/^### (.+)\/$/);
+        if (dirMatch) {
+            currentDir = dirMatch[1];
+            continue;
+        }
+
+        // Root files: "- /filename: ..."   Dir files: "- basename: ..."
+        const fileMatch = line.match(/^- ([^\s:]+):/);
+        if (fileMatch) {
+            const name = fileMatch[1];
+            if (name.startsWith('/')) {
+                order.push(name);
+            } else {
+                order.push(`/${currentDir}/${name}`);
+            }
+        }
+    }
+    return order;
+}
+
+/** Add a single file entry into the skeleton section, preserving alphabetical order. */
+function addFileToSkeleton(skeletonSection: string, file: string): string {
+    const dir = path.dirname(file);
+    const base = path.basename(file);
+    const hint = getSemanticHint(file);
+
+    if (dir === '.') {
+        // Root-level file
+        const rootLine = `- /${base}: ${hint}`;
+        const lines = skeletonSection.split('\n');
+        const titleIndex = lines.findIndex(l => l.startsWith('## 1. Directory Skeleton'));
+        let insertIndex = titleIndex + 1;
+        while (insertIndex < lines.length && lines[insertIndex].trim() === '') insertIndex++;
+        while (
+            insertIndex < lines.length &&
+            (lines[insertIndex].startsWith('- /') || lines[insertIndex].trim() === '') &&
+            lines[insertIndex].startsWith('- /') &&
+            lines[insertIndex].localeCompare(rootLine) < 0
+        ) {
+            insertIndex++;
+        }
+        lines.splice(insertIndex, 0, rootLine);
+        return lines.join('\n');
+    }
+
+    // File under a directory
+    const newLine = `- ${base}: ${hint}`;
+    const sectionRegex = new RegExp(`### ${escapeRegex(dir)}/\\n((?:- [^\\n]*\\n)*)`, 'g');
+    const sectionMatch = sectionRegex.exec(skeletonSection);
+
+    if (sectionMatch) {
+        const existingLines = sectionMatch[1].split('\n').filter(l => l.trim());
+        const allLines = [...existingLines, newLine].sort();
+        const newSection = `### ${dir}/\n${allLines.join('\n')}\n`;
+        return skeletonSection.replace(sectionMatch[0], newSection);
+    }
+
+    // New directory -- insert ### dir/ heading at alphabetical position, then at end if not found
+    return insertNewDirSection(skeletonSection, dir, [newLine]);
+}
+
+/** Create a new `### dir/` heading inside the skeleton and insert at the
+ *  correct alphabetical position among existing directory headings. */
+function insertNewDirSection(skeletonSection: string, dir: string, fileLines: string[]): string {
+    const lines = skeletonSection.split('\n');
+    const newHeading = `### ${dir}/`;
+
+    let inserted = false;
+    for (let i = 0; i < lines.length; i++) {
+        if (lines[i].startsWith('### ') && lines[i].endsWith('/')) {
+            if (lines[i].localeCompare(newHeading) > 0) {
+                // Insert before this section (with a blank line separator)
+                let insertIdx = i;
+                while (insertIdx > 0 && lines[insertIdx - 1].trim() !== '') insertIdx--;
+                if (insertIdx > 0 && lines[insertIdx - 1].trim() !== '') {
+                    lines.splice(insertIdx, 0, '', newHeading, ...fileLines);
+                } else {
+                    lines.splice(insertIdx, 0, newHeading, ...fileLines);
+                }
+                inserted = true;
+                break;
+            }
+        }
+    }
+
+    if (!inserted) {
+        // Append at end (before ## 2. Key Architecture Nodes)
+        const nodesIdx = lines.findIndex(l => l.startsWith('## 2.'));
+        const insertIdx = nodesIdx >= 0 ? nodesIdx : lines.length;
+        lines.splice(insertIdx, 0, '', newHeading, ...fileLines);
+    }
+
+    return lines.join('\n');
+}
+
+/** Remove a file entry from the skeleton.  If the parent directory section
+ *  becomes empty after removal, remove the section heading as well. */
+function removeFileFromSkeleton(skeletonSection: string, file: string): string {
+    const dir = path.dirname(file);
+    const base = path.basename(file);
+
+    if (dir === '.') {
+        const escapedFile = escapeRegex(`/${base}`);
+        const lineRegex = new RegExp(`^- ${escapedFile}: [^\\n]*\\n?`, 'g');
+        return skeletonSection.replace(lineRegex, '');
+    }
+
+    const escapedDir = escapeRegex(dir);
+    const sectionRegex = new RegExp(`(### ${escapedDir}/\\n)((?:- [^\\n]*\\n)*)`, 'g');
+    const sectionMatch = sectionRegex.exec(skeletonSection);
+    if (!sectionMatch) return skeletonSection;
+
+    const remainingLines = sectionMatch[1].split('\n').filter(
+        l => l.trim() && !l.trim().startsWith(`- ${base}:`)
+    );
+
+    if (remainingLines.length === 0) {
+        // Remove entire section heading
+        return skeletonSection.replace(
+            new RegExp(`\\n?### ${escapedDir}/\\n(?:- [^\\n]*\\n)*`, 'g'),
+            ''
+        );
+    }
+
+    const newSection = `### ${dir}/\n${remainingLines.join('\n')}\n`;
+    return skeletonSection.replace(sectionMatch[0], newSection);
+}
+
+/** Remove a key-node block for a file from the nodes section. */
+function removeNodeBlock(nodesSection: string, file: string): string {
+    const escapedFile = escapeRegex(file);
+    return nodesSection.replace(
+        new RegExp(`### /${escapedFile}\\n(?:- [^\\n]*\\n?)*`, 'g'),
+        ''
+    );
+}
+
+/** Replace the key-node block for a file in-place. */
+function replaceNodeBlock(nodesSection: string, file: string, newNodeContent: string): string {
+    const escapedFile = escapeRegex(file);
+    const blockRegex = new RegExp(`### /${escapedFile}\\n(?:- [^\\n]*\\n?)*`, 'g');
+    return nodesSection.replace(blockRegex, `### /${file}\n${newNodeContent}`);
+}
+
+/** Insert a new key-node block at the position dictated by the skeleton file order. */
+function insertNodeBlock(
+    nodesSection: string,
+    skeletonOrder: string[],
+    file: string,
+    newNodeContent: string
+): string {
+    const normalizedPath = '/' + file;
+    const nodeBlock = `### /${file}\n${newNodeContent}`;
+
+    // Collect existing blocks (preserving order)
+    const blockRegex = /(### \/[^\n]+\n(?:- [^\n]*\n?)*)/g;
+    const blocks: { path: string; text: string }[] = [];
+    let match;
+    while ((match = blockRegex.exec(nodesSection)) !== null) {
+        const pathMatch = match[1].match(/^### (\/[^\n]+)/);
+        if (pathMatch) {
+            blocks.push({ path: pathMatch[1], text: match[1] });
+        }
+    }
+
+    // Find insertion position
+    const newPathIndex = skeletonOrder.indexOf(normalizedPath);
+    let insertIdx = blocks.length;
+    for (let i = 0; i < blocks.length; i++) {
+        const existingIdx = skeletonOrder.indexOf(blocks[i].path);
+        if (existingIdx > newPathIndex) {
+            insertIdx = i;
+            break;
+        }
+    }
+
+    blocks.splice(insertIdx, 0, { path: normalizedPath, text: nodeBlock });
+
+    return '## 2. Key Architecture Nodes\n' + blocks.map(b => b.text).join('\n\n') + '\n';
+}
+
+// 增量逻辑核心：同时更新 Part 1 (Directory Skeleton) 和 Part 2 (Key Architecture Nodes)
 export async function updateChartIncrementally(changedFiles: string[]): Promise<void> {
     const files = changedFiles.filter((f) => !isIgnored(f));
     if (files.length === 0) return;
 
     const registryPath = path.join(ANCHOR_DIR, 'registry.json');
-    let registry = fs.existsSync(registryPath) 
-        ? JSON.parse(fs.readFileSync(registryPath, 'utf-8')) 
+    let registry = fs.existsSync(registryPath)
+        ? JSON.parse(fs.readFileSync(registryPath, 'utf-8'))
         : {};
 
     let chartContent = fs.readFileSync(CHART_PATH, 'utf-8');
+
+    // Split into skeleton + nodes sections
+    const sectionHeader = '## 2. Key Architecture Nodes';
+    const sectionSplit = chartContent.indexOf(sectionHeader);
+    if (sectionSplit < 0) {
+        // Malformed chart -- fall back to full rebuild
+        await buildChartFull();
+        return;
+    }
+
+    let skeletonSection = chartContent.substring(0, sectionSplit).trimEnd();
+    let nodesSection = chartContent.substring(sectionSplit).trimStart();
     let hasUpdated = false;
 
     for (const file of files) {
         const absPath = path.join(PROJECT_ROOT, file);
+
         if (!fs.existsSync(absPath)) {
-            // 文件被删除了：从 Chart 中彻底移除该块
-            chartContent = chartContent.replace(new RegExp(`### /${file}[\\s\\S]*?(?=### /|$)`), '');
+            // File deleted -- remove from both sections
+            skeletonSection = removeFileFromSkeleton(skeletonSection, file);
+            nodesSection = removeNodeBlock(nodesSection, file);
             delete registry[file];
             hasUpdated = true;
             continue;
         }
 
         const stats = fs.statSync(absPath);
-        // 如果时间没变，跳过
         if (registry[file] && registry[file].mtime === stats.mtimeMs) continue;
 
-        // 仅对改动文件调用高耗能的 AST 解析
+        const escapedFile = escapeRegex(file);
+        const hasExistingBlock = new RegExp(`### /${escapedFile}\\n`).test(nodesSection);
+
+        // Only add skeleton entry for brand-new files (not already tracked)
+        if (!hasExistingBlock) {
+            skeletonSection = addFileToSkeleton(skeletonSection, file);
+        }
+
+        // Parse architecture (expensive)
         const node = await parseFileArchitecture(absPath, file);
         const newNodeContent = node.symbols.map(formatSymbol).join('\n');
-        const blockRegex = new RegExp(`### /${file}[\\s\\S]*?(?=### /|$)`);
-        const hasExistingBlock = blockRegex.test(chartContent);
 
-        // 如果解析结果为空，则与buildFull行为保持一致：完全不写入
         if (!newNodeContent) {
             if (hasExistingBlock) {
-                // 文件存在但是已无导出 → 移除整块（与存量写入的过滤逻辑一致）
-                chartContent = chartContent.replace(blockRegex, '');
+                nodesSection = removeNodeBlock(nodesSection, file);
+                skeletonSection = removeFileFromSkeleton(skeletonSection, file);
                 delete registry[file];
                 hasUpdated = true;
             }
-            // 没有导出且没有旧块 → 什么都不做
             continue;
         }
 
-        // 更新注册表
         registry[file] = { mtime: stats.mtimeMs, content: newNodeContent };
 
-        // 关键：在 chart.md 中原地替换
-        const nodeBlock = `### /${file}\n${newNodeContent}\n`;
-
         if (hasExistingBlock) {
-            chartContent = chartContent.replace(blockRegex, nodeBlock);
+            nodesSection = replaceNodeBlock(nodesSection, file, newNodeContent);
         } else {
-            chartContent += `\n${nodeBlock}`;
+            // Use skeleton order to determine correct insertion position
+            const skeletonOrder = getSkeletonFileOrder(skeletonSection);
+            nodesSection = insertNodeBlock(nodesSection, skeletonOrder, file, newNodeContent);
         }
         hasUpdated = true;
     }
 
     if (hasUpdated) {
+        chartContent = skeletonSection + '\n\n' + nodesSection;
         fs.writeFileSync(CHART_PATH, chartContent, 'utf-8');
         fs.writeFileSync(registryPath, JSON.stringify(registry, null, 2));
     }
