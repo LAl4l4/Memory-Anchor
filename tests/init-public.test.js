@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { GITIGNORE_ENTRY, ANCHOR_DIR_NAME, CHART_FILE_NAME, BALLAST_FILE_NAME, MANIFEST_FILE_NAME } from '../dist/constant.js';
+import { GITIGNORE_ENTRY, ANCHOR_DIR_NAME, CHART_FILE_NAME, BALLAST_FILE_NAME, MANIFEST_FILE_NAME, BALLAST_DEFAULT_RULES } from '../dist/constant.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -58,7 +58,7 @@ test('creates ballast.md with default rules', async () => {
   await runInitPublic(tempDir);
 
   const ballast = await readFile(path.join(tempDir, ANCHOR_DIR_NAME, BALLAST_FILE_NAME), 'utf8');
-  expect(ballast).toContain('- [ ] Follow AGENTS.md rules.');
+  expect(ballast).toContain(BALLAST_DEFAULT_RULES[2]);
   expect(ballast).toContain('Do not rebuild a function');
 });
 
@@ -90,7 +90,7 @@ test('re-running does not duplicate ballast rules', async () => {
   await runInitPublic(tempDir);
 
   const ballast = await readFile(path.join(tempDir, ANCHOR_DIR_NAME, BALLAST_FILE_NAME), 'utf8');
-  const matches = ballast.match(/Follow AGENTS\.md rules\./g);
+  const matches = ballast.split('\n').filter(l => l === BALLAST_DEFAULT_RULES[2]);
   expect(matches).toHaveLength(1);
 });
 

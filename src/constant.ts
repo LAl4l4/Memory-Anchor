@@ -48,10 +48,11 @@ export const MANIFEST_FILE_NAME = 'manifest.md';
 // =============================================================================
 
 export const BALLAST_DEFAULT_RULES: string[] = [  
-  '- [ ] Always check the chart.md before accessing any repositpory files. Only open files when the chart is insufficient.',
-  '- [ ] Do not change chart.md by yourself. Only do it when user explicitly instructs you to.',
-  '- [ ] Follow AGENTS.md rules.',
+  '- [ ] Always check the ./.memoryanchor/chart.md before accessing any repositpory files. Only open files when the chart is insufficient.',
+  '- [ ] Do not change ./.memoryanchor/chart.md by yourself. Only do it when user explicitly instructs you to.',
+  '- [ ] Follow ./.memoryanchor/AGENTS.md rules.',
   '- [ ] Do not rebuild a function that already exists and used by others, instead, pull it out to a separate file and import it',
+  '- [ ] After implementing a feature, update the Module Status in ./.memoryanchor/manifest.md. If it is a significant architectural change, also update Key Decisions.',
 ];
 
 export const BALLAST_DEFAULT_TITLE = '# Default Ballast Rules(You must not change these part)';
@@ -85,9 +86,9 @@ export const AGENTS_CONTENT = `
 - ./.memoryanchor/ballast.md: Persistent repo-specific rules/guardrails, one per line.
 
 ### Workflow
-- Always read chart.md before accessing any repository files. Only open repository files when chart.md is insufficient.
-- Must follow all rules in ballast.md. After solving a bug, add a rule under "Ballast Specific Rules For This Repository" to prevent recurrence.
-- After each turn, update Module Status (and Key Decisions, if applicable) in manifest.md.
+- Always read ./.memoryanchor/chart.md before accessing any repository files. Only open repository files when chart.md is insufficient.
+- Must follow all rules in ./.memoryanchor/ballast.md. After solving a bug, add a rule under "Ballast Specific Rules For This Repository" to prevent recurrence.
+- After any of features implemented, update Module Status (and Key Decisions, if applicable) in ./.memoryanchor/manifest.md.
 
 ### ballast.md format
 - Keep only valid rules. Delete obsolete ones.

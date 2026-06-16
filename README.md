@@ -48,6 +48,7 @@ Update ballast, manifest. Do full update for chart.md to ensure the correctness.
 npm install -g memory-anchor
 anchor init
 ```
+Will initialize mamory-anchor for all supported cli.
 
 ## Extra Commands
 ```bash
@@ -55,6 +56,7 @@ anchor init-copilot
 anchor init-claude
 anchor init-codex
 anchor init-opencode
+anchor init-codebuddy
 anchor init-public
 ```
 Used to initialize a specific agent.
@@ -73,7 +75,7 @@ OpenCode-only setup. Creates:
 - `./opencode.json` — adds `AGENTS.md` + the three anchor files to the `instructions` array so the LLM sees them on every turn. Existing keys (`model`, `provider`, `mcp`, …) are preserved.
 
 ## Hooks
-The init command registers hooks in `./.github/hooks/memory-anchor.json`:
+The init command registers following hooks:
 - **sessionStart**: runs `.memoryanchor/dist/hooks/public/sessionStartPublic.js`
 - **agentStop**: runs `.memoryanchor/dist/hooks/public/stopPublic.js`
 - **sessionEnd**: runs `.memoryanchor/dist/sessionEndPublic.js`
@@ -92,8 +94,3 @@ Hook effects and purpose:
 - `src/hooks/`: pre-session / post-session hooks
 - `src/utils/`: shared utilities
 
-## Development
-```bash
-npm run build
-npm start
-```

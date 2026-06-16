@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { ANCHOR_DIR_NAME, BALLAST_FILE_NAME } from '../dist/constant.js';
+import { ANCHOR_DIR_NAME, BALLAST_FILE_NAME, BALLAST_DEFAULT_RULES } from '../dist/constant.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -45,5 +45,5 @@ test('init creates ballast with default rule', async () => {
   const ballastPath = path.join(tempDir, ANCHOR_DIR_NAME, BALLAST_FILE_NAME);
   const ballast = await readFile(ballastPath, 'utf8');
 
-  expect(ballast).toContain('- [ ] Follow AGENTS.md rules.');
+  expect(ballast).toContain(BALLAST_DEFAULT_RULES[2]);
 });
