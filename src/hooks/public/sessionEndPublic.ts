@@ -61,13 +61,21 @@ export function sanitizeBallast(): void {
 
   const content = fs.readFileSync(BALLAST_PATH, 'utf8');
 
-  const rules = content
+  const headings: string[] = [];
+  const ruleLines: string[] = [];
+
+  content
     .split('\n')
     .map((line) => line.trim())
     .filter(Boolean)
-    .map((line) => {
+    .forEach((line) => {
+      // Preserve markdown headings — don't treat them as rules
+      if (line.startsWith('#')) {
+        headings.push(line);
+        return;
+      }
       if (line.startsWith('Note:') || line.startsWith('Explanation:') || line.startsWith('Rule:')) {
-        return null;
+        return;
       }
       line = line
         .replace(/^\*/, '-')
@@ -78,12 +86,12 @@ export function sanitizeBallast(): void {
       if (!/^- \[[ x]\]/.test(line)) {
         line = `- [ ] ${line}`;
       }
-      return line;
-    })
-    .filter(Boolean);
+      ruleLines.push(line);
+    });
 
-  const unique = [...new Set(rules)];
-  fs.writeFileSync(BALLAST_PATH, unique.join('\n'), 'utf8');
+  const unique = [...new Set(ruleLines)];
+  const output = [...headings, ...unique].join('\n');
+  fs.writeFileSync(BALLAST_PATH, output, 'utf8');
   logToUser(`Ballast normalized (${unique.length} rules)`, '35');
 }
 

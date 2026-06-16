@@ -7,9 +7,9 @@
 - ./.memoryanchor/ballast.md: Persistent repo-specific rules/guardrails, one per line.
 
 ### Workflow
-- Always read chart.md before accessing any repository files. Only open repository files when chart.md is insufficient.
-- Must follow all rules in ballast.md. After solving a bug, add a rule under "Ballast Specific Rules For This Repository" to prevent recurrence.
-- After any of features implemented, update Module Status (and Key Decisions, if applicable) in manifest.md.
+- Always read ./.memoryanchor/chart.md before accessing any repository files. Only open repository files when chart.md is insufficient.
+- Must follow all rules in ./.memoryanchor/ballast.md. After solving a bug, add a rule under "Ballast Specific Rules For This Repository" to prevent recurrence.
+- After any of features implemented, update Module Status (and Key Decisions, if applicable) in ./.memoryanchor/manifest.md.
 
 ### ballast.md format
 - Keep only valid rules. Delete obsolete ones.
