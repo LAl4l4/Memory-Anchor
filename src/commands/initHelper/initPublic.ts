@@ -3,7 +3,7 @@ import { access, appendFile, mkdir, readFile, writeFile } from 'node:fs/promises
 import path from 'node:path';
 import { createInterface } from 'node:readline';
 import { fileURLToPath } from 'node:url';
-import { buildChartFull } from '../../core/build-chart.js';
+import { buildChartFull, destroyPool } from '../../core/build-chart.js';
 import { AGENTS_CONTENT, GITIGNORE_ENTRY, MANIFEST_DEFAULT_CONTENT } from '../../constant.js';
 import { ensureBallastFile } from '../../core/init-ballast.js';
 import { scanAvailableParsers } from '../../core/scan-parsers.js';
@@ -232,6 +232,8 @@ export async function initPublic(cwd: string): Promise<InitPublicResult> {
   const agentsCreated = await ensureAgentsFile(paths.agentsPath);
 
   await buildChartFull();
+
+  await destroyPool();
 
   return { gitignoreUpdated, anchorFilesCreated, agentsCreated };
 }

@@ -4,13 +4,25 @@
 
 By maintaining a compact set of incremental metadata anchors directly within your repository, Memory Anchor drastically slashes LLM token consumption, eliminates context drift (the "Lost in the Middle" problem), and cuts down cold-start latencies in long-lived agent sessions.
 
-### 🔥 Key Features
+## 🔥 Key Features
 - 🪙 **Token Optimization**: Prevents AI agents from mindlessly rescanning your entire codebase. It feeds them precise, compact code signatures instead.
 - 🧠 **Long-Term Memory (Ballast)**: Two-section rule system — default rules are auto-managed and refreshed on every init, while repository-specific rules (constraints, architectural decisions, "lessons learned") are preserved across sessions so your AI never repeats the same mistakes.
 - 📅 **State Synchronization (Manifest)**: Module status tracker and key decisions log that helps AI agents understand what state each module is in and what critical design choices have been made.
 - 🔄 **Automated Lifecycle Hooks**: Seamless pre/post-session integration. Automatically injects compact payloads on session start, and incrementally refreshes the codebase chart based on Git diffs upon session end.
 
 ---
+## Optimization
+Implement threadPool and language load cache to reuse the parser and loaded language, 
+make it sharply faster when appling initialization on large workspace.
+
+threadPool is lazy create, it will automatically creating when necessary, but it should exit
+
+
+WorkerPool will exist when you use the cli, to catch the file change after every change, 
+it will destroy when you exit the cli, ensuring highest reuse amount.
+
+Initialization will destroy the pool after it finished.
+
 
 ## 🧭 How It Works
 
@@ -93,4 +105,7 @@ Hook effects and purpose:
 - `src/core/`: chart building and configuration
 - `src/hooks/`: pre-session / post-session hooks
 - `src/utils/`: shared utilities
+
+## Current work
+Implement multi-thread in chart-building, use threading pool.
 

@@ -79,6 +79,7 @@ export const MANIFEST_DEFAULT_CONTENT = `
 
 export const AGENTS_CONTENT = `
 ## Memory Anchor Rules
+Memory Anchor is initialized in this repository. Follow these rules to ensure it works effectively.
 
 ### File Roles
 - ./.memoryanchor/chart.md: Auto-generated log of file changes per session. Read this FIRST to recover recent context.

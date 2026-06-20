@@ -11,6 +11,7 @@ const originalCwd = process.cwd();
 
 let buildChartFull;
 let updateChartIncrementally;
+let destroyPool;
 let tempDir = '';
 let anchorDir = '';
 let chartPath = '';
@@ -71,7 +72,7 @@ beforeAll(async () => {
   process.chdir(tempDir);
   await seedFixtures(tempDir);
 
-  ({ buildChartFull, updateChartIncrementally } = await import('../dist/core/build-chart.js'));
+  ({ buildChartFull, updateChartIncrementally, destroyPool } = await import('../dist/core/build-chart.js'));
 
   anchorDir = path.join(tempDir, '.memoryanchor');
   chartPath = path.join(anchorDir, 'chart.md');
@@ -83,6 +84,7 @@ beforeEach(async () => {
 });
 
 afterAll(async () => {
+  await destroyPool();
   await cleanupAnchor();
   process.chdir(originalCwd);
   if (tempDir) {

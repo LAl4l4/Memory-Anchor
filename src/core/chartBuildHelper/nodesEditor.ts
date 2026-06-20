@@ -1,13 +1,14 @@
-import * as path from 'path';
-import { parseFileArchitecture, formatSymbol } from './ASTParser.js';
-import { escapeRegex, PROJECT_ROOT } from './utils.js';
+import { formatSymbol } from './ASTParser.js';
+import { FileNode } from './symbolExtractor.js';
+import { escapeRegex } from './utils.js';
 
-export async function buildNodesSection(files: string[]): Promise<string> {
+/**
+ * Build the Nodes section from pre-parsed FileNode results.
+ * Pure formatting — no file I/O or parsing.
+ */
+export function buildNodesSection(fileNodes: FileNode[]): string {
     let nodesSection = "## 2. Key Architecture Nodes\n";
-    for (const relPath of files) {
-        const absPath = path.join(PROJECT_ROOT, relPath);
-        const fileNode = await parseFileArchitecture(absPath, relPath);
-
+    for (const fileNode of fileNodes) {
         const validSymbols = fileNode.symbols.filter(
             exp => exp.type !== 'error'
         );

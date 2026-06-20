@@ -1,5 +1,17 @@
+## Optimization
+Implement threadPool and language load cache to reuse the parser and loaded language, 
+make it sharply faster when appling initialization on large workspace.
+
+threadPool is lazy create, it will automatically creating when necessary, but it should exit
+
+WorkerPool will exist when you use the cli, to catch the file change after every change, 
+it will destroy when you exit the cli, ensuring highest reuse amount.
+
+Initialization will destroy the pool after it finished.
+
 
 ## Memory Anchor Rules
+Memory Anchor is initialized in this repository. Follow these rules to ensure it works effectively.
 
 ### File Roles
 - ./.memoryanchor/chart.md: Auto-generated log of file changes per session. Read this FIRST to recover recent context.

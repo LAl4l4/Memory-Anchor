@@ -1,9 +1,11 @@
-import { Parser, Language } from "web-tree-sitter";
+import { Language } from "web-tree-sitter";
 
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import { scanAvailableParsers } from "./scan-parsers.js";
+
+
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -11,7 +13,7 @@ const __dirname = path.dirname(__filename);
 const cache = new Map<string, Language>();
 let availableParsers: Set<string> | null = null;
 
-void Parser;
+
 
 /**
  * Return the set of language names that have a corresponding tree-sitter WASM parser.
@@ -38,8 +40,8 @@ export async function loadLanguage(lang: string) {
         `tree-sitter-${lang}.wasm`
     );
 
+    // wasm is large, do not load it twice
     const buffer = fs.readFileSync(wasmPath);
-
     const language = await Language.load(
         new Uint8Array(buffer)
     );
