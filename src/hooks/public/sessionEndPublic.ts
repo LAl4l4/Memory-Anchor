@@ -3,7 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { CODE_EXTENSIONS, STALE_BLACKLIST } from '../../constant.js';
 import { captureGitChanges, GitChange } from '../../utils/captureGitChanges.js';
-import { buildChartFull, destroyPool } from '../../core/build-chart.js';
+import { updateChartIncrementally, destroyPool } from '../../core/build-chart.js';
 
 const cwd = process.cwd();
 const ANCHOR_PATH = path.join(cwd, '.memoryanchor');
@@ -101,9 +101,11 @@ export async function runSessionEnd(): Promise<void> {
     updateManifest(changes);
     cleanBallastRules(changes);
     sanitizeBallast();
+
+    const changedPaths = changes.map((c) => c.file);
+    await updateChartIncrementally(changedPaths);
   }
 
-  await buildChartFull();
   await destroyPool();
   process.exit(0);
 }

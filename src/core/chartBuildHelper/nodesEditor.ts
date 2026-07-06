@@ -1,6 +1,9 @@
-import { formatSymbol } from './ASTParser.js';
+import * as fs from 'fs';
+import * as path from 'path';
+import { formatSymbol, batchParseFiles } from './ASTParser.js';
 import { FileNode } from './symbolExtractor.js';
-import { escapeRegex } from './utils.js';
+import { CHART_PATH, PROJECT_ROOT } from './utils.js';
+import { getSkeletonFileOrder, addFileToSkeleton, removeFileFromSkeleton } from './skeletonEditor.js';
 
 /**
  * Build the Nodes section from pre-parsed FileNode results.
@@ -24,74 +27,176 @@ export function buildNodesSection(fileNodes: FileNode[]): string {
     return nodesSection;
 }
 
-/** Remove a key-node block for a file from the nodes section. */
-export function removeNodeBlock(nodesSection: string, file: string): string {
-    const escapedFile = escapeRegex(file);
-    return nodesSection.replace(
-        new RegExp(`### /${escapedFile}\\n(?:- [^\\n]*\\n?)*`, 'g'),
-        ''
-    );
+// =============================================================================
+// Step 1: 分类 —— 判断每个变更文件属于 删除 / 跳过 / 待重新parse
+// =============================================================================
+
+interface ClassifiedFiles {
+    toDelete: string[];
+    toParse: { file: string; absPath: string; stats: fs.Stats }[];
 }
 
-/** Replace the key-node block for a file in-place. */
-export function replaceNodeBlock(nodesSection: string, file: string, newNodeContent: string): string {
-    const escapedFile = escapeRegex(file);
-    const blockRegex = new RegExp(`### /${escapedFile}\\n(?:- [^\\n]*\\n?)*`, 'g');
-    return nodesSection.replace(blockRegex, `### /${file}\n${newNodeContent}`);
+export function classifyChangedFiles(
+    files: string[],
+    registry: Record<string, any>
+): ClassifiedFiles {
+    const toDelete: string[] = [];
+    const toParse: { file: string; absPath: string; stats: fs.Stats }[] = [];
+
+    for (const file of files) {
+        const absPath = path.join(PROJECT_ROOT, file);
+        if (!fs.existsSync(absPath)) {
+            toDelete.push(file);
+            continue;
+        }
+        const stats = fs.statSync(absPath);
+        if (registry[file]?.mtime === stats.mtimeMs) continue; // 未变
+        toParse.push({ file, absPath, stats });
+    }
+
+    return { toDelete, toParse };
 }
 
-/** Insert a new key-node block at the position dictated by the skeleton file order. */
-export function insertNodeBlock(
-  nodesSection: string,
-  skeletonOrder: string[],
-  file: string,
-  newNodeContent: string
-): string {
-    const normalizedPath = '/' + file;
-    const nodeBlock = `### /${file}\n${newNodeContent}`;
+// =============================================================================
+// Step 2: 解析 nodes 字符串为 Map,只做一次
+// =============================================================================
 
-    // Collect existing blocks (preserving order)
-    const blockRegex = /(### \/[^\n]+\n(?:- [^\n]*\n?)*)/g;
-    const blocks: { path: string; text: string }[] = [];
+export function parseNodeBlocksToMap(nodesSection: string): Map<string, string> {
+    const blockRegex = /### (\/[^\n]+)\n((?:- [^\n]*\n?)*)/g;
+    const map = new Map<string, string>();
     let match;
     while ((match = blockRegex.exec(nodesSection)) !== null) {
-        const pathMatch = match[1].match(/^### (\/[^\n]+)/);
-        if (pathMatch) {
-            blocks.push({ path: pathMatch[1], text: match[1] });
+        const [, filePath, body] = match;
+        map.set(filePath, `### ${filePath}\n${body}`.trimEnd());
+    }
+    return map;
+}
+
+// =============================================================================
+// Step 3: 应用删除 —— 修改 nodeMap / skeleton / registry,返回是否有变化
+// =============================================================================
+
+export function applyDeletions(
+    toDelete: string[],
+    nodeMap: Map<string, string>,
+    skeleton: string,
+    registry: Record<string, any>
+): { skeleton: string; changed: boolean } {
+    let changed = false;
+    for (const file of toDelete) {
+        const normalizedPath = '/' + file;
+        if (nodeMap.delete(normalizedPath)) {
+            skeleton = removeFileFromSkeleton(skeleton, file);
+            delete registry[file];
+            changed = true;
         }
     }
+    return { skeleton, changed };
+}
 
-    // Use hash map for O(1) lookup of skeleton order index
-    // Reduce full algorithm complexity from O(n^2) to O(n) by avoiding nested loops for insertion point
-    const rank = new Map<string, number>(
-        skeletonOrder.map((p, i) => [p, i])
+// =============================================================================
+// Step 4: 批量 parse 新增/修改文件 —— 纯 IO/CPU,不碰 skeleton/nodeMap/registry
+// =============================================================================
+
+interface ParsedFileResult {
+    file: string;
+    stats: fs.Stats;
+    newNodeContent: string; // 可能为空字符串(无 symbol)
+}
+
+export async function parseChangedFiles(
+    toParse: { file: string; absPath: string; stats: fs.Stats }[]
+): Promise<ParsedFileResult[]> {
+    if (toParse.length === 0) return [];
+
+    const parsedNodes = await batchParseFiles(
+        toParse.map(({ file, absPath }) => ({ absolutePath: absPath, relativePath: file }))
     );
 
-    // Find insertion position
-    const newPathIndex = rank.get(normalizedPath)
-    if (newPathIndex === undefined) {
-        throw new Error(
-            `[Memory Anchor] insertNodeBlock: '${normalizedPath}' missing from skeleton order. ` +
-            `This is a bug — addFileToSkeleton and getSkeletonFileOrder have mismatched path formats.` +
-            `Please arise this issue to https://github.com/LAl4l4/Memory-Anchor`
-        );
+    return toParse.map(({ file, stats }, i) => ({
+        file,
+        stats,
+        newNodeContent: parsedNodes[i].symbols.map(formatSymbol).join('\n'),
+    }));
+}
+
+// =============================================================================
+// Step 5: 应用 parse 结果 —— 修改 nodeMap / skeleton / registry,返回是否有变化
+// =============================================================================
+
+export function applyParsedResults(
+    results: ParsedFileResult[],
+    nodeMap: Map<string, string>,
+    skeleton: string,
+    registry: Record<string, any>
+): { skeleton: string; changed: boolean } {
+    let changed = false;
+
+    for (const { file, stats, newNodeContent } of results) {
+        const normalizedPath = '/' + file;
+        const hasExistingBlock = nodeMap.has(normalizedPath);
+
+        if (!newNodeContent) {
+            // parse 成功但没有 symbol:如果原来有记录,视为删除
+            if (hasExistingBlock) {
+                nodeMap.delete(normalizedPath);
+                skeleton = removeFileFromSkeleton(skeleton, file);
+                delete registry[file];
+                changed = true;
+            }
+            continue;
+        }
+
+        if (!hasExistingBlock) {
+            skeleton = addFileToSkeleton(skeleton, file);
+        }
+        nodeMap.set(normalizedPath, `### ${normalizedPath}\n${newNodeContent}`);
+        registry[file] = { mtime: stats.mtimeMs, content: newNodeContent };
+        changed = true;
     }
-    let insertIdx = blocks.length;
-    for (let i = 0; i < blocks.length; i++) {
-        const existingIdx = rank.get(blocks[i].path)
-        if (existingIdx === undefined) {
+
+    return { skeleton, changed };
+}
+
+// =============================================================================
+// Step 6: 序列化 —— 按 skeleton 顺序把 nodeMap 拼成最终 nodes 字符串
+// =============================================================================
+
+export function serializeNodes(skeleton: string, nodeMap: Map<string, string>): string {
+    const skeletonOrder = getSkeletonFileOrder(skeleton);
+    const orderedBlocks: string[] = [];
+
+    for (const p of skeletonOrder) {
+        const block = nodeMap.get(p);
+        if (!block) {
             throw new Error(
-                `[Memory Anchor] Orphan node block detected for '${blocks[i].path}'. ` +
-                `chart.md is in an inconsistent state. Please run 'anchor init' to rebuild.`
+                `[Memory Anchor] Inconsistent state: '${p}' is in skeleton but has no node block. ` +
+                `Run 'anchor init' to rebuild.`
             );
         }
-        if (existingIdx > newPathIndex) {
-            insertIdx = i;
-            break;
-        }
+        orderedBlocks.push(block);
     }
 
-    blocks.splice(insertIdx, 0, { path: normalizedPath, text: nodeBlock });
+    if (orderedBlocks.length !== nodeMap.size) {
+        throw new Error(
+            `[Memory Anchor] Inconsistent state: node map has entries not present in skeleton order. ` +
+            `Run 'anchor init' to rebuild.`
+        );
+    }
 
-    return '## 2. Key Architecture Nodes\n' + blocks.map(b => b.text).join('\n\n') + '\n';
+    return '## 2. Key Architecture Nodes\n' + orderedBlocks.join('\n\n') + '\n';
+}
+
+// =============================================================================
+// Step 7: 落盘 —— 唯一做 fs.writeFileSync 的地方
+// =============================================================================
+
+export function persistChart(
+    skeleton: string,
+    nodes: string,
+    registry: Record<string, any>,
+    registryPath: string
+): void {
+    fs.writeFileSync(CHART_PATH, skeleton + '\n\n' + nodes, 'utf-8');
+    fs.writeFileSync(registryPath, JSON.stringify(registry, null, 2));
 }

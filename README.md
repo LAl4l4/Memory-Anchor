@@ -81,10 +81,9 @@ Initializes a workspace by creating:
 - `./.memoryanchor/manifest.md` (module status tracker + key decisions log)
 - `./AGENTS.md` (AI behavior rules and memory workflow)
 
-### `anchor init-opencode`
-OpenCode-only setup. Creates:
-- `./.opencode/plugins/memory-anchor.js` — a plugin that subscribes to `session.idle` / `session.deleted` / `tool.execute.after` and invokes the `memoryanchor-opencode-{pre,stop,post}` hooks.
-- `./opencode.json` — adds `AGENTS.md` + the three anchor files to the `instructions` array so the LLM sees them on every turn. Existing keys (`model`, `provider`, `mcp`, …) are preserved.
+### `anchor init-{your cli name}`
+Specific cli only setup. Creates:
+- cli only depending files.
 
 ## Hooks
 The init command registers following hooks:
@@ -96,7 +95,7 @@ These hooks are expected to read/write the Memory Anchor files above. The build-
 
 Hook effects and purpose:
 1. **sessionStart**: loads chart/ballast/manifest to inject a compact context payload and reduce token spend on re-reading the repo.
-2. **sessionEnd**: records changes into manifest/ballast and refreshes chart slices to preserve long-term memory and cut cold-start time next session.
+2. **sessionEnd**: records changes into manifest/ballast and refreshes chart slices to preserve long-term memory and cut cold-start time next session. Now use increment update with threading pool.
 
 ## Project Layout
 - `src/cli.ts`: CLI entrypoint (shebang)

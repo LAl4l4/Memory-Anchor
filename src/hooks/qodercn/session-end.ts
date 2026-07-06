@@ -1,5 +1,3 @@
 #!/usr/bin/env node
 import { runSessionEnd } from '../public/sessionEndPublic.js';
-
-void runSessionEnd();//because codex cli doesn't have session end
-
+void runSessionEnd();

@@ -31,7 +31,8 @@ export const GITIGNORE_ENTRY = [
   '.opencode',
   'opencode.json',
   '.claude',
-  '.github'
+  '.github',
+  '.qoder'
 ];
 
 // =============================================================================
@@ -121,6 +122,9 @@ export const HOOK_COMMANDS = {
   CODEBUDDY_PRE: 'memoryanchor-codebuddy-pre',
   CODEBUDDY_STOP: 'memoryanchor-codebuddy-stop',
   CODEBUDDY_POST: 'memoryanchor-codebuddy-post',
+  QODERCN_PRE: 'memoryanchor-qodercn-pre',
+  QODERCN_STOP: 'memoryanchor-qodercn-stop',
+  QODERCN_POST: 'memoryanchor-qodercn-post',
   OPENCODE: 'memoryanchor-opencode',
 } as const;
 

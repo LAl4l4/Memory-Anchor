@@ -1,4 +1,3 @@
-import * as fs from 'fs';
 import * as path from 'path';
 import { globSync } from 'glob';
 import { EXT_TO_LANGUAGE } from '../../utils/ext-to-lang.js';
