@@ -85,8 +85,10 @@ export function applyDeletions(
     let changed = false;
     for (const file of toDelete) {
         const normalizedPath = '/' + file;
-        if (nodeMap.delete(normalizedPath)) {
-            skeleton = removeFileFromSkeleton(skeleton, file);
+        const hadNode = nodeMap.delete(normalizedPath);
+        const hadRegistry = file in registry;
+        if (hadNode || hadRegistry) {
+            skeleton = removeFileFromSkeleton(skeleton, file); // 不再被 nodeMap 是否存在这个条件卡住
             delete registry[file];
             changed = true;
         }
@@ -164,24 +166,19 @@ export function applyParsedResults(
 
 export function serializeNodes(skeleton: string, nodeMap: Map<string, string>): string {
     const skeletonOrder = getSkeletonFileOrder(skeleton);
+    const skeletonSet = new Set(skeletonOrder);
     const orderedBlocks: string[] = [];
 
     for (const p of skeletonOrder) {
         const block = nodeMap.get(p);
-        if (!block) {
-            throw new Error(
-                `[Memory Anchor] Inconsistent state: '${p}' is in skeleton but has no node block. ` +
-                `Run 'anchor init' to rebuild.`
-            );
-        }
-        orderedBlocks.push(block);
+        if (block) orderedBlocks.push(block);
+        // 没有 block 是正常情况,跳过
     }
 
-    if (orderedBlocks.length !== nodeMap.size) {
-        throw new Error(
-            `[Memory Anchor] Inconsistent state: node map has entries not present in skeleton order. ` +
-            `Run 'anchor init' to rebuild.`
-        );
+    for (const p of nodeMap.keys()) {
+        if (!skeletonSet.has(p)) {
+            console.warn(`[Memory Anchor] Dropping orphan node block for '${p}' (not in skeleton). Consider running 'anchor init' if this persists.`);
+        }
     }
 
     return '## 2. Key Architecture Nodes\n' + orderedBlocks.join('\n\n') + '\n';

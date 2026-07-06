@@ -62,17 +62,12 @@ export const MemoryAnchorPlugin = async () => {
   run("pre");
 
   return {
-    // After every tool call → incremental chart refresh.
-    "tool.execute.after": async () => {
+    // Session idle (work finished) → incremental chart refresh.
+    "session.idle": async () => {
       run("stop");
     },
 
-    // Session idle (work finished) → run full session-end logic.
-    "session.idle": async () => {
-      run("post");
-    },
-
-    // Session deleted (closed/reset) → also run session-end.
+    // Session deleted (closed/reset) → run session-end.
     "session.deleted": async () => {
       run("post");
     },
