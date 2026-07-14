@@ -48,7 +48,11 @@ test('creates .opencode/plugins/memory-anchor.js', async () => {
   );
   expect(plugin).toContain('export const MemoryAnchorPlugin');
   expect(plugin).toContain(HOOK_COMMANDS.OPENCODE);
-  expect(plugin).toContain('session.start');
+  // Context injection must go through the documented system-transform hook,
+  // NOT through a (non-existent) "session.start" event.
+  expect(plugin).toContain('experimental.chat.system.transform');
+  expect(plugin).not.toContain('session.start');
+  // Side-effect hooks fire on the real opencode events.
   expect(plugin).toContain('session.idle');
   expect(plugin).toContain('session.deleted');
 });
@@ -63,16 +67,18 @@ test('creates opencode.json with schema and instructions', async () => {
   expect(cfg.instructions).toContain(REQUIRED_INSTRUCTION_ENTRIES[1]);
 });
 
-test('plugin file uses Bun shell ($) to invoke hooks', async () => {
+test('plugin file destructures $ from ctx and uses Bun shell to invoke hooks', async () => {
   await runInitOpencode(tempDir);
 
   const plugin = await readFile(
     path.join(tempDir, '.opencode', 'plugins', 'memory-anchor.js'),
     'utf8',
   );
-  // $ must be imported from "bun" (Bun's shell) per opencode plugin docs.
-  expect(plugin).toMatch(/from\s+["']bun["']/);
-  // And used to spawn child processes.
+  // Per the opencode plugin contract, `$` (BunShell) is provided via the
+  // PluginInput ctx — it must NOT be imported bare from "bun".
+  expect(plugin).not.toMatch(/from\s+["']bun["']/);
+  expect(plugin).toMatch(/\{\s*\$\s*\}/);
+  // And used to spawn child processes for side-effect hooks.
   expect(plugin).toMatch(/\$\s*`/);
 });
 
@@ -114,7 +120,7 @@ test('does not duplicate instructions across re-runs', async () => {
   expect(occurrences).toHaveLength(1);
 });
 
-test('does not overwrite an existing plugin file', async () => {
+test('does not overwrite a user-customized plugin file', async () => {
   const pluginPath = path.join(tempDir, '.opencode', 'plugins', 'memory-anchor.js');
   await mkdir(path.dirname(pluginPath), { recursive: true });
   const userContent = '// user-customized\n';
@@ -124,6 +130,25 @@ test('does not overwrite an existing plugin file', async () => {
 
   const content = await readFile(pluginPath, 'utf8');
   expect(content).toBe(userContent);
+});
+
+test('replaces a known-buggy v1 plugin file (one that uses the non-existent "session.start" event)', async () => {
+  const pluginPath = path.join(tempDir, '.opencode', 'plugins', 'memory-anchor.js');
+  await mkdir(path.dirname(pluginPath), { recursive: true });
+  // v1 template: uses the non-existent "session.start" event.
+  const buggyV1 = `import { $ } from "bun";
+export const MemoryAnchorPlugin = async () => ({
+  "session.start": async () => { run("pre"); },
+});
+`;
+  await writeFile(pluginPath, buggyV1);
+
+  await runInitOpencode(tempDir);
+
+  const content = await readFile(pluginPath, 'utf8');
+  expect(content).not.toBe(buggyV1);
+  expect(content).toContain('experimental.chat.system.transform');
+  expect(content).not.toContain('session.start');
 });
 
 test('also runs the public init (AGENTS.md + .memoryanchor/*)', async () => {
