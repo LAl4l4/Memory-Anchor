@@ -48,8 +48,9 @@ test('creates .opencode/plugins/memory-anchor.js', async () => {
   );
   expect(plugin).toContain('export const MemoryAnchorPlugin');
   expect(plugin).toContain(HOOK_COMMANDS.OPENCODE);
-  expect(plugin).toContain('tool.execute.after');
+  expect(plugin).toContain('session.start');
   expect(plugin).toContain('session.idle');
+  expect(plugin).toContain('session.deleted');
 });
 
 test('creates opencode.json with schema and instructions', async () => {
@@ -60,8 +61,6 @@ test('creates opencode.json with schema and instructions', async () => {
   expect(Array.isArray(cfg.instructions)).toBe(true);
   expect(cfg.instructions).toContain(REQUIRED_INSTRUCTION_ENTRIES[0]);
   expect(cfg.instructions).toContain(REQUIRED_INSTRUCTION_ENTRIES[1]);
-  expect(cfg.instructions).toContain(REQUIRED_INSTRUCTION_ENTRIES[2]);
-  expect(cfg.instructions).toContain(REQUIRED_INSTRUCTION_ENTRIES[3]);
 });
 
 test('plugin file uses Bun shell ($) to invoke hooks', async () => {

@@ -58,10 +58,12 @@ function run(name, args = []) {
 }
 
 export const MemoryAnchorPlugin = async () => {
-  // Session start: dump the memory core payload.
-  run("pre");
-
   return {
+    // Session start: dump the memory core payload.
+    "session.start": async () => {
+      run("pre");
+    },
+    
     // Session idle (work finished) → incremental chart refresh.
     "session.idle": async () => {
       run("stop");

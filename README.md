@@ -108,3 +108,8 @@ Hook effects and purpose:
 ## Current work
 Implement multi-thread in chart-building, use threading pool.
 
+## Update log
+- `2026/07/08`: [Known Limitation] Manual edits/deletions in chart.md are not resolved by incremental updating, because it relies on registry mtime which doesn't change. This is by design - chart.md is auto-generated and should never be edited manually. Will not occur in normal use.
+
+- `2026/07/14`: Opencode's plugin does not injecting ballast.md and manifest.md successfully, add this
+resolving to Todo. Change sample decision in manifest.md to make models remember to keep /n/n after each decision.

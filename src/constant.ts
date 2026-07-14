@@ -76,6 +76,8 @@ export const MANIFEST_DEFAULT_CONTENT = `
 
 ## Key Decisions
 - sample decision: The explanation of this decision(e.g. Use jest to do automated testing because it is the most popular).
+
+- sample decision 2: Remember to keep /n/n after each decision.
 `;
 
 export const AGENTS_CONTENT = `
@@ -147,8 +149,8 @@ export const OPENCODE_SCHEMA_URL = 'https://opencode.ai/config.json';
 export const REQUIRED_INSTRUCTION_ENTRIES = [
   './AGENTS.md',
   './.memoryanchor/chart.md',
-  './.memoryanchor/ballast.md',
-  './.memoryanchor/manifest.md',
+  // Do not include ballast.md or manifest.md in the instructions, 
+  // because they are already be injected by hooks
 ] as const;
 
 // =============================================================================

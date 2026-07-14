@@ -15,5 +15,5 @@
     "noEmit": true,  // 仅进行类型检查，不生成输出文件
     "types": ["node"]
   },
-  "include": ["src/**/*.ts"]
+  "include": ["src/**/*.ts", "src/utils/captureGitChanges.ts"]
 }
