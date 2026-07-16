@@ -84,13 +84,6 @@ test('hooks include matcher field', async () => {
   expect(settings.hooks.SessionEnd[0].matcher).toBe('');
 });
 
-test('creates AGENTS.md with memory anchor content', async () => {
-  await runInitQodercn(tempDir);
-
-  const agentsMd = await readFile(path.join(tempDir, 'AGENTS.md'), 'utf8');
-  expect(agentsMd).toContain('Memory Anchor');
-});
-
 test('preserves existing settings.json content when adding hooks', async () => {
   const qoderDir = path.join(tempDir, '.qoder');
   const settingsPath = path.join(qoderDir, 'settings.json');

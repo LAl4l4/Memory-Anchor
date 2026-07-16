@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { HOOK_COMMANDS, OPENCODE_SCHEMA_URL, REQUIRED_INSTRUCTION_ENTRIES, ANCHOR_DIR_NAME, CHART_FILE_NAME, BALLAST_FILE_NAME, MANIFEST_FILE_NAME } from '../dist/constant.js';
+import { HOOK_COMMANDS, OPENCODE_SCHEMA_URL, REQUIRED_INSTRUCTION_ENTRIES } from '../dist/constant.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -120,7 +120,7 @@ test('does not duplicate instructions across re-runs', async () => {
   expect(occurrences).toHaveLength(1);
 });
 
-test('does not overwrite a user-customized plugin file', async () => {
+test('If old memory-anchor.js file does not consist with newest version, overwrite it', async () => {
   const pluginPath = path.join(tempDir, '.opencode', 'plugins', 'memory-anchor.js');
   await mkdir(path.dirname(pluginPath), { recursive: true });
   const userContent = '// user-customized\n';
@@ -129,7 +129,8 @@ test('does not overwrite a user-customized plugin file', async () => {
   await runInitOpencode(tempDir);
 
   const content = await readFile(pluginPath, 'utf8');
-  expect(content).toBe(userContent);
+  expect(content).not.toBe(userContent);
+  expect(content).toContain('experimental.chat.system.transform');
 });
 
 test('replaces a known-buggy v1 plugin file (one that uses the non-existent "session.start" event)', async () => {
@@ -149,19 +150,6 @@ export const MemoryAnchorPlugin = async () => ({
   expect(content).not.toBe(buggyV1);
   expect(content).toContain('experimental.chat.system.transform');
   expect(content).not.toContain('session.start');
-});
-
-test('also runs the public init (AGENTS.md + .memoryanchor/*)', async () => {
-  await runInitOpencode(tempDir);
-
-  const agents = await readFile(path.join(tempDir, 'AGENTS.md'), 'utf8');
-  expect(agents).toContain('Memory Anchor Rules');
-
-  const anchorDir = path.join(tempDir, ANCHOR_DIR_NAME);
-  for (const f of [CHART_FILE_NAME, BALLAST_FILE_NAME, MANIFEST_FILE_NAME]) {
-    const exists = await readFile(path.join(anchorDir, f), 'utf8');
-    expect(exists.length).toBeGreaterThan(0);
-  }
 });
 
 test('re-running on a clean second invocation reports no work to do', async () => {

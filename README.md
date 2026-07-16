@@ -113,3 +113,10 @@ Implement multi-thread in chart-building, use threading pool.
 
 - `2026/07/14`: Opencode's plugin does not injecting ballast.md and manifest.md successfully, add this
 resolving to Todo. Change sample decision in manifest.md to make models remember to keep /n/n after each decision.
+
+- `2026/07/15`: Solve opencode's plugin by substitute session.created to experimental.chat.system.transform
+solve the bug that init will not cover old opencode plugin js file.
+
+- `2026/07/16`: Find copilot's test will occasionally failed by overtime. It's might because threadpool
+do not have failed worker recreate mechanism. Need further explore. From afternoon, solved this bug, now
+threadpool can reinit the worker. And remove some duplicated redundent autotests. Then, right now, if the function is called with empty input, threadpool will not create.

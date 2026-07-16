@@ -230,13 +230,10 @@ function getOpencodePaths(cwd: string): OpencodePaths {
 //
 // Strategy:
 //   - If the plugin file doesn't exist → write the current template.
-//   - If the file exists but matches a known-old template (detected by
-//     the `\"session.start\"` event name, which never existed in opencode's
-//     plugin API and is therefore a guaranteed sign of the buggy v1
-//     template) → overwrite with the corrected template.
-//   - Otherwise → leave it alone; the user may have customized it.
-
-const OLD_PLUGIN_SIGNATURE = '"session.start"';
+//   - If the file exists and its content is exactly the current template →
+//     leave it alone.
+//   - Otherwise (any difference — v1, stale v2, empty, corrupted, or
+//     manually edited) → overwrite with the canonical template.
 
 // Validate the template before we ever write it to disk. This runs once
 // per process (the const initializer is hoisted) but throws eagerly if
@@ -248,16 +245,13 @@ async function ensurePluginFile(paths: OpencodePaths): Promise<boolean> {
 
   const exists = await fileExists(paths.pluginPath);
   if (exists) {
-    // Detect a known-buggy v1 template and replace it; otherwise leave the
-    // user's customizations alone.
     try {
       const current = await readFile(paths.pluginPath, 'utf8');
-      if (!current.includes(OLD_PLUGIN_SIGNATURE)) {
+      if (current === OPENCODE_PLUGIN_BODY) {
         return false;
       }
     } catch {
-      // If we can't read it we can't trust it — don't overwrite.
-      return false;
+      // Can't read → overwrite to guarantee a working plugin.
     }
   }
 

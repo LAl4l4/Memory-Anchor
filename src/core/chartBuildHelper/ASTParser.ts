@@ -67,6 +67,7 @@ export async function parseFileArchitecture(
 export async function batchParseFiles(
     files: { absolutePath: string; relativePath: string }[]
 ): Promise<FileNode[]> {
+    if (files.length === 0) return [];
 
     // Ensure pool is initialized
     await ensureParserInit();

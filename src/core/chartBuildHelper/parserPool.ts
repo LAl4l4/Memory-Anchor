@@ -19,6 +19,7 @@ export class ParserWorkerPool {
     private queue: Task[] = [];
     private idle: Worker[] = [];
     private runningTasks = new Map<Worker, Task>();
+    private destroying = false;
 
     async init(size: number) {
         // 并行启动所有 worker，等全部 init 完成
@@ -67,19 +68,51 @@ export class ParserWorkerPool {
                 } else {
                     reject(err); // 仍在 init 阶段
                 }
-                // worker 已经挂了，不应该再放回 idle —— 见下一点
             });
 
             worker.on('exit', (code) => {
-                if (code !== 0) {
-                    const task = this.runningTasks.get(worker);
-                    if (task) {
-                        this.runningTasks.delete(worker);
-                        task.reject(new Error(`Worker exited with code ${code}`));
-                    }
+                // 移除已死亡的 worker，避免 drain 把任务派给死线程
+                this.removeDeadWorker(worker);
+
+                // 拒绝尚未完成的任务（可能已被 'error' 拒绝过，二次 reject 无副作用）
+                const task = this.runningTasks.get(worker);
+                if (task) {
+                    this.runningTasks.delete(worker);
+                    task.reject(new Error(`Worker exited with code ${code}`));
                 }
+
+                // 主动销毁期间不补充新 worker
+                if (this.destroying) return;
+
+                // worker 异常退出后立即补充一个新 worker，防止池子越用越小
+                this.replaceWorker();
             });
         });
+    }
+
+    private removeDeadWorker(worker: Worker): boolean {
+        const wIdx = this.workers.indexOf(worker);
+        if (wIdx !== -1) this.workers.splice(wIdx, 1);
+        const iIdx = this.idle.indexOf(worker);
+        if (iIdx !== -1) this.idle.splice(iIdx, 1);
+        return wIdx !== -1;
+    }
+
+    private async replaceWorker() {
+        if (this.destroying) return;
+        try {
+            const worker = await this.createWorker();
+            // 创建期间池子被销毁，丢弃新 worker
+            if (this.destroying) {
+                await worker.terminate();
+                return;
+            }
+            this.workers.push(worker);
+            this.idle.push(worker);
+            this.drain();
+        } catch {
+            // 补充失败，池容量实际减少一个
+        }
     }
 
     // 把队列里的任务分发给空闲 worker
@@ -101,6 +134,7 @@ export class ParserWorkerPool {
     }
 
     async destroy() {
+        this.destroying = true;
         const pendingError = new Error('ParserWorkerPool destroyed');
         for (const task of this.queue) task.reject(pendingError);
         for (const task of this.runningTasks.values()) task.reject(pendingError);
