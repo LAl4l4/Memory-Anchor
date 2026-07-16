@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import * as fs from 'fs';
 import * as path from 'path';
-import { CODE_EXTENSIONS, STALE_BLACKLIST } from '../../constant.js';
+import { BALLAST_DEFAULT_RULES, BALLAST_DEFAULT_TITLE, BALLAST_SPECIFIC_TITLE, CODE_EXTENSIONS, STALE_BLACKLIST } from '../../constant.js';
 import { captureGitChanges, GitChange } from '../../utils/captureGitChanges.js';
 import { updateChartIncrementally, destroyPool } from '../../core/build-chart.js';
 
@@ -56,43 +56,79 @@ export function cleanBallastRules(changes: GitChange[] | null): void {
   }
 }
 
+function normalizeRuleLine(line: string): string {
+  line = line.trim();
+
+  // 已经是标准格式的，不动
+  if (/^- \[( |x)\]\s+/.test(line)) {
+    return line
+  }
+
+  line = line
+    .replace(/^[-*]\s+/, '')        // - xxx  * xxx
+    .replace(/^\d+\.\s+/, '')       // 1. xxx
+    .replace(/^\[\s*\]\s+/, '')     // [] xxx  [ ] xxx
+    .replace(/^\[\s*\]\s*/, '')     // 兜底
+
+  return `- [ ] ${line}`
+}
+
+function normalizeLine(line: string): string | null {
+  const trimmed = line.trim()
+  if (!trimmed) return null
+
+  // 只放过 # 开头的，别的都正则
+  if (trimmed.startsWith('#')) return trimmed
+
+  return normalizeRuleLine(trimmed)
+}
+
 export function sanitizeBallast(): void {
   if (!fs.existsSync(BALLAST_PATH)) return;
 
   const content = fs.readFileSync(BALLAST_PATH, 'utf8');
+  const defaultSet = new Set(BALLAST_DEFAULT_RULES.map((r) => r.trim()));
 
-  const headings: string[] = [];
-  const ruleLines: string[] = [];
+  const specificIndex = content.indexOf(BALLAST_SPECIFIC_TITLE);
 
-  content
-    .split('\n')
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .forEach((line) => {
-      // Preserve markdown headings — don't treat them as rules
-      if (line.startsWith('#')) {
-        headings.push(line);
-        return;
-      }
-      if (line.startsWith('Note:') || line.startsWith('Explanation:') || line.startsWith('Rule:')) {
-        return;
-      }
-      line = line
-        .replace(/^\*/, '-')
-        .replace(/^\d+\./, '-')
-        .replace(/^\[\]/, '- [ ]')
-        .replace(/^-?\s*\[\]/, '- [ ]');
+  let defaultRules: string[] = [];
+  let specificRules: string[] = [];
 
-      if (!/^- \[[ x]\]/.test(line)) {
-        line = `- [ ] ${line}`;
-      }
-      ruleLines.push(line);
-    });
+  if (specificIndex !== -1) {
+    const defaultSection = content.slice(0, specificIndex);
+    const specificSection = content.slice(specificIndex);
 
-  const unique = [...new Set(ruleLines)];
-  const output = [...headings, ...unique].join('\n');
+    defaultRules = defaultSection
+      .split('\n')
+      .map(normalizeLine)
+      .filter((l): l is string => l !== null)
+      .filter((l) => !l.startsWith('#') && defaultSet.has(l));
+
+    specificRules = specificSection
+      .split('\n')
+      .map(normalizeLine)
+      .filter((l): l is string => l !== null)
+      .filter((l) => !l.startsWith('#') && !defaultSet.has(l));
+  } else {
+    const allRules = content
+      .split('\n')
+      .map(normalizeLine)
+      .filter((l): l is string => l !== null)
+      .filter((l) => !l.startsWith('#'));
+
+    defaultRules = allRules.filter((l) => defaultSet.has(l));
+    specificRules = allRules.filter((l) => !defaultSet.has(l));
+  }
+
+  defaultRules = [...new Set(defaultRules)];
+  specificRules = [...new Set(specificRules)];
+
+  const defaultBlock = BALLAST_DEFAULT_RULES.join('\n');
+  const specificBlock = specificRules.length > 0 ? specificRules.join('\n') : '';
+
+  const output = `${BALLAST_DEFAULT_TITLE}\n${defaultBlock}\n\n${BALLAST_SPECIFIC_TITLE}\n${specificBlock}\n`;
   fs.writeFileSync(BALLAST_PATH, output, 'utf8');
-  logToUser(`Ballast normalized (${unique.length} rules)`, '35');
+  logToUser(`Ballast normalized (${defaultRules.length} default, ${specificRules.length} specific)`, '35');
 }
 
 export async function runSessionEnd(): Promise<void> {

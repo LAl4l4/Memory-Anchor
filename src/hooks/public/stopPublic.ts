@@ -1,10 +1,11 @@
 #!/usr/bin/env node
-import { buildChartFull, updateChartIncrementally } from '../../core/build-chart.js';
+import { updateChartIncrementally } from '../../core/build-chart.js';
 import { captureGitChanges, GitChange } from '../../utils/captureGitChanges.js';
 
 async function refreshChart(changes: GitChange[] | null): Promise<void> {
+  // this function should never call buildChartFull, it should only called in fallback 
+  // or anchor init command
   if (!changes || changes.length === 0) {
-    await buildChartFull();
     return;
   }
 
