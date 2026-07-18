@@ -30,7 +30,7 @@ test('runStop do nothing when no git changes (clean repo)', async () => {
   initGitRepo();
 
   // Mock the chart module before importing stopPublic so its imports are mocked
-  jest.unstable_mockModule('../dist/core/build-chart.js', () => ({
+  jest.unstable_mockModule('../dist/chartBuild/build-chart.js', () => ({
     buildChartFull: jest.fn(async () => {}),
     updateChartIncrementally: jest.fn(async () => {}),
   }));
@@ -38,7 +38,7 @@ test('runStop do nothing when no git changes (clean repo)', async () => {
   jest.spyOn(process, 'exit').mockImplementation(() => {});
 
   const stopModule = await import('../dist/hooks/public/stopPublic.js');
-  const buildChart = await import('../dist/core/build-chart.js');
+  const buildChart = await import('../dist/chartBuild/build-chart.js');
 
   await stopModule.runStop();
 
@@ -57,7 +57,7 @@ test('runStop calls updateChartIncrementally with changed files when there are g
   execSync('git commit -m "initial"');
   await writeFile(path.join(tempDir, 'a.ts'), 'export const a = 2;');
 
-  jest.unstable_mockModule('../dist/core/build-chart.js', () => ({
+  jest.unstable_mockModule('../dist/chartBuild/build-chart.js', () => ({
     buildChartFull: jest.fn(async () => {}),
     updateChartIncrementally: jest.fn(async () => {}),
   }));
@@ -65,7 +65,7 @@ test('runStop calls updateChartIncrementally with changed files when there are g
   jest.spyOn(process, 'exit').mockImplementation(() => {});
 
   const stopModule = await import('../dist/hooks/public/stopPublic.js');
-  const buildChart = await import('../dist/core/build-chart.js');
+  const buildChart = await import('../dist/chartBuild/build-chart.js');
 
   await stopModule.runStop();
 
@@ -79,7 +79,7 @@ test('runStop calls updateChartIncrementally with changed files when there are g
 });
 
 test('runStop do nothing when no git repo exists (captureGitChanges returns null)', async () => {
-  jest.unstable_mockModule('../dist/core/build-chart.js', () => ({
+  jest.unstable_mockModule('../dist/chartBuild/build-chart.js', () => ({
     buildChartFull: jest.fn(async () => {}),
     updateChartIncrementally: jest.fn(async () => {}),
   }));
@@ -87,7 +87,7 @@ test('runStop do nothing when no git repo exists (captureGitChanges returns null
   jest.spyOn(process, 'exit').mockImplementation(() => {});
 
   const stopModule = await import('../dist/hooks/public/stopPublic.js');
-  const buildChart = await import('../dist/core/build-chart.js');
+  const buildChart = await import('../dist/chartBuild/build-chart.js');
 
   await stopModule.runStop();
 

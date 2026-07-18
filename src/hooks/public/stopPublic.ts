@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { updateChartIncrementally } from '../../core/build-chart.js';
+import { updateChartIncrementally } from '../../chartBuild/build-chart.js';
 import { captureGitChanges, GitChange } from '../../utils/captureGitChanges.js';
 
 async function refreshChart(changes: GitChange[] | null): Promise<void> {

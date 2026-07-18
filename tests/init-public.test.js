@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, expect, test } from '@jest/globals';
 import { execFile } from 'node:child_process';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -59,6 +59,8 @@ test('creates ballast.md with default rules', async () => {
 
   const ballast = await readFile(path.join(tempDir, ANCHOR_DIR_NAME, BALLAST_FILE_NAME), 'utf8');
   expect(ballast).toContain(BALLAST_DEFAULT_RULES[2]);
+  expect(ballast).toContain('If the agent has any uncertainty about the overall project structure');
+  expect(ballast).not.toContain('Always check the ./.memoryanchor/chart.md before accessing');
   expect(ballast).toContain('Do not rebuild a function');
 });
 
@@ -76,6 +78,34 @@ test('creates AGENTS.md with memory anchor rules', async () => {
   const agents = await readFile(path.join(tempDir, 'AGENTS.md'), 'utf8');
   expect(agents).toContain('## Memory Anchor Rules');
   expect(agents).toContain('## Memory Anchor Ends');
+  expect(agents).toContain('If the agent has any uncertainty about the overall project structure');
+  expect(agents).toContain('Only open repository files when chart.md is insufficient.');
+  expect(agents).not.toContain('Always read ./.memoryanchor/chart.md before accessing any repository files.');
+});
+
+test('upgrades the managed AGENTS.md block while preserving other instructions', async () => {
+  const agentsPath = path.join(tempDir, 'AGENTS.md');
+  await writeFile(agentsPath, `# Project Rules
+
+Keep this custom instruction.
+
+## Memory Anchor Rules
+Old generated content.
+- Always read ./.memoryanchor/chart.md before accessing any repository files. Only open repository files when chart.md is insufficient.
+## Memory Anchor Ends
+
+# Trailing Rules
+Preserve this too.
+`);
+
+  await runInitPublic(tempDir);
+
+  const agents = await readFile(agentsPath, 'utf8');
+  expect(agents).toContain('Keep this custom instruction.');
+  expect(agents).toContain('Preserve this too.');
+  expect(agents).toContain('If the agent has any uncertainty about the overall project structure');
+  expect(agents).not.toContain('Always read ./.memoryanchor/chart.md before accessing any repository files.');
+  expect(agents.match(/## Memory Anchor Rules/g)).toHaveLength(1);
 });
 
 test('creates and populates chart.md', async () => {

@@ -51,6 +51,10 @@ test('creates .opencode/plugins/memory-anchor.js', async () => {
   // Context injection must go through the documented system-transform hook,
   // NOT through a (non-existent) "session.start" event.
   expect(plugin).toContain('experimental.chat.system.transform');
+  expect(plugin).toContain('const CHART_PATH');
+  expect(plugin).toContain('[1. CHART (project structure & architectural symbols)]');
+  expect(plugin).toContain('[2. BALLAST (rules must follow)]');
+  expect(plugin).toContain('[3. MANIFEST (module status & key decisions)]');
   expect(plugin).not.toContain('session.start');
   // Side-effect hooks fire on the real opencode events.
   expect(plugin).toContain('session.idle');
@@ -64,7 +68,22 @@ test('creates opencode.json with schema and instructions', async () => {
   expect(cfg.$schema).toBe(OPENCODE_SCHEMA_URL);
   expect(Array.isArray(cfg.instructions)).toBe(true);
   expect(cfg.instructions).toContain(REQUIRED_INSTRUCTION_ENTRIES[0]);
-  expect(cfg.instructions).toContain(REQUIRED_INSTRUCTION_ENTRIES[1]);
+  expect(cfg.instructions).not.toContain('./.memoryanchor/chart.md');
+});
+
+test('removes the legacy standalone chart instruction because the plugin injects it', async () => {
+  const cfgPath = path.join(tempDir, 'opencode.json');
+  await writeFile(
+    cfgPath,
+    JSON.stringify({ instructions: ['./.memoryanchor/chart.md', './custom.md'] }, null, 2) + '\n',
+  );
+
+  await runInitOpencode(tempDir);
+
+  const cfg = JSON.parse(await readFile(cfgPath, 'utf8'));
+  expect(cfg.instructions).not.toContain('./.memoryanchor/chart.md');
+  expect(cfg.instructions).toContain('./custom.md');
+  expect(cfg.instructions).toContain('./AGENTS.md');
 });
 
 test('plugin file destructures $ from ctx and uses Bun shell to invoke hooks', async () => {

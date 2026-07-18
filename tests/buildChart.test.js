@@ -72,7 +72,7 @@ beforeAll(async () => {
   process.chdir(tempDir);
   await seedFixtures(tempDir);
 
-  ({ buildChartFull, updateChartIncrementally, destroyPool } = await import('../dist/core/build-chart.js'));
+  ({ buildChartFull, updateChartIncrementally, destroyPool } = await import('../dist/chartBuild/build-chart.js'));
 
   anchorDir = path.join(tempDir, '.memoryanchor');
   chartPath = path.join(anchorDir, 'chart.md');

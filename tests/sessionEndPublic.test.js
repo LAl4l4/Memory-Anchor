@@ -300,7 +300,7 @@ test('runSessionEnd orchestrates full pipeline when git changes exist', async ()
   await writeFile(path.join(tempDir, 'src', 'foo.ts'), 'export const foo = 2;');
 
   jest.resetModules();
-  jest.unstable_mockModule('../dist/core/build-chart.js', () => ({
+  jest.unstable_mockModule('../dist/chartBuild/build-chart.js', () => ({
     destroyPool: jest.fn(async () => {}),
     updateChartIncrementally: jest.fn(async () => {}),
     buildChartFull: jest.fn(async () => {}),
@@ -309,7 +309,7 @@ test('runSessionEnd orchestrates full pipeline when git changes exist', async ()
   jest.spyOn(process, 'exit').mockImplementation(() => {});
 
   const sessionEndModule = await import('../dist/hooks/public/sessionEndPublic.js');
-  const buildChart = await import('../dist/core/build-chart.js');
+  const buildChart = await import('../dist/chartBuild/build-chart.js');
 
   await sessionEndModule.runSessionEnd();
 
@@ -336,7 +336,7 @@ test('runSessionEnd skips chart update when no git changes (clean repo)', async 
   execSync('git add .gitignore && git commit -m "ignore"', {cwd: tempDir})
 
   jest.resetModules();
-  jest.unstable_mockModule('../dist/core/build-chart.js', () => ({
+  jest.unstable_mockModule('../dist/chartBuild/build-chart.js', () => ({
     destroyPool: jest.fn(async () => {}),
     updateChartIncrementally: jest.fn(async () => {}),
     buildChartFull: jest.fn(async () => {}),
@@ -345,7 +345,7 @@ test('runSessionEnd skips chart update when no git changes (clean repo)', async 
   jest.spyOn(process, 'exit').mockImplementation(() => {});
 
   const sessionEndModule = await import('../dist/hooks/public/sessionEndPublic.js');
-  const buildChart = await import('../dist/core/build-chart.js');
+  const buildChart = await import('../dist/chartBuild/build-chart.js');
 
   await sessionEndModule.runSessionEnd();
 
@@ -361,7 +361,7 @@ test('runSessionEnd skips chart update when no git repo exists', async () => {
   await writeFile(ballastPath, SAMPLE_BALLAST);
 
   jest.resetModules();
-  jest.unstable_mockModule('../dist/core/build-chart.js', () => ({
+  jest.unstable_mockModule('../dist/chartBuild/build-chart.js', () => ({
     destroyPool: jest.fn(async () => {}),
     updateChartIncrementally: jest.fn(async () => {}),
     buildChartFull: jest.fn(async () => {}),
@@ -370,7 +370,7 @@ test('runSessionEnd skips chart update when no git repo exists', async () => {
   jest.spyOn(process, 'exit').mockImplementation(() => {});
 
   const sessionEndModule = await import('../dist/hooks/public/sessionEndPublic.js');
-  const buildChart = await import('../dist/core/build-chart.js');
+  const buildChart = await import('../dist/chartBuild/build-chart.js');
 
   await sessionEndModule.runSessionEnd();
 

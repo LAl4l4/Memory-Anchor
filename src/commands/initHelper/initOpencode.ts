@@ -113,8 +113,8 @@ export interface OpencodeSetupResult {
 //
 //   1. Context injection — the "${""}experimental.chat.system.transform"
 //      hook is the only documented way for a plugin to extend opencode's
-//      system prompt. On every LLM turn it reads ./.memoryanchor/ballast.md
-//      and ./.memoryanchor/manifest.md from disk (cheap; 2 small files) and
+//      system prompt. On every LLM turn it reads ./.memoryanchor/chart.md,
+//      ballast.md, and manifest.md from disk and
 //      pushes the memory-core payload into output.system. This replaces the
 //      previous "session.start → fire-and-forget pre hook" design, which
 //      never worked: (a) opencode has no "session.start" event, (b) hooks
@@ -135,6 +135,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 
 const ANCHOR_DIR = path.join(process.cwd(), ".memoryanchor");
+const CHART_PATH = path.join(ANCHOR_DIR, "chart.md");
 const BALLAST_PATH = path.join(ANCHOR_DIR, "ballast.md");
 const MANIFEST_PATH = path.join(ANCHOR_DIR, "manifest.md");
 
@@ -149,6 +150,7 @@ function readFileSafe(p, fallback) {
 }
 
 function buildMemoryCore() {
+  const chart = readFileSafe(CHART_PATH, "No project chart available.");
   const ballastStr = readFileSafe(BALLAST_PATH, "No active coding constraints or lessons-learned enforced.");
   const manifest = readFileSafe(MANIFEST_PATH, "No active cross-session tasks found.");
 
@@ -163,10 +165,13 @@ function buildMemoryCore() {
     "Target: Assist the developer by ensuring all generated code aligns with local repository constraints.",
     "",
     taskSection,
-    "[1. BALLAST (rules must follow)]",
+    "[1. CHART (project structure & architectural symbols)]",
+    chart,
+    "",
+    "[2. BALLAST (rules must follow)]",
     ballastStr,
     "",
-    "[2. MANIFEST (module status & key decisions)]",
+    "[3. MANIFEST (module status & key decisions)]",
     manifest,
     "==================================================",
   ].join("\\n");
@@ -174,7 +179,7 @@ function buildMemoryCore() {
 
 export const MemoryAnchorPlugin = async ({ $ }) => {
   return {
-    // Inject ballast + manifest into the system prompt on every LLM turn.
+    // Inject chart + ballast + manifest into the system prompt on every LLM turn.
     // This is the only documented plugin hook that can extend system context.
     "experimental.chat.system.transform": async (_input, output) => {
       try {
@@ -265,7 +270,7 @@ async function ensurePluginFile(paths: OpencodePaths): Promise<boolean> {
 //
 // We only manage two keys we own:
 //   - `$schema`: pinned for editor autocomplete
-//   - `instructions`: prepended with our anchor files (AGENTS.md + memory core)
+//   - `instructions`: prepended with AGENTS.md; the plugin injects all memory files
 // Other keys (model, provider, mcp, …) are left untouched / merged.
 
 async function ensureOpencodeConfig(paths: OpencodePaths): Promise<boolean> {
@@ -299,6 +304,16 @@ function mergeOpencodeConfig(config: OpencodeConfig): boolean {
 
   if (!Array.isArray(config.instructions)) {
     config.instructions = [];
+    updated = true;
+  }
+
+  // Older versions listed chart.md separately. It is now part of the unified
+  // plugin payload, so remove the managed legacy entry to avoid duplication.
+  const originalInstructionCount = config.instructions!.length;
+  config.instructions = config.instructions!.filter(
+    (entry) => entry.replace(/^\.\//, '') !== '.memoryanchor/chart.md',
+  );
+  if (config.instructions.length !== originalInstructionCount) {
     updated = true;
   }
 

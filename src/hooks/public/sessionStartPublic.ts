@@ -8,9 +8,12 @@ const CHART_PATH = path.join(ANCHOR_PATH, 'chart.md');
 const BALLAST_PATH = path.join(ANCHOR_PATH, 'ballast.md');
 const MANIFEST_PATH = path.join(ANCHOR_PATH, 'manifest.md');
 
-void CHART_PATH;
-
 export function loadMemoryCore(): string {
+  let chart = 'No project chart available.';
+  if (fs.existsSync(CHART_PATH)) {
+    chart = fs.readFileSync(CHART_PATH, 'utf-8').trim();
+  }
+
   let ballastStr = 'No active coding constraints or lessons-learned enforced.';
   if (fs.existsSync(BALLAST_PATH)) {
     ballastStr = fs.readFileSync(BALLAST_PATH, 'utf-8').trim();
@@ -38,10 +41,13 @@ Target: Assist the developer by ensuring all generated code aligns with local re
 
 ${taskSection}
 
-[1. BALLAST (rules must follow)]
+[1. CHART (project structure & architectural symbols)]
+${chart}
+
+[2. BALLAST (rules must follow)]
 ${ballastStr}
 
-[2. MANIFEST (module status & key decisions)]
+[3. MANIFEST (module status & key decisions)]
 ${manifest}
 ==================================================
 `;

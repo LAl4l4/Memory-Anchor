@@ -49,7 +49,7 @@ export const MANIFEST_FILE_NAME = 'manifest.md';
 // =============================================================================
 
 export const BALLAST_DEFAULT_RULES: string[] = [  
-  '- [ ] Always check the ./.memoryanchor/chart.md before accessing any repositpory files. Only open files when the chart is insufficient.',
+  '- [ ] If the agent has any uncertainty about the overall project structure, immediately read ./.memoryanchor/chart.md again. Only open repository files when chart.md is insufficient.',
   '- [ ] Do not change ./.memoryanchor/chart.md by yourself. Only do it when user explicitly instructs you to.',
   '- [ ] Follow ./.memoryanchor/AGENTS.md rules.',
   '- [ ] Do not rebuild a function that already exists and used by others, instead, pull it out to a separate file and import it',
@@ -85,12 +85,12 @@ export const AGENTS_CONTENT = `
 Memory Anchor is initialized in this repository. Follow these rules to ensure it works effectively.
 
 ### File Roles
-- ./.memoryanchor/chart.md: Auto-generated log of file changes per session. Read this FIRST to recover recent context.
+- ./.memoryanchor/chart.md: Auto-generated project structure and architectural-symbol map, injected with the other memory files at session start.
 - ./.memoryanchor/manifest.md: Current project state — Module Status (functionality/status/known_issues/notes) and Key Decisions (architectural choices and rationale).
 - ./.memoryanchor/ballast.md: Persistent repo-specific rules/guardrails, one per line.
 
 ### Workflow
-- Always read ./.memoryanchor/chart.md before accessing any repository files. Only open repository files when chart.md is insufficient.
+- If the agent has any uncertainty about the overall project structure, immediately read ./.memoryanchor/chart.md again. Only open repository files when chart.md is insufficient.
 - Must follow all rules in ./.memoryanchor/ballast.md. After solving a bug, add a rule under "Ballast Specific Rules For This Repository" to prevent recurrence.
 - After any of features implemented, update Module Status (and Key Decisions, if applicable) in ./.memoryanchor/manifest.md.
 
@@ -148,9 +148,7 @@ export const OPENCODE_SCHEMA_URL = 'https://opencode.ai/config.json';
 
 export const REQUIRED_INSTRUCTION_ENTRIES = [
   './AGENTS.md',
-  './.memoryanchor/chart.md',
-  // Do not include ballast.md or manifest.md in the instructions, 
-  // because they are already be injected by hooks
+  // The plugin injects chart.md, ballast.md, and manifest.md together.
 ] as const;
 
 // =============================================================================

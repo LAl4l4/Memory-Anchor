@@ -3,10 +3,10 @@ import { access, appendFile, mkdir, readFile, writeFile } from 'node:fs/promises
 import path from 'node:path';
 import { createInterface } from 'node:readline';
 import { fileURLToPath } from 'node:url';
-import { buildChartFull, destroyPool } from '../../core/build-chart.js';
+import { buildChartFull, destroyPool } from '../../chartBuild/build-chart.js';
 import { AGENTS_CONTENT, GITIGNORE_ENTRY, MANIFEST_DEFAULT_CONTENT } from '../../constant.js';
-import { ensureBallastFile } from '../../core/init-ballast.js';
-import { scanAvailableParsers } from '../../core/scan-parsers.js';
+import { ensureBallastFile } from '../../chartBuild/init-ballast.js';
+import { scanAvailableParsers } from '../../chartBuild/scan-parsers.js';
 
 // =============================================================================
 // Types
@@ -167,7 +167,35 @@ export async function ensureAnchorFiles(memoryAnchorDir: string): Promise<boolea
 }
 
 export async function ensureAgentsFile(agentsPath: string): Promise<boolean> {
-  return ensureFileWithAppend(agentsPath, AGENTS_CONTENT);
+  const normalizedContent = AGENTS_CONTENT.trim();
+  if (!(await fileExists(agentsPath))) {
+    await writeFile(agentsPath, `${normalizedContent}\n`, 'utf8');
+    return true;
+  }
+
+  const current = await readFile(agentsPath, 'utf8');
+  const startMarker = '## Memory Anchor Rules';
+  const endMarker = '## Memory Anchor Ends';
+  const start = current.indexOf(startMarker);
+
+  if (start === -1) {
+    return ensureFileWithAppend(agentsPath, AGENTS_CONTENT);
+  }
+
+  const endMarkerStart = current.indexOf(endMarker, start);
+  if (endMarkerStart === -1) {
+    return ensureFileWithAppend(agentsPath, AGENTS_CONTENT);
+  }
+
+  const end = endMarkerStart + endMarker.length;
+  const existingBlock = current.slice(start, end);
+  if (existingBlock === normalizedContent) {
+    return false;
+  }
+
+  const updated = `${current.slice(0, start)}${normalizedContent}${current.slice(end)}`;
+  await writeFile(agentsPath, updated, 'utf8');
+  return true;
 }
 
 export async function ensureWorkspaceDirectories(memoryAnchorDir: string): Promise<void> {

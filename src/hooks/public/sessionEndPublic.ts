@@ -3,7 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { BALLAST_DEFAULT_RULES, BALLAST_DEFAULT_TITLE, BALLAST_SPECIFIC_TITLE, CODE_EXTENSIONS, STALE_BLACKLIST } from '../../constant.js';
 import { captureGitChanges, GitChange } from '../../utils/captureGitChanges.js';
-import { updateChartIncrementally, destroyPool } from '../../core/build-chart.js';
+import { updateChartIncrementally, destroyPool } from '../../chartBuild/build-chart.js';
 
 const cwd = process.cwd();
 const ANCHOR_PATH = path.join(cwd, '.memoryanchor');

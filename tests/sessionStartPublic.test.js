@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 
-import { ANCHOR_DIR_NAME, BALLAST_DEFAULT_TITLE, BALLAST_FILE_NAME, BALLAST_SPECIFIC_TITLE, MANIFEST_FILE_NAME } from '../dist/constant.js';
+import { ANCHOR_DIR_NAME, BALLAST_DEFAULT_TITLE, BALLAST_FILE_NAME, BALLAST_SPECIFIC_TITLE, CHART_FILE_NAME, MANIFEST_FILE_NAME } from '../dist/constant.js';
 
 const originalCwd = process.cwd();
 
@@ -29,13 +29,15 @@ test('loadMemoryCore returns fallback strings when anchor files are absent', asy
   const result = loadMemoryCore();
 
   expect(result).toContain('[MEMORY ANCHOR: CONTEXT INJECTED]');
-  expect(result).toContain('[1. BALLAST (rules must follow)]');
+  expect(result).toContain('[1. CHART (project structure & architectural symbols)]');
+  expect(result).toContain('No project chart available.');
+  expect(result).toContain('[2. BALLAST (rules must follow)]');
   expect(result).toContain('No active coding constraints or lessons-learned enforced.');
-  expect(result).toContain('[2. MANIFEST (module status & key decisions)]');
+  expect(result).toContain('[3. MANIFEST (module status & key decisions)]');
   expect(result).toContain('No active cross-session tasks found.');
 });
 
-test('loadMemoryCore returns ballast and manifest content when files exist', async () => {
+test('loadMemoryCore returns chart, ballast, and manifest content when files exist', async () => {
   const backtick = '\x60';
   const ballastContent = `${BALLAST_DEFAULT_TITLE}
 - [ ] Always check chart.md before accessing files.
@@ -47,7 +49,9 @@ ${BALLAST_SPECIFIC_TITLE}
 ### auth:
 - functionality: handles login/logout
 - status: Stable`;
+  const chartContent = '# PROJECT CHART\n\n## 1. Directory Skeleton\n- /src/index.ts';
 
+  await writeFile(path.join(anchorPath, CHART_FILE_NAME), chartContent);
   await writeFile(path.join(anchorPath, BALLAST_FILE_NAME), ballastContent);
   await writeFile(path.join(anchorPath, MANIFEST_FILE_NAME), manifestContent);
 
@@ -55,10 +59,12 @@ ${BALLAST_SPECIFIC_TITLE}
   const result = loadMemoryCore();
 
   expect(result).toContain('[MEMORY ANCHOR: CONTEXT INJECTED]');
+  expect(result).toContain(chartContent);
   expect(result).toContain(ballastContent);
   expect(result).toContain(manifestContent);
   expect(result).not.toContain('No active coding constraints');
   expect(result).not.toContain('No active cross-session tasks found.');
+  expect(result).not.toContain('No project chart available.');
 });
 
 test('loadMemoryCore injects MEMORY PRUNING task block when ballast contains [STALE]', async () => {
