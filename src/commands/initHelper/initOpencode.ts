@@ -113,7 +113,7 @@ export interface OpencodeSetupResult {
 //
 //   1. Context injection — the "${""}experimental.chat.system.transform"
 //      hook is the only documented way for a plugin to extend opencode's
-//      system prompt. On every LLM turn it reads ./.memoryanchor/chart.md,
+//      system prompt. On every LLM turn it reads ./.memoryanchor/index.md,
 //      ballast.md, and manifest.md from disk and
 //      pushes the memory-core payload into output.system. This replaces the
 //      previous "session.start → fire-and-forget pre hook" design, which
@@ -135,7 +135,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 
 const ANCHOR_DIR = path.join(process.cwd(), ".memoryanchor");
-const CHART_PATH = path.join(ANCHOR_DIR, "chart.md");
+const CHART_PATH = path.join(ANCHOR_DIR, "index.md");
 const BALLAST_PATH = path.join(ANCHOR_DIR, "ballast.md");
 const MANIFEST_PATH = path.join(ANCHOR_DIR, "manifest.md");
 
@@ -307,11 +307,11 @@ function mergeOpencodeConfig(config: OpencodeConfig): boolean {
     updated = true;
   }
 
-  // Older versions listed chart.md separately. It is now part of the unified
+  // Older versions listed chart.md/index.md separately. The index is now part of the unified
   // plugin payload, so remove the managed legacy entry to avoid duplication.
   const originalInstructionCount = config.instructions!.length;
   config.instructions = config.instructions!.filter(
-    (entry) => entry.replace(/^\.\//, '') !== '.memoryanchor/chart.md',
+    (entry) => !['.memoryanchor/chart.md', '.memoryanchor/index.md'].includes(entry.replace(/^\.\//, '')),
   );
   if (config.instructions.length !== originalInstructionCount) {
     updated = true;

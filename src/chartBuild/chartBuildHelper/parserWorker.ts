@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import { parentPort } from 'worker_threads';
-import { Parser } from "web-tree-sitter";
+import { Parser, type Tree } from "web-tree-sitter";
 import { loadLanguage } from '../parser-loader.js';
 import { extractSymbols, FileNode } from './symbolExtractor.js';
 
@@ -15,6 +15,7 @@ parentPort!.postMessage({ type: 'ready' });
 
 parentPort!.on('message', async (msg: { absolutePath: string; relativePath: string; lang: string }) => {
     const { absolutePath, relativePath, lang } = msg;
+    let tree: Tree | null = null;
 
     try {
         // Worker 自己读文件，不通过主线程传大字符串
@@ -28,9 +29,7 @@ parentPort!.on('message', async (msg: { absolutePath: string; relativePath: stri
         }
 
         parser.setLanguage(language);
-        const tree = parser.parse(source);
-
-        // source 和 tree 在此处之后不再被引用，GC 会回收
+        tree = parser.parse(source);
 
         if (!tree || !tree.rootNode) {
             process.stderr.write(`\x1b[31m[Memory Anchor] ⚠️ Failed to parse ${relativePath}\x1b[0m\n`);
@@ -61,5 +60,9 @@ parentPort!.on('message', async (msg: { absolutePath: string; relativePath: stri
                 symbols: [{ type: "error", name: String(err) }]
             }
         });
+    } finally {
+        // Tree owns WASM/native allocations; release them deterministically
+        // after extracting the serializable FileNode instead of waiting for GC.
+        tree?.delete();
     }
 });

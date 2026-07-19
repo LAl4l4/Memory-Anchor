@@ -79,7 +79,7 @@ test('creates AGENTS.md with memory anchor rules', async () => {
   expect(agents).toContain('## Memory Anchor Rules');
   expect(agents).toContain('## Memory Anchor Ends');
   expect(agents).toContain('If the agent has any uncertainty about the overall project structure');
-  expect(agents).toContain('Only open repository files when chart.md is insufficient.');
+  expect(agents).toContain('read the closest matching directory chart listed there');
   expect(agents).not.toContain('Always read ./.memoryanchor/chart.md before accessing any repository files.');
 });
 
@@ -108,11 +108,12 @@ Preserve this too.
   expect(agents.match(/## Memory Anchor Rules/g)).toHaveLength(1);
 });
 
-test('creates and populates chart.md', async () => {
+test('creates and populates the partitioned chart index', async () => {
   await runInitPublic(tempDir);
 
   const chart = await readFile(path.join(tempDir, ANCHOR_DIR_NAME, CHART_FILE_NAME), 'utf8');
-  expect(chart).toContain('# PROJECT CHART');
+  expect(chart).toContain('# Project Chart Index');
+  expect(chart).toContain('## Root Partitions');
 });
 
 test('re-running does not duplicate ballast rules', async () => {

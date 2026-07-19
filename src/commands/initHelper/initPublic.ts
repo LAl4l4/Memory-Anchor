@@ -4,7 +4,7 @@ import path from 'node:path';
 import { createInterface } from 'node:readline';
 import { fileURLToPath } from 'node:url';
 import { buildChartFull, destroyPool } from '../../chartBuild/build-chart.js';
-import { AGENTS_CONTENT, GITIGNORE_ENTRY, MANIFEST_DEFAULT_CONTENT } from '../../constant.js';
+import { AGENTS_CONTENT, GITIGNORE_ENTRY, INDEX_FILE_NAME, MANIFEST_DEFAULT_CONTENT } from '../../constant.js';
 import { ensureBallastFile } from '../../chartBuild/init-ballast.js';
 import { scanAvailableParsers } from '../../chartBuild/scan-parsers.js';
 
@@ -154,7 +154,7 @@ export async function ensureGitignore(gitignorePath: string): Promise<boolean> {
 }
 
 export async function ensureAnchorFiles(memoryAnchorDir: string): Promise<boolean> {
-  const chartCreated = await ensureFile(path.join(memoryAnchorDir, 'chart.md'));
+  const chartCreated = await ensureFile(path.join(memoryAnchorDir, INDEX_FILE_NAME));
   const ballastCreated = await ensureBallastFile(
     path.join(memoryAnchorDir, 'ballast.md')
   );
@@ -219,7 +219,7 @@ export function getBasePaths(cwd: string): BasePaths {
   const memoryAnchorDir = path.join(cwd, '.memoryanchor');
   return {
     memoryAnchorDir,
-    chartPath: path.join(memoryAnchorDir, 'chart.md'),
+    chartPath: path.join(memoryAnchorDir, INDEX_FILE_NAME),
     ballastPath: path.join(memoryAnchorDir, 'ballast.md'),
     manifestPath: path.join(memoryAnchorDir, 'manifest.md'),
     gitignorePath: path.join(cwd, '.gitignore'),

@@ -72,9 +72,9 @@ export function escapeRegex(str: string): string {
     return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-export function listProjectFiles(): Map<string, string[]> {
+export function listProjectFiles(projectRoot: string = PROJECT_ROOT): Map<string, string[]> {
     const allFiles = globSync('**/*', {
-        cwd: PROJECT_ROOT,
+        cwd: projectRoot,
         nodir: true,
         ignore: IGNORE_PATTERNS
     });

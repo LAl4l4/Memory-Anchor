@@ -9,22 +9,36 @@ import { FileSymbol, FileNode } from './symbolExtractor.js';
 export type { FileSymbol, FileNode };
 
 // The max amount of worker threads
-const THREAD_POOL_SIZE = Math.max(2, os.cpus().length - 1);
+const availableParallelism = os.availableParallelism?.() ?? os.cpus().length;
+const THREAD_POOL_SIZE = Math.max(2, availableParallelism - 1);
 
 let pool: ParserWorkerPool | null = null;
+let poolInitPromise: Promise<void> | null = null;
 
 export async function ensureParserInit() {
-    if (!pool) {
-        pool = new ParserWorkerPool();
-        await pool.init(THREAD_POOL_SIZE);
+    if (poolInitPromise) return poolInitPromise;
+    if (pool) return;
+
+    const nextPool = new ParserWorkerPool();
+    pool = nextPool;
+    const initPromise = nextPool.init(THREAD_POOL_SIZE);
+    poolInitPromise = initPromise;
+
+    try {
+        await initPromise;
+    } catch (error) {
+        if (pool === nextPool) pool = null;
+        throw error;
+    } finally {
+        if (poolInitPromise === initPromise) poolInitPromise = null;
     }
 }
 
 export async function destroyPool() {
-    if (pool) {
-        await pool.destroy();
-        pool = null;
-    }
+    const currentPool = pool;
+    pool = null;
+    poolInitPromise = null;
+    if (currentPool) await currentPool.destroy();
 }
 
 export async function parseFileArchitecture(
@@ -69,23 +83,37 @@ export async function batchParseFiles(
 ): Promise<FileNode[]> {
     if (files.length === 0) return [];
 
-    // Ensure pool is initialized
-    await ensureParserInit();
-
     const availableParsers = getAvailableParsers();
-
-    const tasks: Promise<FileNode>[] = files.map(({ absolutePath, relativePath }) => {
+    const results: FileNode[] = files.map(({ absolutePath, relativePath }) => {
         const ext = path.extname(absolutePath);
         const lang = EXT_TO_LANGUAGE[ext];
-
-        if (!lang || !availableParsers.has(lang)) {
-            return Promise.resolve({ relativePath, language: '', symbols: [] });
-        }
-
-        return pool!.parse(absolutePath, relativePath, lang);
+        return {
+            relativePath,
+            language: lang && availableParsers.has(lang) ? lang : '',
+            symbols: [],
+        };
     });
 
-    return Promise.all(tasks);
+    const supportedFiles = files
+        .map((file, index) => ({ ...file, index }))
+        .filter(({ absolutePath }) => {
+            const lang = EXT_TO_LANGUAGE[path.extname(absolutePath)];
+            return Boolean(lang && availableParsers.has(lang));
+        });
+
+    // Avoid starting even one worker when the batch contains no parseable files.
+    if (supportedFiles.length === 0) return results;
+
+    await ensureParserInit();
+
+    // Submit the entire batch immediately. ParserWorkerPool owns scheduling and
+    // lazily creates no more than its configured CPU-bound worker maximum.
+    await Promise.all(supportedFiles.map(async ({ absolutePath, relativePath, index }) => {
+        const lang = EXT_TO_LANGUAGE[path.extname(absolutePath)];
+        results[index] = await pool!.parse(absolutePath, relativePath, lang);
+    }));
+
+    return results;
 }
 
 export function formatSymbol(exp: FileSymbol): string {

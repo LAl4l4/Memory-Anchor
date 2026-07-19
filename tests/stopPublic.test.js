@@ -32,7 +32,7 @@ test('runStop do nothing when no git changes (clean repo)', async () => {
   // Mock the chart module before importing stopPublic so its imports are mocked
   jest.unstable_mockModule('../dist/chartBuild/build-chart.js', () => ({
     buildChartFull: jest.fn(async () => {}),
-    updateChartIncrementally: jest.fn(async () => {}),
+    updatePartitionedChartIncrementally: jest.fn(async () => {}),
   }));
 
   jest.spyOn(process, 'exit').mockImplementation(() => {});
@@ -42,13 +42,13 @@ test('runStop do nothing when no git changes (clean repo)', async () => {
 
   await stopModule.runStop();
 
-  expect(buildChart.updateChartIncrementally).not.toHaveBeenCalled();
+  expect(buildChart.updatePartitionedChartIncrementally).not.toHaveBeenCalled();
   expect(process.exit).toHaveBeenCalledWith(0);
 
   process.exit.mockRestore();
 });
 
-test('runStop calls updateChartIncrementally with changed files when there are git changes', async () => {
+test('runStop calls the partitioned incremental updater when there are git changes', async () => {
   initGitRepo();
 
   await writeFile(path.join(tempDir, 'a.ts'), 'export const a = 1;');
@@ -59,7 +59,7 @@ test('runStop calls updateChartIncrementally with changed files when there are g
 
   jest.unstable_mockModule('../dist/chartBuild/build-chart.js', () => ({
     buildChartFull: jest.fn(async () => {}),
-    updateChartIncrementally: jest.fn(async () => {}),
+    updatePartitionedChartIncrementally: jest.fn(async () => {}),
   }));
 
   jest.spyOn(process, 'exit').mockImplementation(() => {});
@@ -69,8 +69,8 @@ test('runStop calls updateChartIncrementally with changed files when there are g
 
   await stopModule.runStop();
 
-  expect(buildChart.updateChartIncrementally).toHaveBeenCalledTimes(1);
-  const arg = buildChart.updateChartIncrementally.mock.calls[0][0];
+  expect(buildChart.updatePartitionedChartIncrementally).toHaveBeenCalledTimes(1);
+  const arg = buildChart.updatePartitionedChartIncrementally.mock.calls[0][0];
   expect(arg).toContain('a.ts');
   expect(buildChart.buildChartFull).not.toHaveBeenCalled();
   expect(process.exit).toHaveBeenCalledWith(0);
@@ -81,7 +81,7 @@ test('runStop calls updateChartIncrementally with changed files when there are g
 test('runStop do nothing when no git repo exists (captureGitChanges returns null)', async () => {
   jest.unstable_mockModule('../dist/chartBuild/build-chart.js', () => ({
     buildChartFull: jest.fn(async () => {}),
-    updateChartIncrementally: jest.fn(async () => {}),
+    updatePartitionedChartIncrementally: jest.fn(async () => {}),
   }));
 
   jest.spyOn(process, 'exit').mockImplementation(() => {});
@@ -91,7 +91,7 @@ test('runStop do nothing when no git repo exists (captureGitChanges returns null
 
   await stopModule.runStop();
 
-  expect(buildChart.updateChartIncrementally).not.toHaveBeenCalled();
+  expect(buildChart.updatePartitionedChartIncrementally).not.toHaveBeenCalled();
   expect(process.exit).toHaveBeenCalledWith(0);
 
   process.exit.mockRestore();

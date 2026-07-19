@@ -20,7 +20,7 @@ export function statusCommand(cli: CAC, context: CommandContext): void {
 
     const version = getVersion();
     const dataDir = path.resolve(cwd, config.dataDir);
-    const files = ['chart.md', 'ballast.md', 'manifest.md'];
+    const files = ['index.md', 'ballast.md', 'manifest.md'];
 
     const exists = await Promise.all(
       files.map((f) => fileExists(path.join(dataDir, f))),

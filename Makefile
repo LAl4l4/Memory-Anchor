@@ -7,7 +7,7 @@ VERSION ?= patch
 
 MSG ?= chore: save work before release
 
-.PHONY: patch minor major release chart-full chart-inc
+.PHONY: patch minor major release chart-full chart-inc chart-registry chart-partitions
 
 patch:
 	@$(MAKE) release VERSION=patch
@@ -55,7 +55,14 @@ chart-full:
 FILES ?=
 chart-inc:
 	@npm run build
-	@node -e "\
-		var files = '$(FILES)'.split(' ').filter(function(f){return f.length>0}); \
-		if (!files.length) { console.error('Usage: make chart-inc FILES=\"file1.ts file2.ts\"'); process.exit(1); } \
-		require('./dist/chartBuild/build-chart.js').updateChartIncrementally(files)"
+	@node -e "import('./dist/chartBuild/build-chart.js').then(async ({ updateChartIncrementally, destroyPool }) => { const files = '$(FILES)'.split(' ').filter(Boolean); if (!files.length) { console.error('Usage: make chart-inc FILES=\"file1.ts file2.ts\"'); process.exitCode = 1; return; } try { await updateChartIncrementally(files); } finally { await destroyPool(); } })"
+
+# 调试目录分区注册表（尚未接入正式 CLI）
+chart-registry:
+	@npm run build
+	@node -e "import('./dist/chartBuild/chartPartitioner/partitioner.js').then(async ({ buildDirectoryTreeRegistryForDebug }) => { await buildDirectoryTreeRegistryForDebug(); console.error('[Memory Anchor] Directory registry written to: .memoryanchor/dirTree.json'); })"
+
+# 调试完整目录分区：生成 registry，并写入镜像目录 chart
+chart-partitions:
+	@npm run build
+	@node -e "import('./dist/chartBuild/chartPartitioner/partitionedChartBuilder.js').then(async ({ buildPartitionedChartsForDebug }) => { const result = await buildPartitionedChartsForDebug(); console.error('[Memory Anchor] Partition directories: ' + result.directories.join(', ')); console.error('[Memory Anchor] Partitioned charts written: ' + result.chartPaths.length); console.error('[Memory Anchor] Chart index written to: ' + result.indexPath); })"

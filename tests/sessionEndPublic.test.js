@@ -302,7 +302,7 @@ test('runSessionEnd orchestrates full pipeline when git changes exist', async ()
   jest.resetModules();
   jest.unstable_mockModule('../dist/chartBuild/build-chart.js', () => ({
     destroyPool: jest.fn(async () => {}),
-    updateChartIncrementally: jest.fn(async () => {}),
+    updatePartitionedChartIncrementally: jest.fn(async () => {}),
     buildChartFull: jest.fn(async () => {}),
   }));
 
@@ -313,8 +313,8 @@ test('runSessionEnd orchestrates full pipeline when git changes exist', async ()
 
   await sessionEndModule.runSessionEnd();
 
-  expect(buildChart.updateChartIncrementally).toHaveBeenCalledTimes(1);
-  const arg = buildChart.updateChartIncrementally.mock.calls[0][0];
+  expect(buildChart.updatePartitionedChartIncrementally).toHaveBeenCalledTimes(1);
+  const arg = buildChart.updatePartitionedChartIncrementally.mock.calls[0][0];
   expect(arg).toContain('src/foo.ts');
   expect(buildChart.destroyPool).toHaveBeenCalledTimes(1);
   expect(process.exit).toHaveBeenCalledWith(0);
@@ -338,7 +338,7 @@ test('runSessionEnd skips chart update when no git changes (clean repo)', async 
   jest.resetModules();
   jest.unstable_mockModule('../dist/chartBuild/build-chart.js', () => ({
     destroyPool: jest.fn(async () => {}),
-    updateChartIncrementally: jest.fn(async () => {}),
+    updatePartitionedChartIncrementally: jest.fn(async () => {}),
     buildChartFull: jest.fn(async () => {}),
   }));
 
@@ -349,7 +349,7 @@ test('runSessionEnd skips chart update when no git changes (clean repo)', async 
 
   await sessionEndModule.runSessionEnd();
 
-  expect(buildChart.updateChartIncrementally).not.toHaveBeenCalled();
+  expect(buildChart.updatePartitionedChartIncrementally).not.toHaveBeenCalled();
   expect(buildChart.destroyPool).toHaveBeenCalledTimes(1);
   expect(process.exit).toHaveBeenCalledWith(0);
 
@@ -363,7 +363,7 @@ test('runSessionEnd skips chart update when no git repo exists', async () => {
   jest.resetModules();
   jest.unstable_mockModule('../dist/chartBuild/build-chart.js', () => ({
     destroyPool: jest.fn(async () => {}),
-    updateChartIncrementally: jest.fn(async () => {}),
+    updatePartitionedChartIncrementally: jest.fn(async () => {}),
     buildChartFull: jest.fn(async () => {}),
   }));
 
@@ -374,7 +374,7 @@ test('runSessionEnd skips chart update when no git repo exists', async () => {
 
   await sessionEndModule.runSessionEnd();
 
-  expect(buildChart.updateChartIncrementally).not.toHaveBeenCalled();
+  expect(buildChart.updatePartitionedChartIncrementally).not.toHaveBeenCalled();
   expect(buildChart.destroyPool).toHaveBeenCalledTimes(1);
   expect(process.exit).toHaveBeenCalledWith(0);
 

@@ -1,72 +1,125 @@
 # Memory Anchor
 
-**Memory Anchor is a local, file-based memory layer for coding agents.** It builds a compact map of your repository, preserves the rules and decisions that matter, and keeps that context current across sessions.
+Memory Anchor is a local, file-based memory layer for coding agents. It turns a repository into a compact set of architecture charts, keeps durable project rules and decisions beside the code, and refreshes that memory from Git changes as agents work.
 
 ![Node.js 18 or newer](https://img.shields.io/badge/node-%E2%89%A518-339933?logo=node.js&logoColor=white)
 ![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue)
-
-Instead of forcing an agent to rediscover the codebase at the start of every session, Memory Anchor gives it a compact, structured head start: an AST-based project map, durable repository knowledge, and an up-to-date module-status record. Git-aware hooks refresh this memory as the repository evolves.
 
 ## Quick start
 
 ```bash
 npm install -g memory-anchor
 
-cd /path/to/your-project
+cd /path/to/your/project
 anchor init
 anchor status
 ```
 
-`anchor init` initializes the shared Memory Anchor files and configures every currently supported agent integration. To set up only one integration, use an `init-<agent>` command instead.
+`anchor init` builds the initial partitioned chart and configures every supported agent. Use an `init-<agent>` command when only one integration is needed.
 
-## Why Memory Anchor?
+## What Memory Anchor stores
 
-Coding agents work best when they can start with the right context rather than an unbounded pile of files. Memory Anchor is designed to make that context durable and easy to inspect:
+Memory Anchor keeps its generated state under `.memoryanchor/`:
 
-- **Faster orientation** — `chart.md` provides a directory map and extracted architectural symbols, so an agent can locate the relevant code before opening files.
-- **Persistent guardrails** — `ballast.md` keeps repository-specific rules and lessons learned close to the work.
-- **Shared project state** — `manifest.md` records module status, known issues, and architectural decisions across sessions.
-- **Incremental maintenance** — lifecycle hooks inspect Git changes and reparse only affected files after the initial build.
-- **Local and reviewable** — the memory is plain Markdown in your workspace, not a hosted vector database or an opaque chat-history store.
+| Path | Purpose |
+| --- | --- |
+| `.memoryanchor/index.md` | Small repository-level index that routes an agent to the closest chart partition. |
+| `.memoryanchor/chart/**/chart.md` | Directory-scoped architecture charts containing a skeleton and extracted symbols. |
+| `.memoryanchor/dirTree.json` | Internal directory topology, aggregate character counts, and split state used by incremental updates. |
+| `.memoryanchor/ballast.md` | Durable default and repository-specific rules. |
+| `.memoryanchor/manifest.md` | Module status, known issues, dependencies, and architectural decisions. |
+| `AGENTS.md` | Workflow instructions telling agents how to use the index, charts, ballast, and manifest. |
 
-## How it works
+Charts are generated output and should not be edited manually. Ballast and manifest are intentionally readable project memory.
 
-1. `anchor init` creates the memory files, writes the project chart, and registers hooks for the selected agent.
-2. At the start of a session, the agent receives `chart.md`, `ballast.md`, and `manifest.md` together as one context payload. `AGENTS.md` tells it to reread the chart only when the overall project structure is unclear.
-3. While the agent works, the chart acts as a compact navigation layer: directory structure first, then exported functions, classes, interfaces, enums, and types.
-4. When work stops or a session ends, Memory Anchor reads the Git diff and incrementally refreshes the chart for changed files. Session-end processing also normalizes ballast rules and flags rules that may have become stale after source-code changes.
+## Why partition the chart?
 
-The initial chart build uses a lazy worker-thread pool. Each worker reuses its tree-sitter parser and loaded language, making large-workspace initialization substantially faster while allowing the pool to be torn down cleanly afterward.
+A single repository chart eventually becomes expensive to inject and slow to rebuild. Memory Anchor instead measures each directory subtree and creates chart boundaries only where they are needed.
+
+During a full build it:
+
+1. Scans directories deepest-first.
+2. Generates architecture content with tree-sitter and records aggregate character counts.
+3. Splits directory subtrees above `12000` characters.
+4. Writes one chart for every first non-split directory on each branch.
+5. Writes `.memoryanchor/index.md` as the routing layer for those charts.
+
+The output mirrors the source tree. For example:
+
+```text
+.memoryanchor/
+├── index.md
+├── dirTree.json
+├── ballast.md
+├── manifest.md
+└── chart/
+    ├── src/
+    │   ├── chartBuild/chart.md
+    │   ├── commands/chart.md
+    │   └── hooks/chart.md
+    └── tests/chart.md
+```
+
+At session start, Memory Anchor injects the index, ballast, and manifest. The index tells the agent which directory chart to open, so unrelated architecture does not need to occupy the initial context.
+
+## Incremental updates
+
+Stop and session-end hooks read the Git working-tree changes and pass the changed paths to the partitioned incremental updater. The legacy `updateChartIncrementally` API remains available and points to this same implementation.
+
+For each changed file, the updater:
+
+1. Finds the first non-split directory partition on the file path.
+2. Updates only that partition chart.
+3. Propagates the exact character delta through its directory ancestors.
+4. Applies hysteresis to avoid unstable boundary oscillation.
+5. Rebuilds only the affected boundary when topology changes.
+
+The thresholds are:
+
+- Split when a non-split directory grows above `12000` characters.
+- Merge when a split directory shrinks below `9000` characters.
+- Keep the current state inside the neutral `9000–12000` band.
+
+Growth stops structural propagation after the first split; higher ancestors only need updated metadata. Shrinkage continues checking merge eligibility through the root because a merge can cascade upward. When several ancestors merge, only the highest merged boundary is rebuilt because that rebuild already includes every lower subtree.
+
+Each incremental batch also keeps a temporary Set of rebuilt directories. If a later changed file is inside a directory already rebuilt from disk, its redundant parse/update work is skipped. Matching walks exact path ancestors, so similarly named siblings such as `src/a` and `src/abc` cannot collide.
+
+If the partition registry or required output topology is missing, the compatibility entry safely falls back to a full partitioned build.
+
+## Parser performance
+
+Architecture extraction runs through a lazy `worker_threads` pool:
+
+- The pool is created only when parsing work exists.
+- Each worker owns and reuses a tree-sitter parser.
+- Loaded WASM languages are cached per worker.
+- Batch parsing distributes files across workers.
+- A failed worker is removed and replaced automatically.
+- Full initialization destroys the pool when complete; incremental CLI work reuses it until the process exits.
+
+The default pool size is `CPU count - 1`, with a minimum of two workers, leaving one core available for the main thread.
 
 ## Session lifecycle
 
 ```text
 anchor init
-    │  create memory files + full AST chart + agent hook configuration
+    │  full directory scan → dirTree registry → partition charts + index
+    │  create ballast/manifest and configure agent integrations
     ▼
 Session starts
-    │  inject chart + durable rules + current project state together
+    │  inject index + ballast + manifest
     ▼
 Agent works
-    │  rereads chart when structure is unclear, then opens only needed files
+    │  index routes the agent to the closest directory chart
     ▼
 Agent stops
-    │  Git diff → incrementally refresh chart entries for changed files
+    │  Git changes → partitioned incremental refresh
     ▼
 Session ends
-       normalize ballast, flag potentially stale rules, refresh chart, release workers
+       capture changes, maintain ballast, refresh partitions, release workers
 ```
 
 ![Memory Anchor initialization and incremental refresh demo](assets/memoryanchorDemo.gif)
-
-## Memory layers
-
-| File | Purpose | Ownership |
-| --- | --- | --- |
-| `.memoryanchor/chart.md` | Auto-generated project chart: directory skeleton plus extracted architectural symbols. | Generated; do not edit manually. |
-| `.memoryanchor/ballast.md` | Durable coding rules and lessons learned. It keeps separate default and repository-specific sections. | Maintained during development; keep valid, one-line rules. |
-| `.memoryanchor/manifest.md` | Module status, dependencies, known issues, and key architectural decisions. | Update when features or significant decisions change project state. |
-| `AGENTS.md` | Instructions that tell agents how to use the three memory files. | Shared project guidance. |
 
 ## Supported agents
 
@@ -79,150 +132,92 @@ Session ends
 | OpenCode | `anchor init-opencode` | `.opencode/plugins/memory-anchor.js` and `opencode.json` |
 | QoderCLI CN | `anchor init-qodercn` | `.qoder/settings.json` |
 
-For OpenCode, the generated plugin injects chart, ballast, and manifest content together through `experimental.chat.system.transform`; its idle and deleted session events run the incremental refresh and session-end tasks.
+All platform wrappers converge on the same public stop and session-end handlers, so they share Git capture, partitioned incremental updates, fallback behavior, and parser-pool lifecycle.
 
-## Installation
-
-### Requirements
-
-- Node.js 18 or newer
-- Git, for incremental updates based on repository changes
-
-### Global installation
-
-```bash
-npm install -g memory-anchor
-```
-
-Run the command from the root of the repository you want to anchor:
-
-```bash
-anchor init
-```
-
-The command is safe to run again: it adds missing Memory Anchor entries and does not duplicate an existing matching hook. It also updates `.gitignore` with Memory Anchor and agent-configuration paths, so review the resulting diff if those files are normally versioned in your project.
+OpenCode uses `experimental.chat.system.transform` to append the Memory Anchor payload to the system prompt. Its `session.idle` and `session.deleted` events invoke the stop and session-end side effects through the generated plugin.
 
 ## Commands
 
 | Command | Description |
 | --- | --- |
-| `anchor init` | Set up shared files and all supported agent integrations. |
-| `anchor init-public` | Set up only `.memoryanchor`, `AGENTS.md`, and `.gitignore`. |
-| `anchor init-copilot` | Set up shared files and GitHub Copilot hooks/instructions. |
-| `anchor init-claude` | Set up shared files and Claude Code hooks/instructions. |
-| `anchor init-codex` | Set up shared files and Codex CLI hooks. |
-| `anchor init-codebuddy` | Set up shared files and CodeBuddy hooks/instructions. |
-| `anchor init-opencode` | Set up shared files and the OpenCode plugin/configuration. |
-| `anchor init-qodercn` | Set up shared files and QoderCLI CN hooks. |
-| `anchor status` | Show the version, working directory, configured data paths, and existence of the three anchor files. |
-| `anchor version` | Print the installed Memory Anchor version. |
+| `anchor init` | Initialize shared memory and all supported agent integrations. |
+| `anchor init-public` | Initialize `.memoryanchor/`, `AGENTS.md`, and `.gitignore` only. |
+| `anchor init-copilot` | Initialize the GitHub Copilot integration. |
+| `anchor init-claude` | Initialize the Claude Code integration. |
+| `anchor init-codex` | Initialize the Codex CLI integration. |
+| `anchor init-codebuddy` | Initialize the CodeBuddy integration. |
+| `anchor init-opencode` | Initialize the OpenCode plugin and configuration. |
+| `anchor init-qodercn` | Initialize the QoderCLI CN integration. |
+| `anchor status` | Show the version, workspace, and core Memory Anchor file status. |
+| `anchor version` | Print the installed version. |
 | `anchor help` | Show CLI help. |
 
-## Example output
+Initialization is safe to rerun. Memory Anchor repairs missing managed entries and refreshes generated chart output without duplicating matching hooks.
 
-After initialization, the three files are deliberately small, readable Markdown documents. The following abbreviated examples show their shape rather than copying a complete workspace.
+## Supported languages
 
-`.memoryanchor/chart.md`
+The bundled tree-sitter WASM parsers currently cover:
 
-```text
-# PROJECT CHART
+- C and C++
+- CSS and HTML
+- Go
+- Java
+- JavaScript
+- JSON
+- Python
+- Ruby
+- Rust
+- Scala
+- Swift
+- TypeScript and TSX
 
-## 1. Directory Skeleton
-- /package.json: Project manifest and CLI scripts.
-- /README.md: Local documentation asset.
+The chart focuses on architecture-level functions, classes, interfaces, enums, and types rather than reproducing every implementation detail.
 
-### src/
-- cli.ts: CLI entry point.
-- commands/: Command registration and initialization.
-- chartBuild/: Chart generation and incremental updates.
-- hooks/: Agent lifecycle hook handlers.
-
-## 2. Key Architecture Nodes
-### /src/commands/init.ts
-- export function initCommand()
-
-### /src/chartBuild/build-chart.ts
-- export async function buildChartFull()
-- export async function updateChartIncrementally()
-```
-
-`.memoryanchor/ballast.md`
-
-```text
-# Default Ballast Rules(You must not change these part)
-- [ ] If the overall project structure is unclear, immediately reread ./.memoryanchor/chart.md.
-- [ ] Do not change the auto-generated chart unless the user explicitly asks.
-- [ ] After implementing a feature, update Module Status in manifest.md.
-
-# Specific Rules For This Repository(Change this after solve bugs or user add specific rules)
-- [ ] Keep parser-worker lifecycle changes covered by automated tests.
-- [ ] Preserve the default/specific two-section ballast structure when normalizing rules.
-```
-
-`.memoryanchor/manifest.md`
-
-```text
-## Module Status
-
-### parser
-- functionality: Extracts architecture symbols from supported source files.
-- status: Stable
-- dependencies: parserPool.ts, parserWorker.ts, symbolExtractor.ts
-- known_issues: None
-- notes: Full builds parse in parallel; incremental updates reuse the pool.
-
-### session end hook
-- functionality: Refreshes memory from Git-detected changes.
-- status: Stable
-- dependencies: captureGitChanges.ts, build-chart.ts
-- known_issues: None
-
-## Key Decisions
-- Use a worker-thread pool so parser and language instances can be reused.
-- Use incremental chart updates at session end instead of a full rebuild.
-```
-
-## How it differs
-
-Memory Anchor is not a chat transcript, a general documentation generator, or a remote RAG service.
-
-| Approach | Primary artifact | Memory Anchor difference |
-| --- | --- | --- |
-| Chat history | Conversation messages | Stores project facts in files that outlive any individual conversation. |
-| Full-repository rescanning | Raw source files | Starts with an AST-derived chart and opens source only when necessary. |
-| Vector/RAG system | Hosted embeddings and retrieval | Uses local Markdown and Git-aware incremental updates; no embedding pipeline is required. |
-| Static architecture docs | Manually maintained prose | Regenerates the structural chart and keeps operational rules/state beside it. |
-
-## Limitations
-
-- `chart.md` is generated output. Do not manually edit it; rerun `anchor init` if a full rebuild is needed.
-- Incremental updates depend on Git-detected changes. Files changed outside the repository’s visible Git state may require a full initialization rebuild.
-- The chart focuses on architecture-level symbols, not a complete semantic understanding of every implementation detail.
-- Parsing support depends on the bundled tree-sitter WASM grammars. The current language set includes JavaScript, TypeScript/TSX, Python, Java, C/C++, Go, Rust, PHP, Ruby, Kotlin, Swift, C#, Scala, Dart, Lua, HTML, CSS, JSON, and YAML.
-- Agent hook formats are platform-specific. Keep the generated integration files in place for automatic lifecycle refreshes.
-
-## Roadmap
-
-- [ ] Add an end-to-end demo GIF for initialization and incremental refresh.
-- [ ] Publish benchmark results for full and incremental chart builds on representative large repositories.
-- [ ] Extend parser coverage as additional tree-sitter WASM grammars become available.
-- [ ] Improve generated chart detail while retaining a compact, agent-friendly format.
-
-## Documentation
-
-- Run `anchor help` for the installed command reference.
-- Read the generated `AGENTS.md` for the workflow agents follow in an anchored repository.
-- The session-start hook injects `.memoryanchor/chart.md`, `.memoryanchor/ballast.md`, and `.memoryanchor/manifest.md` together. Reread the chart when the overall structure becomes unclear.
-- See [CHANGELOG.md](CHANGELOG.md) for project update notes.
-
-## Contributing
+## Development
 
 ```bash
 npm install
 npm test
 ```
 
-Please keep changes focused, add or update tests for behavior changes, and preserve the generated-memory workflow: update module status after implementing a feature and record significant architectural decisions in the manifest.
+Useful repository targets:
+
+```bash
+# Full partitioned rebuild
+make chart-full
+
+# Incremental update for selected paths
+make chart-inc FILES="src/index.ts src/utils/logger.ts"
+
+# Debug the directory registry
+make chart-registry
+
+# Debug registry plus partition output
+make chart-partitions
+```
+
+`updateChartIncrementally(changedFiles)` is retained as the backward-compatible programmatic entry. New hooks call `updatePartitionedChartIncrementally(changedFiles)`; both names execute the same compatibility layer, including full-build fallback when incremental topology cannot be used.
+
+## Limitations
+
+- Git-visible paths drive automatic incremental updates. Changes outside the visible working-tree state may require `anchor init` to rebuild.
+- A changed root-level file cannot yet receive its own file partition when the root is already split, so that case falls back to a full build.
+- An oversized leaf directory has no smaller directory boundary beneath it; file-level partition fallback is planned for this case.
+- Generated charts are not designed to preserve manual edits.
+- Agent hook schemas differ by platform; keep generated configuration in place for automatic refreshes.
+
+## How it differs
+
+| Approach | Primary artifact | Memory Anchor difference |
+| --- | --- | --- |
+| Chat history | Conversation messages | Project memory survives individual conversations in reviewable files. |
+| Full-repository rescanning | Raw source files | Agents start from a routed AST-derived architecture map. |
+| Vector/RAG system | Embeddings and retrieval services | Memory Anchor uses local Markdown and requires no hosted retrieval pipeline. |
+| Static architecture docs | Manually maintained prose | Structural charts are regenerated while rules and decisions remain explicit. |
+
+## Contributing
+
+Keep changes focused, add regression tests for behavior changes, and preserve the generated-memory workflow. Feature work should update `.memoryanchor/manifest.md`; resolved repository-specific bugs should add a valid prevention rule to `.memoryanchor/ballast.md`.
 
 ## License
 

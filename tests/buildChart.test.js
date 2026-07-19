@@ -12,8 +12,11 @@ const originalCwd = process.cwd();
 let buildChartFull;
 let updateChartIncrementally;
 let destroyPool;
+let buildChartContent;
+let ParserWorkerPool;
 let tempDir = '';
 let anchorDir = '';
+let indexPath = '';
 let chartPath = '';
 let registryPath = '';
 
@@ -73,14 +76,18 @@ beforeAll(async () => {
   await seedFixtures(tempDir);
 
   ({ buildChartFull, updateChartIncrementally, destroyPool } = await import('../dist/chartBuild/build-chart.js'));
+  ({ buildChartContent } = await import('../dist/chartBuild/chartBuildHelper/chartContentBuilder.js'));
+  ({ ParserWorkerPool } = await import('../dist/chartBuild/chartBuildHelper/parserPool.js'));
 
   anchorDir = path.join(tempDir, '.memoryanchor');
-  chartPath = path.join(anchorDir, 'chart.md');
-  registryPath = path.join(anchorDir, 'registry.json');
+  indexPath = path.join(anchorDir, 'index.md');
+  chartPath = path.join(anchorDir, 'chart', 'chart.md');
+  registryPath = path.join(anchorDir, 'dirTree.json');
 });
 
 beforeEach(async () => {
   await cleanupAnchor();
+  await seedFixtures(tempDir);
 });
 
 afterAll(async () => {
@@ -95,9 +102,12 @@ afterAll(async () => {
 test('buildChartFull includes fixture paths in the skeleton', async () => {
   await buildChartFull();
 
+  const indexContent = await readFile(indexPath, 'utf8');
   const chartContent = await readFile(chartPath, 'utf8');
   const normalizedChart = chartContent.replace(/\\/g, '/');
 
+  expect(indexContent).toContain('### Root');
+  expect(indexContent).toContain('.memoryanchor/chart/chart.md');
   // New grouped format: directory heading + basename
   expect(normalizedChart).toContain('### tests/test-src/');
   for (const { file } of fixtures) {
@@ -105,7 +115,48 @@ test('buildChartFull includes fixture paths in the skeleton', async () => {
   }
 });
 
-test('updateChartIncrementally adds fixture nodes and registry', async () => {
+test('ParserWorkerPool queues the full batch while lazily bounding workers', async () => {
+  const localPool = new ParserWorkerPool();
+  try {
+    await localPool.init(3);
+    expect(localPool.activeWorkerCount).toBe(0);
+
+    const requests = Array.from({ length: 40 }, (_, index) => ({
+      absolutePath: path.join(tempDir, 'tests', 'test-src', 'sample.ts'),
+      relativePath: `tests/test-src/sample-${index}.ts`,
+      lang: 'typescript'
+    }));
+    const parsed = Promise.all(requests.map(request => localPool.parse(
+      request.absolutePath,
+      request.relativePath,
+      request.lang
+    )));
+
+    // All 40 tasks are accepted immediately, but only 3 worker slots exist.
+    expect(localPool.activeWorkerCount).toBe(3);
+    expect(localPool.peakOutstandingTaskCount).toBe(40);
+
+    await expect(parsed).resolves.toHaveLength(40);
+    expect(localPool.activeWorkerCount).toBe(3);
+  } finally {
+    await localPool.destroy();
+  }
+});
+
+test('chart parse cache reuses symbols without reading the file twice', async () => {
+  const relativePath = 'tests/test-src/sample.ts';
+  const groups = new Map([['tests/test-src', [relativePath]]]);
+  const parseCache = new Map();
+  const first = await buildChartContent(groups, tempDir, parseCache);
+  await rm(path.join(tempDir, relativePath));
+
+  const second = await buildChartContent(groups, tempDir, parseCache);
+
+  expect(parseCache).toHaveProperty('size', 1);
+  expect(second).toBe(first);
+});
+
+test('updateChartIncrementally preserves fixture architecture nodes', async () => {
   await buildChartFull();
   await updateChartIncrementally(incrementalRelPaths);
 
@@ -127,10 +178,40 @@ test('updateChartIncrementally adds fixture nodes and registry', async () => {
 
   const registryRaw = await readFile(registryPath, 'utf8');
   const registry = JSON.parse(registryRaw);
+  expect(registry.directory).toBe('.');
+  expect(registry.thisDirectoryChars).toBeGreaterThan(0);
+});
 
-  for (const relPath of incrementalRelPaths) {
-    expect(registry[relPath]).toBeDefined();
-  }
+test('updateChartIncrementally edits the matching partition and updates chars', async () => {
+  await buildChartFull();
+  const registryBefore = JSON.parse(await readFile(registryPath, 'utf8'));
+  const changedFile = path.join(tempDir, 'tests', 'test-src', 'sample.ts');
+  await writeFile(
+    changedFile,
+    'export function add(a: number, b: number): number { return a + b; }\n' +
+      'export function newlyAdded(): string { return "new"; }\n'
+  );
+
+  await updateChartIncrementally(['tests/test-src/sample.ts']);
+
+  const chartContent = await readFile(chartPath, 'utf8');
+  const registryAfter = JSON.parse(await readFile(registryPath, 'utf8'));
+  expect(chartContent).toContain('- export function newlyAdded()');
+  expect(registryAfter.thisDirectoryChars).toBeGreaterThan(
+    registryBefore.thisDirectoryChars
+  );
+});
+
+test('updateChartIncrementally removes a deleted file from its partition', async () => {
+  await buildChartFull();
+  const deletedRelativePath = 'tests/test-src/sample.js';
+  await rm(path.join(tempDir, deletedRelativePath));
+
+  await updateChartIncrementally([deletedRelativePath]);
+
+  const chartContent = await readFile(chartPath, 'utf8');
+  expect(chartContent).not.toContain('- sample.js:');
+  expect(chartContent).not.toContain('### /tests/test-src/sample.js');
 });
 
 test('buildChartFull ignores build directories at any depth', async () => {
@@ -190,7 +271,5 @@ test('updateChartIncrementally skips files inside build directories', async () =
 
   const registryRaw = await readFile(registryPath, 'utf8');
   const registry = JSON.parse(registryRaw);
-  for (const rel of ignored) {
-    expect(registry[rel]).toBeUndefined();
-  }
+  expect(registry.directory).toBe('.');
 });

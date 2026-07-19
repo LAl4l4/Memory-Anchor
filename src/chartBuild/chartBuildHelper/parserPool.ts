@@ -1,6 +1,7 @@
 import { Worker } from 'worker_threads';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import type { FileNode } from './symbolExtractor.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -10,8 +11,8 @@ interface Task {
     absolutePath: string;
     relativePath: string;
     lang: string;
-    resolve: (result: any) => void;
-    reject: (err: any) => void;
+    resolve: (result: FileNode) => void;
+    reject: (err: unknown) => void;
 }
 
 export class ParserWorkerPool {
@@ -19,23 +20,40 @@ export class ParserWorkerPool {
     private queue: Task[] = [];
     private idle: Worker[] = [];
     private runningTasks = new Map<Worker, Task>();
+    private workerStarts = new Set<Promise<void>>();
+    private maxWorkers = 0;
+    private startingWorkers = 0;
+    private peakOutstandingTasks = 0;
     private destroying = false;
 
     async init(size: number) {
-        // 并行启动所有 worker，等全部 init 完成
-        this.workers = await Promise.all(
-            Array.from({ length: size }, () => this.createWorker())
-        );
-        this.idle = [...this.workers]; // 刚启动全部空闲
+        if (!Number.isInteger(size) || size < 1) {
+            throw new Error(`ParserWorkerPool size must be a positive integer, received ${size}`);
+        }
+        this.maxWorkers = size;
+    }
+
+    /** Exposed for lifecycle diagnostics and regression tests. */
+    get activeWorkerCount(): number {
+        return this.workers.length + this.startingWorkers;
+    }
+
+    /** Highest queued + running task count, useful for capacity diagnostics. */
+    get peakOutstandingTaskCount(): number {
+        return this.peakOutstandingTasks;
     }
 
     private createWorker(): Promise<Worker> {
         return new Promise((resolve, reject) => {
             const worker = new Worker(WORKER_PATH);
+            let ready = false;
 
             // worker 发来 ready 信号说明 Parser.init() 完成了
             worker.once('message', (msg) => {
-                if (msg.type === 'ready') resolve(worker);
+                if (msg.type === 'ready') {
+                    ready = true;
+                    resolve(worker);
+                }
                 else reject(new Error('Worker init failed'));
             });
 
@@ -65,9 +83,7 @@ export class ParserWorkerPool {
                 if (task) {
                     this.runningTasks.delete(worker);
                     task.reject(err);
-                } else {
-                    reject(err); // 仍在 init 阶段
-                }
+                } else if (!ready) reject(err);
             });
 
             worker.on('exit', (code) => {
@@ -81,11 +97,8 @@ export class ParserWorkerPool {
                     task.reject(new Error(`Worker exited with code ${code}`));
                 }
 
-                // 主动销毁期间不补充新 worker
-                if (this.destroying) return;
-
-                // worker 异常退出后立即补充一个新 worker，防止池子越用越小
-                this.replaceWorker();
+                if (!ready) reject(new Error(`Worker exited during init with code ${code}`));
+                if (!this.destroying) this.scaleToDemand();
             });
         });
     }
@@ -98,20 +111,70 @@ export class ParserWorkerPool {
         return wIdx !== -1;
     }
 
-    private async replaceWorker() {
-        if (this.destroying) return;
-        try {
-            const worker = await this.createWorker();
-            // 创建期间池子被销毁，丢弃新 worker
-            if (this.destroying) {
-                await worker.terminate();
-                return;
+    /**
+     * Atomically reserve one bounded worker slot before starting it.
+     * This is the only worker-creation entry, so no caller can exceed maxWorkers.
+     */
+    private startWorkerIfNeeded(): boolean {
+        if (this.destroying || this.maxWorkers === 0) return false;
+
+        const outstandingTasks = this.queue.length + this.runningTasks.size;
+        const allocatedWorkers = this.workers.length + this.startingWorkers;
+        if (
+            allocatedWorkers >= this.maxWorkers ||
+            allocatedWorkers >= outstandingTasks
+        ) {
+            return false;
+        }
+
+        this.startingWorkers += 1;
+        let startPromise: Promise<void> | undefined;
+        let startingSlotReserved = true;
+        startPromise = (async () => {
+            let startError: unknown;
+            try {
+                const worker = await this.createWorker();
+                if (this.destroying) {
+                    await worker.terminate();
+                    return;
+                }
+                // Transfer the reserved slot from "starting" to "live" without
+                // ever counting the same worker in both collections.
+                this.startingWorkers -= 1;
+                startingSlotReserved = false;
+                this.workers.push(worker);
+                this.idle.push(worker);
+                this.drain();
+            } catch (error) {
+                startError = error;
+            } finally {
+                if (startingSlotReserved) this.startingWorkers -= 1;
+                if (startPromise) this.workerStarts.delete(startPromise);
+
+                if (
+                    startError &&
+                    !this.destroying &&
+                    this.workers.length === 0 &&
+                    this.startingWorkers === 0
+                ) {
+                    const error = startError instanceof Error
+                        ? startError
+                        : new Error(String(startError));
+                    const queued = this.queue.splice(0);
+                    for (const task of queued) task.reject(error);
+                }
+
+                if (!this.destroying) this.scaleToDemand();
             }
-            this.workers.push(worker);
-            this.idle.push(worker);
-            this.drain();
-        } catch {
-            // 补充失败，池容量实际减少一个
+        })();
+        this.workerStarts.add(startPromise);
+        return true;
+    }
+
+    /** Lazily grow only as far as the current outstanding work requires. */
+    private scaleToDemand(): void {
+        while (this.startWorkerIfNeeded()) {
+            // Each successful call reserves its slot synchronously.
         }
     }
 
@@ -126,10 +189,19 @@ export class ParserWorkerPool {
     }
 
     // 外部调用这个提交任务
-    parse(absolutePath: string, relativePath: string, lang: string): Promise<any> {
+    parse(absolutePath: string, relativePath: string, lang: string): Promise<FileNode> {
         return new Promise((resolve, reject) => {
+            if (this.destroying) {
+                reject(new Error('ParserWorkerPool destroyed'));
+                return;
+            }
             this.queue.push({ absolutePath, relativePath, lang, resolve, reject });
+            this.peakOutstandingTasks = Math.max(
+                this.peakOutstandingTasks,
+                this.queue.length + this.runningTasks.size
+            );
             this.drain();
+            this.scaleToDemand();
         });
     }
 
@@ -140,6 +212,10 @@ export class ParserWorkerPool {
         for (const task of this.runningTasks.values()) task.reject(pendingError);
         this.queue = [];
         this.runningTasks.clear();
-        await Promise.all(this.workers.map(w => w.terminate()));
+        const terminations = this.workers.map(w => w.terminate());
+        await Promise.allSettled([...terminations, ...this.workerStarts]);
+        this.workers = [];
+        this.idle = [];
+        this.maxWorkers = 0;
     }
 }

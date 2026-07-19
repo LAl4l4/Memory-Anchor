@@ -38,13 +38,14 @@ interface ClassifiedFiles {
 
 export function classifyChangedFiles(
     files: string[],
-    registry: Record<string, any>
+    registry: Record<string, any>,
+    projectRoot: string = PROJECT_ROOT
 ): ClassifiedFiles {
     const toDelete: string[] = [];
     const toParse: { file: string; absPath: string; stats: fs.Stats }[] = [];
 
     for (const file of files) {
-        const absPath = path.join(PROJECT_ROOT, file);
+        const absPath = path.join(projectRoot, file);
         if (!fs.existsSync(absPath)) {
             toDelete.push(file);
             continue;
@@ -137,15 +138,16 @@ export function applyParsedResults(
     for (const { file, stats, newNodeContent } of results) {
         const normalizedPath = '/' + file;
         const hasExistingBlock = nodeMap.has(normalizedPath);
+        const hasRegistryEntry = file in registry;
 
         if (!newNodeContent) {
-            // parse 成功但没有 symbol:如果原来有记录,视为删除
+            // A symbol-free file still belongs in the directory skeleton.
             if (hasExistingBlock) {
                 nodeMap.delete(normalizedPath);
-                skeleton = removeFileFromSkeleton(skeleton, file);
-                delete registry[file];
-                changed = true;
             }
+            if (!hasRegistryEntry) skeleton = addFileToSkeleton(skeleton, file);
+            registry[file] = { mtime: stats.mtimeMs, content: '' };
+            changed = true;
             continue;
         }
 

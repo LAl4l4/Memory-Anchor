@@ -40,7 +40,9 @@ export const GITIGNORE_ENTRY = [
 // =============================================================================
 
 export const ANCHOR_DIR_NAME = '.memoryanchor';
-export const CHART_FILE_NAME = 'chart.md';
+export const INDEX_FILE_NAME = 'index.md';
+/** @deprecated Use INDEX_FILE_NAME. Retained for compatibility with integrations. */
+export const CHART_FILE_NAME = INDEX_FILE_NAME;
 export const BALLAST_FILE_NAME = 'ballast.md';
 export const MANIFEST_FILE_NAME = 'manifest.md';
 
@@ -49,8 +51,8 @@ export const MANIFEST_FILE_NAME = 'manifest.md';
 // =============================================================================
 
 export const BALLAST_DEFAULT_RULES: string[] = [  
-  '- [ ] If the agent has any uncertainty about the overall project structure, immediately read ./.memoryanchor/chart.md again. Only open repository files when chart.md is insufficient.',
-  '- [ ] Do not change ./.memoryanchor/chart.md by yourself. Only do it when user explicitly instructs you to.',
+  '- [ ] If the agent has any uncertainty about the overall project structure, immediately read ./.memoryanchor/index.md again. Only open partition chart files when index.md identifies the relevant directory.',
+  '- [ ] Do not change ./.memoryanchor/index.md or ./.memoryanchor/chart/ by yourself. Only do it when user explicitly instructs you to.',
   '- [ ] Follow ./.memoryanchor/AGENTS.md rules.',
   '- [ ] Do not rebuild a function that already exists and used by others, instead, pull it out to a separate file and import it',
   '- [ ] After implementing a feature, update the Module Status in ./.memoryanchor/manifest.md. If it is a significant architectural change, also update Key Decisions.',
@@ -85,12 +87,12 @@ export const AGENTS_CONTENT = `
 Memory Anchor is initialized in this repository. Follow these rules to ensure it works effectively.
 
 ### File Roles
-- ./.memoryanchor/chart.md: Auto-generated project structure and architectural-symbol map, injected with the other memory files at session start.
+- ./.memoryanchor/index.md: Auto-generated project chart index. Its entries point to directory-level architecture maps under ./.memoryanchor/chart/.
 - ./.memoryanchor/manifest.md: Current project state — Module Status (functionality/status/known_issues/notes) and Key Decisions (architectural choices and rationale).
 - ./.memoryanchor/ballast.md: Persistent repo-specific rules/guardrails, one per line.
 
 ### Workflow
-- If the agent has any uncertainty about the overall project structure, immediately read ./.memoryanchor/chart.md again. Only open repository files when chart.md is insufficient.
+- If the agent has any uncertainty about the overall project structure, immediately read ./.memoryanchor/index.md again, then read the closest matching directory chart listed there.
 - Must follow all rules in ./.memoryanchor/ballast.md. After solving a bug, add a rule under "Ballast Specific Rules For This Repository" to prevent recurrence.
 - After any of features implemented, update Module Status (and Key Decisions, if applicable) in ./.memoryanchor/manifest.md.
 
@@ -148,7 +150,7 @@ export const OPENCODE_SCHEMA_URL = 'https://opencode.ai/config.json';
 
 export const REQUIRED_INSTRUCTION_ENTRIES = [
   './AGENTS.md',
-  // The plugin injects chart.md, ballast.md, and manifest.md together.
+  // The plugin injects index.md, ballast.md, and manifest.md together.
 ] as const;
 
 // =============================================================================

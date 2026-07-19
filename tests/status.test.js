@@ -81,15 +81,15 @@ test('shows dataDir and indexDir from config', async () => {
   expect(stdout).toContain(`Index Dir:  ${ANCHOR_DIR_NAME}/index`);
 });
 
-test('shows chart.md and ballast.md and manifest.md with check/cross marks', async () => {
+test('shows index.md and ballast.md and manifest.md with check/cross marks', async () => {
   const anchorDir = path.join(tempDir, ANCHOR_DIR_NAME);
   await mkdir(anchorDir, { recursive: true });
   await writeFile(path.join(anchorDir, CHART_FILE_NAME), '# chart');
 
   const stdout = await runStatus(tempDir);
 
-  // chart.md should have a check mark (exists)
-  expect(stdout).toMatch(/chart\.md\s+✓/);
+  // index.md should have a check mark (exists)
+  expect(stdout).toMatch(/index\.md\s+✓/);
 
   // ballast.md and manifest.md should have cross marks (missing)
   expect(stdout).toMatch(/ballast\.md\s+✗/);

@@ -52,6 +52,7 @@ test('creates .opencode/plugins/memory-anchor.js', async () => {
   // NOT through a (non-existent) "session.start" event.
   expect(plugin).toContain('experimental.chat.system.transform');
   expect(plugin).toContain('const CHART_PATH');
+  expect(plugin).toContain('path.join(ANCHOR_DIR, "index.md")');
   expect(plugin).toContain('[1. CHART (project structure & architectural symbols)]');
   expect(plugin).toContain('[2. BALLAST (rules must follow)]');
   expect(plugin).toContain('[3. MANIFEST (module status & key decisions)]');
@@ -75,13 +76,14 @@ test('removes the legacy standalone chart instruction because the plugin injects
   const cfgPath = path.join(tempDir, 'opencode.json');
   await writeFile(
     cfgPath,
-    JSON.stringify({ instructions: ['./.memoryanchor/chart.md', './custom.md'] }, null, 2) + '\n',
+    JSON.stringify({ instructions: ['./.memoryanchor/chart.md', './.memoryanchor/index.md', './custom.md'] }, null, 2) + '\n',
   );
 
   await runInitOpencode(tempDir);
 
   const cfg = JSON.parse(await readFile(cfgPath, 'utf8'));
   expect(cfg.instructions).not.toContain('./.memoryanchor/chart.md');
+  expect(cfg.instructions).not.toContain('./.memoryanchor/index.md');
   expect(cfg.instructions).toContain('./custom.md');
   expect(cfg.instructions).toContain('./AGENTS.md');
 });

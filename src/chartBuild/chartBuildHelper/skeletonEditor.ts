@@ -173,7 +173,7 @@ export function removeFileFromSkeleton(skeletonSection: string, file: string): s
     const sectionMatch = sectionRegex.exec(skeletonSection);
     if (!sectionMatch) return skeletonSection;
 
-    const remainingLines = sectionMatch[1].split('\n').filter(
+    const remainingLines = sectionMatch[2].split('\n').filter(
         l => l.trim() && !l.trim().startsWith(`- ${base}:`)
     );
 

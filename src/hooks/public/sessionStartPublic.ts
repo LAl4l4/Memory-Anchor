@@ -4,7 +4,7 @@ import * as path from 'path';
 
 const cwd = process.cwd();
 const ANCHOR_PATH = path.join(cwd, '.memoryanchor');
-const CHART_PATH = path.join(ANCHOR_PATH, 'chart.md');
+const CHART_PATH = path.join(ANCHOR_PATH, 'index.md');
 const BALLAST_PATH = path.join(ANCHOR_PATH, 'ballast.md');
 const MANIFEST_PATH = path.join(ANCHOR_PATH, 'manifest.md');
 
