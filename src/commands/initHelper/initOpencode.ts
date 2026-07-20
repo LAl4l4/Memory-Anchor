@@ -113,8 +113,9 @@ export interface OpencodeSetupResult {
 //
 //   1. Context injection — the "${""}experimental.chat.system.transform"
 //      hook is the only documented way for a plugin to extend opencode's
-//      system prompt. On every LLM turn it reads ./.memoryanchor/index.md,
-//      ballast.md, and manifest.md from disk and
+//      system prompt. On every LLM turn it always reads index.md as routing
+//      rules, additionally includes ./.memoryanchor/chart/chart.md when that
+//      root chart exists, then reads ballast.md and manifest.md from disk and
 //      pushes the memory-core payload into output.system. This replaces the
 //      previous "session.start → fire-and-forget pre hook" design, which
 //      never worked: (a) opencode has no "session.start" event, (b) hooks
@@ -135,7 +136,8 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 
 const ANCHOR_DIR = path.join(process.cwd(), ".memoryanchor");
-const CHART_PATH = path.join(ANCHOR_DIR, "index.md");
+const INDEX_PATH = path.join(ANCHOR_DIR, "index.md");
+const ROOT_CHART_PATH = path.join(ANCHOR_DIR, "chart", "chart.md");
 const BALLAST_PATH = path.join(ANCHOR_DIR, "ballast.md");
 const MANIFEST_PATH = path.join(ANCHOR_DIR, "manifest.md");
 
@@ -150,7 +152,14 @@ function readFileSafe(p, fallback) {
 }
 
 function buildMemoryCore() {
-  const chart = readFileSafe(CHART_PATH, "No project chart available.");
+  const index = readFileSafe(INDEX_PATH, "No project chart available.");
+  const rootChart = fs.existsSync(ROOT_CHART_PATH)
+    ? readFileSafe(ROOT_CHART_PATH, "")
+    : "";
+  const chart = rootChart
+    ? "[INDEX ROUTING RULES — ALWAYS INJECTED]\\n" + index +
+      "\\n\\n[ROOT CHART ALREADY INJECTED — DO NOT READ IT AGAIN]\\n" + rootChart
+    : "[INDEX ROUTING RULES — ALWAYS INJECTED]\\n" + index;
   const ballastStr = readFileSafe(BALLAST_PATH, "No active coding constraints or lessons-learned enforced.");
   const manifest = readFileSafe(MANIFEST_PATH, "No active cross-session tasks found.");
 

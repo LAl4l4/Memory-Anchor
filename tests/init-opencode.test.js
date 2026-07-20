@@ -51,8 +51,14 @@ test('creates .opencode/plugins/memory-anchor.js', async () => {
   // Context injection must go through the documented system-transform hook,
   // NOT through a (non-existent) "session.start" event.
   expect(plugin).toContain('experimental.chat.system.transform');
-  expect(plugin).toContain('const CHART_PATH');
+  expect(plugin).toContain('const INDEX_PATH');
   expect(plugin).toContain('path.join(ANCHOR_DIR, "index.md")');
+  expect(plugin).toContain('const ROOT_CHART_PATH');
+  expect(plugin).toContain('path.join(ANCHOR_DIR, "chart", "chart.md")');
+  expect(plugin).toContain('[INDEX ROUTING RULES — ALWAYS INJECTED]');
+  expect(plugin).toContain('[ROOT CHART ALREADY INJECTED — DO NOT READ IT AGAIN]');
+  expect(plugin).toContain('readFileSafe(INDEX_PATH');
+  expect(plugin).toContain('fs.existsSync(ROOT_CHART_PATH)');
   expect(plugin).toContain('[1. CHART (project structure & architectural symbols)]');
   expect(plugin).toContain('[2. BALLAST (rules must follow)]');
   expect(plugin).toContain('[3. MANIFEST (module status & key decisions)]');

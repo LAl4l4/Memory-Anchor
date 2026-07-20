@@ -164,7 +164,7 @@ export function removeFileFromSkeleton(skeletonSection: string, file: string): s
 
     if (dir === '.') {
         const escapedFile = escapeRegex(`/${base}`);
-        const lineRegex = new RegExp(`^- ${escapedFile}: [^\\n]*\\n?`, 'g');
+        const lineRegex = new RegExp(`^- ${escapedFile}: [^\\n]*\\n?`, 'gm');
         return skeletonSection.replace(lineRegex, '');
     }
 

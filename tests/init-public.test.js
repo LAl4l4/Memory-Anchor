@@ -114,6 +114,8 @@ test('creates and populates the partitioned chart index', async () => {
   const chart = await readFile(path.join(tempDir, ANCHOR_DIR_NAME, CHART_FILE_NAME), 'utf8');
   expect(chart).toContain('# Project Chart Index');
   expect(chart).toContain('## Root Partitions');
+  expect(chart).toContain('How to find the right chart:');
+  expect(chart).toContain('A non-split frontier');
 });
 
 test('re-running does not duplicate ballast rules', async () => {

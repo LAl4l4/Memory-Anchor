@@ -29,7 +29,15 @@ export async function updatePartitionChartContent(
     }
 
     let skeleton = previousContent.substring(0, sectionSplit).trimEnd();
-    const nodes = previousContent.substring(sectionSplit).trimStart();
+    const childChartsHeader = '\n## 3. Child Charts';
+    const childChartsSplit = previousContent.indexOf(childChartsHeader, sectionSplit);
+    const nodes = previousContent.substring(
+        sectionSplit,
+        childChartsSplit < 0 ? previousContent.length : childChartsSplit
+    ).trimStart();
+    const childCharts = childChartsSplit < 0
+        ? ''
+        : previousContent.substring(childChartsSplit).trim();
     const nodeMap = parseNodeBlocksToMap(nodes);
     const registry: Record<string, any> = {};
     for (const file of getSkeletonFileOrder(skeleton)) {
@@ -58,7 +66,9 @@ export async function updatePartitionChartContent(
     }
 
     const newNodes = serializeNodes(skeleton, nodeMap);
-    const currentContent = `${skeleton}\n\n${newNodes}`;
+    const currentContent = childCharts
+        ? `${skeleton}\n\n${newNodes.trimEnd()}\n\n${childCharts}\n`
+        : `${skeleton}\n\n${newNodes}`;
     fs.writeFileSync(chartPath, currentContent, 'utf-8');
     return {
         changed: true,

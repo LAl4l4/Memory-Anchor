@@ -67,6 +67,28 @@ ${BALLAST_SPECIFIC_TITLE}
   expect(result).not.toContain('No project chart available.');
 });
 
+test('loadMemoryCore always injects index rules and additionally injects the root chart', async () => {
+  const indexContent = '# Project Chart Index\n\nindex-only-marker';
+  const rootChartContent = `# PROJECT CHART
+
+path:
+.memoryanchor/chart/chart.md
+
+root-chart-marker`;
+  const chartDirectory = path.join(anchorPath, 'chart');
+  await mkdir(chartDirectory, { recursive: true });
+  await writeFile(path.join(anchorPath, CHART_FILE_NAME), indexContent);
+  await writeFile(path.join(chartDirectory, 'chart.md'), rootChartContent);
+
+  const { loadMemoryCore } = await import('../dist/hooks/public/sessionStartPublic.js')
+  const result = loadMemoryCore();
+
+  expect(result).toContain('[INDEX ROUTING RULES — ALWAYS INJECTED]');
+  expect(result).toContain(indexContent);
+  expect(result).toContain('[ROOT CHART ALREADY INJECTED — DO NOT READ IT AGAIN]');
+  expect(result).toContain(rootChartContent);
+});
+
 test('loadMemoryCore injects MEMORY PRUNING task block when ballast contains [STALE]', async () => {
   const ballastContent = '- [ ] Some stale rule [STALE] *(obsolete)*';
 

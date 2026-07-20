@@ -13,6 +13,8 @@ import {
     DirectoryCharThresholds,
     DirectoryTreeNode,
     getDeepestFirstNodes,
+    isChartOwner,
+    rebuildChartTree,
     toDirectoryTreeRegistry,
     validateDirectoryThresholds,
 } from './directoryTree.js';
@@ -51,24 +53,46 @@ export async function scanDirectoryTree(
         node.thisDirectoryChars = ownDirectoryChars + childChars;
         node.isSplit = node.thisDirectoryChars > thresholds.splitAt;
     }
+
+    rebuildChartTree(root);
 }
 
-/**
- * Return the partition frontier: the first non-split directory reached on each
- * branch. Once a directory is selected, none of its descendants are returned.
- */
+/** Return the threshold frontier plus shallow direct-file charts above it. */
 export function getDirectoriesToScan(root: DirectoryTreeNode): string[] {
     const directories: string[] = [];
 
     const visit = (node: DirectoryTreeNode): void => {
-        if (!node.isSplit) {
-            directories.push(node.directory);
-            return;
-        }
-
+        if (isChartOwner(node)) directories.push(node.directory);
+        if (!node.isSplit) return;
         for (const child of node.children) visit(child);
     };
 
+    visit(root);
+    return directories;
+}
+
+/** Split ancestor charts contain only files owned directly by that directory. */
+export function getShallowPartitionDirectories(root: DirectoryTreeNode): Set<string> {
+    const directories = new Set<string>();
+    const visit = (node: DirectoryTreeNode): void => {
+        if (isChartOwner(node) && node.isSplit) directories.add(node.directory);
+        if (!node.isSplit) return;
+        for (const child of node.children) visit(child);
+    };
+    visit(root);
+    return directories;
+}
+
+/** Return the first chart layer exposed by index.md. */
+export function getRootChartDirectories(root: DirectoryTreeNode): string[] {
+    const directories: string[] = [];
+    const visit = (node: DirectoryTreeNode): void => {
+        if (isChartOwner(node) && node.chartParent === null) {
+            directories.push(node.directory);
+        }
+        if (!node.isSplit) return;
+        for (const child of node.children) visit(child);
+    };
     visit(root);
     return directories;
 }

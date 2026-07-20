@@ -108,7 +108,6 @@ test('buildChartFull includes fixture paths in the skeleton', async () => {
 
   expect(indexContent).toContain('### Root');
   expect(indexContent).toContain('.memoryanchor/chart/chart.md');
-  // New grouped format: directory heading + basename
   expect(normalizedChart).toContain('### tests/test-src/');
   for (const { file } of fixtures) {
     expect(normalizedChart).toContain(`- ${file}:`);

@@ -4,14 +4,21 @@ import * as path from 'path';
 
 const cwd = process.cwd();
 const ANCHOR_PATH = path.join(cwd, '.memoryanchor');
-const CHART_PATH = path.join(ANCHOR_PATH, 'index.md');
+const INDEX_PATH = path.join(ANCHOR_PATH, 'index.md');
+const ROOT_CHART_PATH = path.join(ANCHOR_PATH, 'chart', 'chart.md');
 const BALLAST_PATH = path.join(ANCHOR_PATH, 'ballast.md');
 const MANIFEST_PATH = path.join(ANCHOR_PATH, 'manifest.md');
 
 export function loadMemoryCore(): string {
-  let chart = 'No project chart available.';
-  if (fs.existsSync(CHART_PATH)) {
-    chart = fs.readFileSync(CHART_PATH, 'utf-8').trim();
+  let index = 'No project chart available.';
+  if (fs.existsSync(INDEX_PATH)) {
+    index = fs.readFileSync(INDEX_PATH, 'utf-8').trim();
+  }
+
+  let chart = `[INDEX ROUTING RULES — ALWAYS INJECTED]\n${index}`;
+  if (fs.existsSync(ROOT_CHART_PATH)) {
+    const rootChart = fs.readFileSync(ROOT_CHART_PATH, 'utf-8').trim();
+    chart += `\n\n[ROOT CHART ALREADY INJECTED — DO NOT READ IT AGAIN]\n${rootChart}`;
   }
 
   let ballastStr = 'No active coding constraints or lessons-learned enforced.';

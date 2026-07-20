@@ -1,3 +1,4 @@
+import * as fs from 'node:fs';
 import * as path from 'path';
 import { globSync } from 'glob';
 import { EXT_TO_LANGUAGE } from '../../utils/ext-to-lang.js';
@@ -72,8 +73,11 @@ export function escapeRegex(str: string): string {
     return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-export function listProjectFiles(projectRoot: string = PROJECT_ROOT): Map<string, string[]> {
-    const allFiles = globSync('**/*', {
+export function listProjectFiles(
+    projectRoot: string = PROJECT_ROOT,
+    recursive = true
+): Map<string, string[]> {
+    const allFiles = globSync(recursive ? '**/*' : '*', {
         cwd: projectRoot,
         nodir: true,
         ignore: IGNORE_PATTERNS
@@ -88,4 +92,29 @@ export function listProjectFiles(projectRoot: string = PROJECT_ROOT): Map<string
         dirGroups.get(dir)!.push(f);
     }
     return dirGroups;
+}
+
+/** Check direct file ownership without paying for a glob traversal. */
+export function hasDirectProjectFiles(directory: string): boolean {
+    let entries: fs.Dirent[];
+    try {
+        entries = fs.readdirSync(directory, { withFileTypes: true });
+    } catch (error) {
+        const code = (error as NodeJS.ErrnoException).code;
+        if (code === 'ENOENT' || code === 'ENOTDIR') return false;
+        throw error;
+    }
+
+    return entries.some(entry => {
+        if (IGNORED_FILE_NAMES.has(entry.name)) return false;
+        if (entry.isFile()) return true;
+        if (!entry.isSymbolicLink()) return false;
+
+        try {
+            return fs.statSync(path.join(directory, entry.name)).isFile();
+        } catch (error) {
+            if ((error as NodeJS.ErrnoException).code === 'ENOENT') return false;
+            throw error;
+        }
+    });
 }
