@@ -122,7 +122,6 @@ export const HOOK_COMMANDS = {
   COPILOT_POST: 'memoryanchor-copilot-post',
   CODEX_PRE: 'memoryanchor-codex-pre',
   CODEX_STOP: 'memoryanchor-codex-stop',
-  CODEX_POST: 'memoryanchor-codex-post',
   CODEBUDDY_PRE: 'memoryanchor-codebuddy-pre',
   CODEBUDDY_STOP: 'memoryanchor-codebuddy-stop',
   CODEBUDDY_POST: 'memoryanchor-codebuddy-post',

@@ -52,7 +52,8 @@ export async function primeChartParseCache(
 export async function buildChartContent(
     dirGroups: Map<string, string[]>,
     projectRoot: string = PROJECT_ROOT,
-    parseCache: ChartParseCache = new Map()
+    parseCache: ChartParseCache = new Map(),
+    chartHeading: string = 'PROJECT CHART'
 ): Promise<string> {
     const skeletonSection = buildSkeletonSection(dirGroups);
     const chartFiles = getChartFiles(dirGroups, projectRoot);
@@ -63,5 +64,5 @@ export async function buildChartContent(
     }));
     const nodesSection = buildNodesSection(fileNodes);
 
-    return `# PROJECT CHART\n\n${skeletonSection}\n\n${nodesSection}`;
+    return `# ${chartHeading}\n\n${skeletonSection}\n\n${nodesSection}`;
 }

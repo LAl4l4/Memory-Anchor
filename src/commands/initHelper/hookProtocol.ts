@@ -129,7 +129,7 @@ export type ContextMdStrategy =
 // compile error instead of a silent failure.
 
 export type ClaudeEventName = 'SessionStart' | 'Stop' | 'SessionEnd';
-export type CodexEventName = ClaudeEventName;
+export type CodexEventName = 'SessionStart' | 'Stop';
 export type CodebuddyEventName = ClaudeEventName;
 export type QodercnEventName = ClaudeEventName;
 
@@ -215,7 +215,7 @@ export const HOOK_PROTOCOLS = {
     eventNames: {
       pre: 'SessionStart' as CodexEventName,
       stop: 'Stop' as CodexEventName,
-      post: 'SessionEnd' as CodexEventName,
+      post: null,
     },
     contextInjectionEvent: null,
   },

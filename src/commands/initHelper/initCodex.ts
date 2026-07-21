@@ -59,11 +59,6 @@ const CODEX_STOP_HOOK: CodexHookEntry = {
   hooks: [{ type: 'command', command: HOOK_COMMANDS.CODEX_STOP, timeout: 10 }],
 };
 
-const CODEX_END_HOOK: CodexHookEntry = {
-  matcher: '',
-  hooks: [{ type: 'command', command: HOOK_COMMANDS.CODEX_POST, timeout: 10 }],
-};
-
 // =============================================================================
 // Codex Paths
 // =============================================================================
@@ -93,7 +88,6 @@ async function ensureCodexHooks(paths: CodexPaths): Promise<boolean> {
       hooks: {
         SessionStart: [CODEX_START_HOOK],
         Stop: [CODEX_STOP_HOOK],
-        SessionEnd: [CODEX_END_HOOK],
       }
     };
     await writeJsonFile(paths.hooksConfigPath, config);
@@ -115,14 +109,14 @@ function registerCodexHooks(config: CodexHooksConfig): boolean {
 
   updated = ensureCodexHookEntry(config, 'SessionStart', CODEX_START_HOOK) || updated;
   updated = ensureCodexHookEntry(config, 'Stop', CODEX_STOP_HOOK) || updated;
-  updated = ensureCodexHookEntry(config, 'SessionEnd', CODEX_END_HOOK) || updated;
+  updated = removeLegacyCodexSessionEndHook(config) || updated;
 
   return updated;
 }
 
 function ensureCodexHookEntry(
   config: CodexHooksConfig,
-  key: 'SessionStart' | 'Stop' | 'SessionEnd',
+  key: 'SessionStart' | 'Stop',
   entry: CodexHookEntry,
 ): boolean {
   if (config.hooks === undefined) {
@@ -149,6 +143,44 @@ function ensureCodexHookEntry(
   }
 
   config.hooks[key].push(entry);
+  return true;
+}
+
+/**
+ * Codex has no SessionEnd event. Remove only Memory Anchor's obsolete entry
+ * from existing configs, preserving any unrelated user configuration.
+ */
+function removeLegacyCodexSessionEndHook(config: CodexHooksConfig): boolean {
+  const sessionEnd = config.hooks?.SessionEnd;
+  if (sessionEnd === undefined) {
+    return false;
+  }
+
+  if (!Array.isArray(sessionEnd)) {
+    throw new Error('Hook list "SessionEnd" must be an array.');
+  }
+
+  let removed = false;
+  const remaining = sessionEnd
+    .map((entry) => {
+      const hooks = entry.hooks.filter((command) => {
+        const isLegacyMemoryAnchorHook = command.command === 'memoryanchor-codex-post';
+        removed = removed || isLegacyMemoryAnchorHook;
+        return !isLegacyMemoryAnchorHook;
+      });
+      return { ...entry, hooks };
+    })
+    .filter((entry) => entry.hooks.length > 0);
+
+  if (!removed) {
+    return false;
+  }
+
+  if (remaining.length === 0) {
+    delete config.hooks!.SessionEnd;
+  } else {
+    config.hooks!.SessionEnd = remaining;
+  }
   return true;
 }
 

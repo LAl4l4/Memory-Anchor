@@ -322,19 +322,11 @@ test('partition index uses heading blocks, workspace paths, and inferred scopes'
   const index = buildPartitionedChartIndex(['Frontend', 'Backend']);
 
   expect(index).toContain(`### Frontend
-
-path:
-.memoryanchor/chart/Frontend/chart.md
-
-scope:
-UI, React components, client APIs, state management.`);
+- path: .memoryanchor/chart/Frontend/chart.md
+- scope: UI, React components, client APIs, state management.`);
   expect(index).toContain(`### Backend
-
-path:
-.memoryanchor/chart/Backend/chart.md
-
-scope:
-Spring Boot controllers, services, entities, database.`);
+- path: .memoryanchor/chart/Backend/chart.md
+- scope: Spring Boot controllers, services, entities, database.`);
   expect(index).not.toContain('- [Frontend]');
   expect(index).toContain('How to find the right chart:');
   expect(index).toContain('follow only the listed paths');
@@ -563,7 +555,7 @@ test('root direct files use the uniform shallow chart and update incrementally',
   expect(result.directories).toEqual(['.', 'src']);
   await expect(readFile(rootChartPath, 'utf8')).resolves.toContain('rootFunction');
   await expect(readFile(rootChartPath, 'utf8')).resolves.toContain(
-    `path:\n.memoryanchor/chart/chart.md`
+    '# CHART AT .memoryanchor/chart/chart.md'
   );
   await expect(readFile(rootChartPath, 'utf8')).resolves.not.toContain('workerFunction');
   await expect(readFile(rootChartPath, 'utf8')).resolves.toContain(

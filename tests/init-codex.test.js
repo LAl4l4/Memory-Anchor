@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, expect, test } from '@jest/globals';
 import { execFile } from 'node:child_process';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -61,14 +61,42 @@ test('creates .codex/hooks.json with Stop hook', async () => {
   expect(hooks.hooks.Stop[0].hooks[0].command).toBe(HOOK_COMMANDS.CODEX_STOP);
 });
 
-test('creates .codex/hooks.json with SessionEnd hook', async () => {
+test('does not create an unsupported SessionEnd hook', async () => {
   await runInitCodex(tempDir);
 
   const hooks = JSON.parse(
     await readFile(path.join(tempDir, '.codex', 'hooks.json'), 'utf8'),
   );
-  expect(hooks.hooks.SessionEnd).toBeDefined();
-  expect(hooks.hooks.SessionEnd[0].hooks[0].command).toBe(HOOK_COMMANDS.CODEX_POST);
+  expect(hooks.hooks.SessionEnd).toBeUndefined();
+});
+
+test('removes only the obsolete Memory Anchor SessionEnd entry', async () => {
+  const hooksPath = path.join(tempDir, '.codex', 'hooks.json');
+  await mkdir(path.dirname(hooksPath), { recursive: true });
+  await writeFile(
+    hooksPath,
+    JSON.stringify({
+      hooks: {
+        SessionEnd: [
+          {
+            matcher: '',
+            hooks: [
+              { type: 'command', command: 'memoryanchor-codex-post', timeout: 10 },
+              { type: 'command', command: 'my-session-end-hook', timeout: 10 },
+            ],
+          },
+        ],
+      },
+    }, null, 2) + '\n',
+  );
+
+  await runInitCodex(tempDir);
+
+  const hooks = JSON.parse(await readFile(hooksPath, 'utf8'));
+  expect(hooks.hooks.SessionEnd).toHaveLength(1);
+  expect(hooks.hooks.SessionEnd[0].hooks).toEqual([
+    { type: 'command', command: 'my-session-end-hook', timeout: 10 },
+  ]);
 });
 
 test('preserves existing hooks.json content when adding new hooks', async () => {
@@ -98,7 +126,7 @@ test('preserves existing hooks.json content when adding new hooks', async () => 
   expect(hooks.hooks.CustomHook[0].hooks[0].command).toBe('my-custom-hook');
   expect(hooks.hooks.SessionStart).toBeDefined();
   expect(hooks.hooks.Stop).toBeDefined();
-  expect(hooks.hooks.SessionEnd).toBeDefined();
+  expect(hooks.hooks.SessionEnd).toBeUndefined();
 });
 
 test('re-running does not duplicate hooks', async () => {
@@ -110,5 +138,5 @@ test('re-running does not duplicate hooks', async () => {
   );
   expect(hooks.hooks.SessionStart).toHaveLength(1);
   expect(hooks.hooks.Stop).toHaveLength(1);
-  expect(hooks.hooks.SessionEnd).toHaveLength(1);
+  expect(hooks.hooks.SessionEnd).toBeUndefined();
 });

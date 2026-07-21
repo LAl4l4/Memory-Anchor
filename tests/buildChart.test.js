@@ -155,6 +155,20 @@ test('chart parse cache reuses symbols without reading the file twice', async ()
   expect(second).toBe(first);
 });
 
+test('buildChartContent renders its requested heading directly', async () => {
+  const relativePath = 'tests/test-src/sample.ts';
+  const groups = new Map([['tests/test-src', [relativePath]]]);
+
+  const chart = await buildChartContent(
+    groups,
+    tempDir,
+    new Map(),
+    'CHART AT .memoryanchor/chart/tests/test-src/chart.md',
+  );
+
+  expect(chart).toMatch(/^# CHART AT \.memoryanchor\/chart\/tests\/test-src\/chart\.md\n/);
+});
+
 test('updateChartIncrementally preserves fixture architecture nodes', async () => {
   await buildChartFull();
   await updateChartIncrementally(incrementalRelPaths);

@@ -16,7 +16,6 @@
     "memoryanchor-claude-post": "dist/hooks/claude/session-end.js",
     "memoryanchor-claude-stop": "dist/hooks/claude/stop.js",
     "memoryanchor-codex-pre": "dist/hooks/codex/session-start.js",
-    "memoryanchor-codex-post": "dist/hooks/codex/session-end.js",
     "memoryanchor-codex-stop": "dist/hooks/codex/stop.js",
     "memoryanchor-codebuddy-pre": "dist/hooks/codebuddy/session-start.js",
     "memoryanchor-codebuddy-post": "dist/hooks/codebuddy/session-end.js",
@@ -24,7 +23,6 @@
     "memoryanchor-qodercn-pre": "dist/hooks/qodercn/session-start.js",
     "memoryanchor-qodercn-post": "dist/hooks/qodercn/session-end.js",
     "memoryanchor-qodercn-stop": "dist/hooks/qodercn/stop.js",
-    "memoryanchor-opencode-pre": "dist/hooks/opencode/session-start.js",
     "memoryanchor-opencode-post": "dist/hooks/opencode/session-end.js",
     "memoryanchor-opencode-stop": "dist/hooks/opencode/stop.js"
   },

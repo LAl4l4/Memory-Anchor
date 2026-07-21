@@ -63,6 +63,7 @@ test('creates .opencode/plugins/memory-anchor.js', async () => {
   expect(plugin).toContain('[2. BALLAST (rules must follow)]');
   expect(plugin).toContain('[3. MANIFEST (module status & key decisions)]');
   expect(plugin).not.toContain('session.start');
+  expect(plugin).not.toContain('memoryanchor-opencode-pre');
   // Side-effect hooks fire on the real opencode events.
   expect(plugin).toContain('session.idle');
   expect(plugin).toContain('session.deleted');

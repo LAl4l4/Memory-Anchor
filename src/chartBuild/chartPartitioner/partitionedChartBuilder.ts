@@ -130,12 +130,8 @@ function buildChartReference(directory: string): string {
     const label = directory === '.' ? 'Root' : directory;
 
     return `### ${label}
-
-path:
-${getChartWorkspacePath(directory)}
-
-scope:
-${inferPartitionScope(directory)}`;
+- path: ${getChartWorkspacePath(directory)}
+- scope: ${inferPartitionScope(directory)}`;
 }
 
 function buildChildChartsSection(directories: readonly string[]): string {
@@ -190,10 +186,11 @@ async function writePartitionedChart(
     }
 
     const dirGroups = listProjectFiles(sourceDirectory, !shallow);
-    const generatedContent = await buildChartContent(dirGroups, sourceDirectory, parseCache);
-    const baseContent = generatedContent.replace(
-        '# PROJECT CHART',
-        `# PROJECT CHART\n\npath:\n${getChartWorkspacePath(directory)}`
+    const baseContent = await buildChartContent(
+        dirGroups,
+        sourceDirectory,
+        parseCache,
+        `CHART AT ${getChartWorkspacePath(directory)}`
     );
     const childChartsSection = buildChildChartsSection(childCharts);
     const chartContent = childChartsSection
@@ -237,15 +234,6 @@ export function buildPartitionedChartIndex(directories: readonly string[]): stri
 
     return `# Project Chart Index
 
-## Overview
-
-Generated architecture map for this repository.
-Charts are partitioned by directory boundaries.
-
-## Root Partitions
-
-${partitions}
-
 ## Usage
 
 How to find the right chart:
@@ -259,6 +247,10 @@ How to find the right chart:
 5. Do not guess chart paths from physical directories. A non-split frontier
    may own one recursive chart even without direct files; descendants covered
    by that chart do not own additional charts. Follow only listed paths.
+
+## Root Partitions
+
+${partitions}
 `;
 }
 

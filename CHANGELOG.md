@@ -27,3 +27,6 @@ threadpool can reinit the worker. And remove some duplicated redundent autotests
     - Replace directory-per-chart expansion with a virtual threshold-frontier chart tree. Small projects flatten into one root chart; split ancestors with direct files own shallow charts that link to the next frontier chart.
     - Persist virtual chart parent/children paths, expose every chart's path, always inject index routing rules, and additionally inject the root chart when it exists.
     - Remove repeated per-file glob scans, keep split/merge rebuilds boundary-local, and split the new topology/update flows into smaller helpers.
+    - Use single node set with multiple parent-child relations to store both directory tree and chart relation tree.
+    - Refine chart text presentation: move traversal guidance before the partition list, remove the redundant overview, render chart references as compact `- path` / `- scope` entries, and identify each chart with `# CHART AT <workspace path>`. The heading is now produced by the base chart builder rather than patched after rendering.
+    - Remove unsupported lifecycle wiring: stop publishing the unused OpenCode start bin and Codex session-end bin; `init-codex` now migrates only its obsolete `memoryanchor-codex-post` entry while preserving user hooks.
