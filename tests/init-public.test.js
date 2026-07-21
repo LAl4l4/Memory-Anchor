@@ -58,9 +58,9 @@ test('creates ballast.md with default rules', async () => {
   await runInitPublic(tempDir);
 
   const ballast = await readFile(path.join(tempDir, ANCHOR_DIR_NAME, BALLAST_FILE_NAME), 'utf8');
-  expect(ballast).toContain(BALLAST_DEFAULT_RULES[2]);
+  expect(ballast).toContain(BALLAST_DEFAULT_RULES[3]);
+  expect(ballast).toContain('At the start of every task, read ./.memoryanchor/chart/.../chart.md');
   expect(ballast).toContain('If the agent has any uncertainty about the overall project structure');
-  expect(ballast).not.toContain('Always check the ./.memoryanchor/chart.md before accessing');
   expect(ballast).toContain('Do not rebuild a function');
 });
 
@@ -78,9 +78,10 @@ test('creates AGENTS.md with memory anchor rules', async () => {
   const agents = await readFile(path.join(tempDir, 'AGENTS.md'), 'utf8');
   expect(agents).toContain('## Memory Anchor Rules');
   expect(agents).toContain('## Memory Anchor Ends');
+  expect(agents).toContain('./.memoryanchor/chart/.../chart.md: Directory-level architecture map.');
+  expect(agents).toContain('At the start of every task, read ./.memoryanchor/chart/.../chart.md');
   expect(agents).toContain('If the agent has any uncertainty about the overall project structure');
   expect(agents).toContain('read the closest matching directory chart listed there');
-  expect(agents).not.toContain('Always read ./.memoryanchor/chart.md before accessing any repository files.');
 });
 
 test('upgrades the managed AGENTS.md block while preserving other instructions', async () => {
@@ -103,8 +104,8 @@ Preserve this too.
   const agents = await readFile(agentsPath, 'utf8');
   expect(agents).toContain('Keep this custom instruction.');
   expect(agents).toContain('Preserve this too.');
+  expect(agents).toContain('At the start of every task, read ./.memoryanchor/chart/.../chart.md');
   expect(agents).toContain('If the agent has any uncertainty about the overall project structure');
-  expect(agents).not.toContain('Always read ./.memoryanchor/chart.md before accessing any repository files.');
   expect(agents.match(/## Memory Anchor Rules/g)).toHaveLength(1);
 });
 
@@ -123,7 +124,7 @@ test('re-running does not duplicate ballast rules', async () => {
   await runInitPublic(tempDir);
 
   const ballast = await readFile(path.join(tempDir, ANCHOR_DIR_NAME, BALLAST_FILE_NAME), 'utf8');
-  const matches = ballast.split('\n').filter(l => l === BALLAST_DEFAULT_RULES[2]);
+  const matches = ballast.split('\n').filter(l => l === BALLAST_DEFAULT_RULES[3]);
   expect(matches).toHaveLength(1);
 });
 

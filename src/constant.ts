@@ -51,7 +51,8 @@ export const MANIFEST_FILE_NAME = 'manifest.md';
 // =============================================================================
 
 export const BALLAST_DEFAULT_RULES: string[] = [  
-  '- [ ] If the agent has any uncertainty about the overall project structure, immediately read ./.memoryanchor/index.md again. Only open partition chart files when index.md identifies the relevant directory.',
+  '- [ ] At the start of every task, read ./.memoryanchor/chart/.../chart.md to establish a project-wide view before working on repository files.',
+  '- [ ] If the agent has any uncertainty about the overall project structure, immediately read ./.memoryanchor/index.md again. Then open partition chart files when index.md identifies the relevant directory.',
   '- [ ] Do not change ./.memoryanchor/index.md or ./.memoryanchor/chart/ by yourself. Only do it when user explicitly instructs you to.',
   '- [ ] Follow ./.memoryanchor/AGENTS.md rules.',
   '- [ ] Do not rebuild a function that already exists and used by others, instead, pull it out to a separate file and import it',
@@ -88,10 +89,12 @@ Memory Anchor is initialized in this repository. Follow these rules to ensure it
 
 ### File Roles
 - ./.memoryanchor/index.md: Auto-generated project chart index. Its entries point to directory-level architecture maps under ./.memoryanchor/chart/.
+- ./.memoryanchor/chart/.../chart.md: Directory-level architecture map. Read the root chart at the start of every task for project-wide context, then use index.md and Child Charts to find the chart closest to the task.
 - ./.memoryanchor/manifest.md: Current project state — Module Status (functionality/status/known_issues/notes) and Key Decisions (architectural choices and rationale).
 - ./.memoryanchor/ballast.md: Persistent repo-specific rules/guardrails, one per line.
 
 ### Workflow
+- At the start of every task, read ./.memoryanchor/chart/.../chart.md to establish a project-wide view before working on repository files.
 - If the agent has any uncertainty about the overall project structure, immediately read ./.memoryanchor/index.md again, then read the closest matching directory chart listed there.
 - Must follow all rules in ./.memoryanchor/ballast.md. After solving a bug, add a rule under "Ballast Specific Rules For This Repository" to prevent recurrence.
 - After any of features implemented, update Module Status (and Key Decisions, if applicable) in ./.memoryanchor/manifest.md.
