@@ -30,3 +30,9 @@ threadpool can reinit the worker. And remove some duplicated redundent autotests
     - Use single node set with multiple parent-child relations to store both directory tree and chart relation tree.
     - Refine chart text presentation: move traversal guidance before the partition list, remove the redundant overview, render chart references as compact `- path` / `- scope` entries, and identify each chart with `# CHART AT <workspace path>`. The heading is now produced by the base chart builder rather than patched after rendering.
     - Remove unsupported lifecycle wiring: stop publishing the unused OpenCode start bin and Codex session-end bin; `init-codex` now migrates only its obsolete `memoryanchor-codex-post` entry while preserving user hooks.
+
+- `2026/07/21`: 
+    - Observed that constraint by agents.md is not strong enough, low level model will glob and grep without read the chart.
+
+- `2026/07/24`:
+    - Add non-blocking per-user-prompt chart reminders for Claude, Codex, CodeBuddy, Qoder, Copilot, and OpenCode. OpenCode's plugin is now type-checked and compiled from TypeScript before init copies the generated JavaScript into the workspace.

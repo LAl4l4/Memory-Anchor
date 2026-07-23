@@ -30,6 +30,7 @@ interface QodercnHookEntry {
 interface QodercnHooksConfig {
   hooks?: {
     SessionStart?: QodercnHookEntry[];
+    UserPromptSubmit?: QodercnHookEntry[];
     Stop?: QodercnHookEntry[];
     SessionEnd?: QodercnHookEntry[];
     [key: string]: unknown;
@@ -53,6 +54,11 @@ export interface QodercnSetupResult {
 const QODERCN_START_HOOK: QodercnHookEntry = {
   matcher: '',
   hooks: [{ type: 'command', command: HOOK_COMMANDS.QODERCN_PRE, timeout: 5 }],
+};
+
+const QODERCN_PROMPT_HOOK: QodercnHookEntry = {
+  matcher: '',
+  hooks: [{ type: 'command', command: HOOK_COMMANDS.QODERCN_PROMPT, timeout: 5 }],
 };
 
 const QODERCN_STOP_HOOK: QodercnHookEntry = {
@@ -92,6 +98,7 @@ async function ensureQodercnSettings(paths: QodercnPaths): Promise<boolean> {
     const config: QodercnHooksConfig = {
       hooks: {
         SessionStart: [QODERCN_START_HOOK],
+        UserPromptSubmit: [QODERCN_PROMPT_HOOK],
         Stop: [QODERCN_STOP_HOOK],
         SessionEnd: [QODERCN_END_HOOK],
       },
@@ -119,6 +126,7 @@ function registerQodercnHooks(config: QodercnHooksConfig): boolean {
   }
 
   updated = ensureQodercnHookEntry(config.hooks, 'SessionStart', QODERCN_START_HOOK) || updated;
+  updated = ensureQodercnHookEntry(config.hooks, 'UserPromptSubmit', QODERCN_PROMPT_HOOK) || updated;
   updated = ensureQodercnHookEntry(config.hooks, 'Stop', QODERCN_STOP_HOOK) || updated;
   updated = ensureQodercnHookEntry(config.hooks, 'SessionEnd', QODERCN_END_HOOK) || updated;
 

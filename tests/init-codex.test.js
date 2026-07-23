@@ -61,6 +61,12 @@ test('creates .codex/hooks.json with Stop hook', async () => {
   expect(hooks.hooks.Stop[0].hooks[0].command).toBe(HOOK_COMMANDS.CODEX_STOP);
 });
 
+test('creates .codex/hooks.json with UserPromptSubmit hook', async () => {
+  await runInitCodex(tempDir);
+  const hooks = JSON.parse(await readFile(path.join(tempDir, '.codex', 'hooks.json'), 'utf8'));
+  expect(hooks.hooks.UserPromptSubmit[0].hooks[0].command).toBe(HOOK_COMMANDS.CODEX_PROMPT);
+});
+
 test('does not create an unsupported SessionEnd hook', async () => {
   await runInitCodex(tempDir);
 
@@ -137,6 +143,7 @@ test('re-running does not duplicate hooks', async () => {
     await readFile(path.join(tempDir, '.codex', 'hooks.json'), 'utf8'),
   );
   expect(hooks.hooks.SessionStart).toHaveLength(1);
+  expect(hooks.hooks.UserPromptSubmit).toHaveLength(1);
   expect(hooks.hooks.Stop).toHaveLength(1);
   expect(hooks.hooks.SessionEnd).toBeUndefined();
 });

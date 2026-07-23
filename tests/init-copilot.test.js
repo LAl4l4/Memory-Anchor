@@ -62,6 +62,12 @@ test('creates .github/hooks/memory-anchor.json with agentStop hook', async () =>
   expect(hooks.hooks.agentStop[0].powershell).toBe(HOOK_COMMANDS.COPILOT_STOP);
 });
 
+test('creates .github/hooks/memory-anchor.json with userPromptTransformed hook', async () => {
+  await runInitCopilot(tempDir);
+  const hooks = JSON.parse(await readFile(path.join(tempDir, '.github', 'hooks', 'memory-anchor.json'), 'utf8'));
+  expect(hooks.hooks.userPromptTransformed[0].bash).toBe(HOOK_COMMANDS.COPILOT_PROMPT);
+});
+
 test('creates .github/hooks/memory-anchor.json with sessionEnd hook', async () => {
   await runInitCopilot(tempDir);
 
@@ -113,6 +119,7 @@ test('re-running does not duplicate hooks', async () => {
     await readFile(path.join(tempDir, '.github', 'hooks', 'memory-anchor.json'), 'utf8'),
   );
   expect(hooks.hooks.sessionStart).toHaveLength(1);
+  expect(hooks.hooks.userPromptTransformed).toHaveLength(1);
   expect(hooks.hooks.agentStop).toHaveLength(1);
   expect(hooks.hooks.sessionEnd).toHaveLength(1);
 });

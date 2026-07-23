@@ -30,6 +30,7 @@ interface CodebuddyHookEntry {
 interface CodebuddyHooksConfig {
   hooks?: {
     SessionStart?: CodebuddyHookEntry[];
+    UserPromptSubmit?: CodebuddyHookEntry[];
     Stop?: CodebuddyHookEntry[];
     SessionEnd?: CodebuddyHookEntry[];
     [key: string]: unknown;
@@ -55,6 +56,11 @@ export interface CodebuddySetupResult {
 const CODEBUDDY_START_HOOK: CodebuddyHookEntry = {
   matcher: '',
   hooks: [{ type: 'command', command: HOOK_COMMANDS.CODEBUDDY_PRE }],
+};
+
+const CODEBUDDY_PROMPT_HOOK: CodebuddyHookEntry = {
+  matcher: '',
+  hooks: [{ type: 'command', command: HOOK_COMMANDS.CODEBUDDY_PROMPT }],
 };
 
 const CODEBUDDY_STOP_HOOK: CodebuddyHookEntry = {
@@ -93,6 +99,7 @@ async function ensureCodebuddySettings(paths: CodebuddyPaths): Promise<boolean> 
     const config: CodebuddyHooksConfig = {
       hooks: {
         SessionStart: [CODEBUDDY_START_HOOK],
+        UserPromptSubmit: [CODEBUDDY_PROMPT_HOOK],
         Stop: [CODEBUDDY_STOP_HOOK],
         SessionEnd: [CODEBUDDY_END_HOOK],
       },
@@ -120,6 +127,7 @@ function registerCodebuddyHooks(config: CodebuddyHooksConfig): boolean {
   }
 
   updated = ensureCodebuddyHookEntry(config.hooks, 'SessionStart', CODEBUDDY_START_HOOK) || updated;
+  updated = ensureCodebuddyHookEntry(config.hooks, 'UserPromptSubmit', CODEBUDDY_PROMPT_HOOK) || updated;
   updated = ensureCodebuddyHookEntry(config.hooks, 'Stop', CODEBUDDY_STOP_HOOK) || updated;
   updated = ensureCodebuddyHookEntry(config.hooks, 'SessionEnd', CODEBUDDY_END_HOOK) || updated;
 

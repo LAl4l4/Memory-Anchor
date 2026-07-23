@@ -31,6 +31,7 @@ interface ClaudeHookEntry {
 interface ClaudeHooksConfig {
   hooks?: {
     SessionStart?: ClaudeHookEntry[];
+    UserPromptSubmit?: ClaudeHookEntry[];
     Stop?: ClaudeHookEntry[];
     SessionEnd?: ClaudeHookEntry[];
     [key: string]: unknown;
@@ -55,6 +56,11 @@ export interface ClaudeSetupResult {
 const CLAUDE_START_HOOK: ClaudeHookEntry = {
   matcher: '',
   hooks: [{ type: 'command', command: HOOK_COMMANDS.CLAUDE_PRE, timeout: 5 }],
+};
+
+const CLAUDE_PROMPT_HOOK: ClaudeHookEntry = {
+  matcher: '',
+  hooks: [{ type: 'command', command: HOOK_COMMANDS.CLAUDE_PROMPT, timeout: 5 }],
 };
 
 const CLAUDE_STOP_HOOK: ClaudeHookEntry = {
@@ -94,6 +100,7 @@ async function ensureClaudeSettings(paths: ClaudePaths): Promise<boolean> {
     const config: ClaudeHooksConfig = {
       hooks: {
         SessionStart: [CLAUDE_START_HOOK],
+        UserPromptSubmit: [CLAUDE_PROMPT_HOOK],
         Stop: [CLAUDE_STOP_HOOK],
         SessionEnd: [CLAUDE_END_HOOK],
       },
@@ -121,6 +128,7 @@ function registerClaudeHooks(config: ClaudeHooksConfig): boolean {
   }
 
     updated = ensureClaudeHookEntry(config.hooks, 'SessionStart', CLAUDE_START_HOOK) || updated;
+    updated = ensureClaudeHookEntry(config.hooks, 'UserPromptSubmit', CLAUDE_PROMPT_HOOK) || updated;
     updated = ensureClaudeHookEntry(config.hooks, 'Stop', CLAUDE_STOP_HOOK) || updated;
     updated = ensureClaudeHookEntry(config.hooks, 'SessionEnd', CLAUDE_END_HOOK) || updated;
 

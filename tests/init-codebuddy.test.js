@@ -62,6 +62,12 @@ test('creates .codebuddy/settings.json with Stop hook', async () => {
   expect(settings.hooks.Stop[0].matcher).toBeUndefined();
 });
 
+test('creates .codebuddy/settings.json with UserPromptSubmit hook', async () => {
+  await runInitCodebuddy(tempDir);
+  const settings = JSON.parse(await readFile(path.join(tempDir, '.codebuddy', 'settings.json'), 'utf8'));
+  expect(settings.hooks.UserPromptSubmit[0].hooks[0].command).toBe(HOOK_COMMANDS.CODEBUDDY_PROMPT);
+});
+
 test('creates .codebuddy/settings.json with SessionEnd hook', async () => {
   await runInitCodebuddy(tempDir);
 
@@ -126,6 +132,7 @@ test('re-running does not duplicate hooks', async () => {
     await readFile(path.join(tempDir, '.codebuddy', 'settings.json'), 'utf8'),
   );
   expect(settings.hooks.SessionStart).toHaveLength(1);
+  expect(settings.hooks.UserPromptSubmit).toHaveLength(1);
   expect(settings.hooks.Stop).toHaveLength(1);
   expect(settings.hooks.SessionEnd).toHaveLength(1);
 });

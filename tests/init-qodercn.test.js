@@ -62,6 +62,12 @@ test('creates .qoder/settings.json with Stop hook', async () => {
   expect(settings.hooks.Stop[0].hooks[0].timeout).toBe(10);
 });
 
+test('creates .qoder/settings.json with UserPromptSubmit hook', async () => {
+  await runInitQodercn(tempDir);
+  const settings = JSON.parse(await readFile(path.join(tempDir, '.qoder', 'settings.json'), 'utf8'));
+  expect(settings.hooks.UserPromptSubmit[0].hooks[0].command).toBe(HOOK_COMMANDS.QODERCN_PROMPT);
+});
+
 test('creates .qoder/settings.json with SessionEnd hook', async () => {
   await runInitQodercn(tempDir);
 
@@ -119,6 +125,7 @@ test('re-running does not duplicate hooks', async () => {
     await readFile(path.join(tempDir, '.qoder', 'settings.json'), 'utf8'),
   );
   expect(settings.hooks.SessionStart).toHaveLength(1);
+  expect(settings.hooks.UserPromptSubmit).toHaveLength(1);
   expect(settings.hooks.Stop).toHaveLength(1);
   expect(settings.hooks.SessionEnd).toHaveLength(1);
 });

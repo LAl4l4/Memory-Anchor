@@ -51,10 +51,12 @@ test('creates .opencode/plugins/memory-anchor.js', async () => {
   // Context injection must go through the documented system-transform hook,
   // NOT through a (non-existent) "session.start" event.
   expect(plugin).toContain('experimental.chat.system.transform');
+  expect(plugin).toContain('chat.message');
+  expect(plugin).toContain('[IMPORTANT!] Must read ./.memoryanchor/chart/.../chart.md before any works and glob/grep.');
   expect(plugin).toContain('const INDEX_PATH');
-  expect(plugin).toContain('path.join(ANCHOR_DIR, "index.md")');
+  expect(plugin).toMatch(/path\.join\(ANCHOR_DIR, ['"]index\.md['"]\)/);
   expect(plugin).toContain('const ROOT_CHART_PATH');
-  expect(plugin).toContain('path.join(ANCHOR_DIR, "chart", "chart.md")');
+  expect(plugin).toMatch(/path\.join\(ANCHOR_DIR, ['"]chart['"], ['"]chart\.md['"]\)/);
   expect(plugin).toContain('[INDEX ROUTING RULES — ALWAYS INJECTED]');
   expect(plugin).toContain('[ROOT CHART ALREADY INJECTED — DO NOT READ IT AGAIN]');
   expect(plugin).toContain('readFileSafe(INDEX_PATH');
@@ -67,6 +69,16 @@ test('creates .opencode/plugins/memory-anchor.js', async () => {
   // Side-effect hooks fire on the real opencode events.
   expect(plugin).toContain('session.idle');
   expect(plugin).toContain('session.deleted');
+});
+
+test('copies the TypeScript-compiled plugin verbatim', async () => {
+  await runInitOpencode(tempDir);
+
+  const [plugin, compiledPlugin] = await Promise.all([
+    readFile(path.join(tempDir, '.opencode', 'plugins', 'memory-anchor.js'), 'utf8'),
+    readFile(path.join(repoRoot, 'dist', 'hooks', 'opencode', 'memory-anchor-plugin.js'), 'utf8'),
+  ]);
+  expect(plugin).toBe(compiledPlugin);
 });
 
 test('creates opencode.json with schema and instructions', async () => {

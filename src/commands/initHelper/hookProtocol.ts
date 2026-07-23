@@ -128,17 +128,22 @@ export type ContextMdStrategy =
 // is expected. This is what makes the next "session.start"-class bug a
 // compile error instead of a silent failure.
 
-export type ClaudeEventName = 'SessionStart' | 'Stop' | 'SessionEnd';
-export type CodexEventName = 'SessionStart' | 'Stop';
+export type ClaudeEventName = 'SessionStart' | 'UserPromptSubmit' | 'Stop' | 'SessionEnd';
+export type CodexEventName = 'SessionStart' | 'UserPromptSubmit' | 'Stop';
 export type CodebuddyEventName = ClaudeEventName;
 export type QodercnEventName = ClaudeEventName;
 
-export type CopilotEventName = 'sessionStart' | 'agentStop' | 'sessionEnd';
+export type CopilotEventName =
+  | 'sessionStart'
+  | 'userPromptTransformed'
+  | 'agentStop'
+  | 'sessionEnd';
 
 export type OpencodeEventName =
   | 'session.created'
   | 'session.idle'
   | 'session.deleted'
+  | 'chat.message'
   | 'experimental.chat.system.transform';
 
 // =============================================================================
@@ -168,9 +173,10 @@ export interface AgentHookProtocol<E extends string = string> {
   readonly hookConfigPath: string;
   /** Path (relative to cwd) of the agent-specific markdown, or null. */
   readonly contextMdPath: string | null;
-  /** Event names the pre / stop / post hooks subscribe to on this platform. */
+  /** Event names the pre / user-prompt / stop / post hooks subscribe to. */
   readonly eventNames: {
     readonly pre: E | null;
+    readonly prompt: E | null;
     readonly stop: E | null;
     readonly post: E | null;
   };
@@ -180,6 +186,10 @@ export interface AgentHookProtocol<E extends string = string> {
    * `null` for platforms that don't use mutation.
    */
   readonly contextInjectionEvent: E | null;
+  /** Whether this platform permits a user-prompt hook to block submission. */
+  readonly canBlockUserPrompt: boolean;
+  /** Whether this platform's user-prompt hook can rewrite the prompt itself. */
+  readonly canRewriteUserPrompt: boolean;
 }
 
 // =============================================================================
@@ -198,10 +208,13 @@ export const HOOK_PROTOCOLS = {
     contextMdPath: 'CLAUDE.md',
     eventNames: {
       pre: 'SessionStart' as ClaudeEventName,
+      prompt: 'UserPromptSubmit' as ClaudeEventName,
       stop: 'Stop' as ClaudeEventName,
       post: 'SessionEnd' as ClaudeEventName,
     },
     contextInjectionEvent: null,
+    canBlockUserPrompt: true,
+    canRewriteUserPrompt: false,
   },
   codex: {
     agentId: 'codex',
@@ -214,10 +227,13 @@ export const HOOK_PROTOCOLS = {
     contextMdPath: null,
     eventNames: {
       pre: 'SessionStart' as CodexEventName,
+      prompt: 'UserPromptSubmit' as CodexEventName,
       stop: 'Stop' as CodexEventName,
       post: null,
     },
     contextInjectionEvent: null,
+    canBlockUserPrompt: true,
+    canRewriteUserPrompt: false,
   },
   codebuddy: {
     agentId: 'codebuddy',
@@ -230,10 +246,13 @@ export const HOOK_PROTOCOLS = {
     contextMdPath: 'CODEBUDDY.md',
     eventNames: {
       pre: 'SessionStart' as CodebuddyEventName,
+      prompt: 'UserPromptSubmit' as CodebuddyEventName,
       stop: 'Stop' as CodebuddyEventName,
       post: 'SessionEnd' as CodebuddyEventName,
     },
     contextInjectionEvent: null,
+    canBlockUserPrompt: true,
+    canRewriteUserPrompt: false,
   },
   qodercn: {
     agentId: 'qodercn',
@@ -246,10 +265,13 @@ export const HOOK_PROTOCOLS = {
     contextMdPath: null,
     eventNames: {
       pre: 'SessionStart' as QodercnEventName,
+      prompt: 'UserPromptSubmit' as QodercnEventName,
       stop: 'Stop' as QodercnEventName,
       post: 'SessionEnd' as QodercnEventName,
     },
     contextInjectionEvent: null,
+    canBlockUserPrompt: true,
+    canRewriteUserPrompt: false,
   },
   copilot: {
     agentId: 'copilot',
@@ -262,10 +284,13 @@ export const HOOK_PROTOCOLS = {
     contextMdPath: '.github/copilot-instructions.md',
     eventNames: {
       pre: 'sessionStart' as CopilotEventName,
+      prompt: 'userPromptTransformed' as CopilotEventName,
       stop: 'agentStop' as CopilotEventName,
       post: 'sessionEnd' as CopilotEventName,
     },
     contextInjectionEvent: null,
+    canBlockUserPrompt: false,
+    canRewriteUserPrompt: true,
   },
   opencode: {
     agentId: 'opencode',
@@ -280,10 +305,13 @@ export const HOOK_PROTOCOLS = {
       // opencode has no "pre" event; context is injected via
       // `experimental.chat.system.transform` (see contextInjectionEvent).
       pre: null,
+      prompt: 'chat.message' as OpencodeEventName,
       stop: 'session.idle' as OpencodeEventName,
       post: 'session.deleted' as OpencodeEventName,
     },
     contextInjectionEvent: 'experimental.chat.system.transform' as OpencodeEventName,
+    canBlockUserPrompt: false,
+    canRewriteUserPrompt: true,
   },
 } as const;
 
@@ -298,15 +326,17 @@ export type AgentId = keyof typeof HOOK_PROTOCOLS;
 type EnforceEventNameMatch<
   E extends string,
   Pre extends E | null,
+  Prompt extends E | null,
   Stop extends E | null,
   Post extends E | null,
   Inj extends E | null,
-> = [Pre, Stop, Post, Inj];
+> = [Pre, Prompt, Stop, Post, Inj];
 
 // Enforce per-platform typing without runtime cost.
 type _ClaudeGuard = EnforceEventNameMatch<
   ClaudeEventName,
   typeof HOOK_PROTOCOLS.claude.eventNames.pre,
+  typeof HOOK_PROTOCOLS.claude.eventNames.prompt,
   typeof HOOK_PROTOCOLS.claude.eventNames.stop,
   typeof HOOK_PROTOCOLS.claude.eventNames.post,
   typeof HOOK_PROTOCOLS.claude.contextInjectionEvent
@@ -314,6 +344,7 @@ type _ClaudeGuard = EnforceEventNameMatch<
 type _CodexGuard = EnforceEventNameMatch<
   CodexEventName,
   typeof HOOK_PROTOCOLS.codex.eventNames.pre,
+  typeof HOOK_PROTOCOLS.codex.eventNames.prompt,
   typeof HOOK_PROTOCOLS.codex.eventNames.stop,
   typeof HOOK_PROTOCOLS.codex.eventNames.post,
   typeof HOOK_PROTOCOLS.codex.contextInjectionEvent
@@ -321,6 +352,7 @@ type _CodexGuard = EnforceEventNameMatch<
 type _CodebuddyGuard = EnforceEventNameMatch<
   CodebuddyEventName,
   typeof HOOK_PROTOCOLS.codebuddy.eventNames.pre,
+  typeof HOOK_PROTOCOLS.codebuddy.eventNames.prompt,
   typeof HOOK_PROTOCOLS.codebuddy.eventNames.stop,
   typeof HOOK_PROTOCOLS.codebuddy.eventNames.post,
   typeof HOOK_PROTOCOLS.codebuddy.contextInjectionEvent
@@ -328,6 +360,7 @@ type _CodebuddyGuard = EnforceEventNameMatch<
 type _QodercnGuard = EnforceEventNameMatch<
   QodercnEventName,
   typeof HOOK_PROTOCOLS.qodercn.eventNames.pre,
+  typeof HOOK_PROTOCOLS.qodercn.eventNames.prompt,
   typeof HOOK_PROTOCOLS.qodercn.eventNames.stop,
   typeof HOOK_PROTOCOLS.qodercn.eventNames.post,
   typeof HOOK_PROTOCOLS.qodercn.contextInjectionEvent
@@ -335,6 +368,7 @@ type _QodercnGuard = EnforceEventNameMatch<
 type _CopilotGuard = EnforceEventNameMatch<
   CopilotEventName,
   typeof HOOK_PROTOCOLS.copilot.eventNames.pre,
+  typeof HOOK_PROTOCOLS.copilot.eventNames.prompt,
   typeof HOOK_PROTOCOLS.copilot.eventNames.stop,
   typeof HOOK_PROTOCOLS.copilot.eventNames.post,
   typeof HOOK_PROTOCOLS.copilot.contextInjectionEvent
@@ -342,6 +376,7 @@ type _CopilotGuard = EnforceEventNameMatch<
 type _OpencodeGuard = EnforceEventNameMatch<
   OpencodeEventName,
   NonNullable<typeof HOOK_PROTOCOLS.opencode.eventNames.pre>,
+  NonNullable<typeof HOOK_PROTOCOLS.opencode.eventNames.prompt>,
   NonNullable<typeof HOOK_PROTOCOLS.opencode.eventNames.stop>,
   NonNullable<typeof HOOK_PROTOCOLS.opencode.eventNames.post>,
   NonNullable<typeof HOOK_PROTOCOLS.opencode.contextInjectionEvent>
@@ -369,6 +404,7 @@ export function isValidEventName(id: AgentId, eventName: string): boolean {
   const spec = HOOK_PROTOCOLS[id];
   return (
     spec.eventNames.pre === eventName ||
+    spec.eventNames.prompt === eventName ||
     spec.eventNames.stop === eventName ||
     spec.eventNames.post === eventName ||
     spec.contextInjectionEvent === eventName

@@ -22,6 +22,7 @@ interface CopilotHooksConfig {
   version?: number;
   hooks?: {
     sessionStart?: HookCommand[];
+    userPromptTransformed?: HookCommand[];
     sessionEnd?: HookCommand[];
     agentStop?: HookCommand[];
     [key: string]: unknown;
@@ -44,12 +45,18 @@ export interface CopilotSetupResult {
 // Copilot-Specific Constants
 // =============================================================================
 
-const COPILOT_REQUIRED_HOOKS: Record<'sessionStart' | 'sessionEnd' | 'agentStop', HookCommand> = {
+const COPILOT_REQUIRED_HOOKS: Record<'sessionStart' | 'userPromptTransformed' | 'sessionEnd' | 'agentStop', HookCommand> = {
   sessionStart: {
     type: 'command',
     bash: HOOK_COMMANDS.COPILOT_PRE,
     powershell: HOOK_COMMANDS.COPILOT_PRE,
     timeoutSec: 10,
+  },
+  userPromptTransformed: {
+    type: 'command',
+    bash: HOOK_COMMANDS.COPILOT_PROMPT,
+    powershell: HOOK_COMMANDS.COPILOT_PROMPT,
+    timeoutSec: 5,
   },
   agentStop: {
     type: 'command',
@@ -92,6 +99,7 @@ async function ensureHookConfig(paths: CopilotPaths): Promise<boolean> {
       version: 1,
       hooks: {
         sessionStart: [COPILOT_REQUIRED_HOOKS.sessionStart],
+        userPromptTransformed: [COPILOT_REQUIRED_HOOKS.userPromptTransformed],
         agentStop: [COPILOT_REQUIRED_HOOKS.agentStop],
         sessionEnd: [COPILOT_REQUIRED_HOOKS.sessionEnd],
       },
@@ -127,6 +135,12 @@ function registerHooks(config: CopilotHooksConfig): boolean {
     ensureHookEntry(config.hooks, 'sessionStart', COPILOT_REQUIRED_HOOKS.sessionStart) ||
     updated;
   updated =
+    ensureHookEntry(
+      config.hooks,
+      'userPromptTransformed',
+      COPILOT_REQUIRED_HOOKS.userPromptTransformed,
+    ) || updated;
+  updated =
     ensureHookEntry(config.hooks, 'agentStop', COPILOT_REQUIRED_HOOKS.agentStop) ||
     updated;
   updated =
@@ -138,7 +152,7 @@ function registerHooks(config: CopilotHooksConfig): boolean {
 
 function ensureHookEntry(
   hooks: NonNullable<CopilotHooksConfig['hooks']>,
-  key: 'sessionStart' | 'agentStop' | 'sessionEnd',
+  key: 'sessionStart' | 'userPromptTransformed' | 'agentStop' | 'sessionEnd',
   entry: HookCommand,
 ): boolean {
   const existing = hooks[key];

@@ -30,6 +30,7 @@ interface CodexHookEntry {
 interface CodexHooksConfig {
   hooks?: {
     SessionStart?: CodexHookEntry[];
+    UserPromptSubmit?: CodexHookEntry[];
     SessionEnd?: CodexHookEntry[];
     Stop?: CodexHookEntry[];
   };
@@ -57,6 +58,11 @@ const CODEX_START_HOOK: CodexHookEntry = {
 const CODEX_STOP_HOOK: CodexHookEntry = {
   matcher: '',
   hooks: [{ type: 'command', command: HOOK_COMMANDS.CODEX_STOP, timeout: 10 }],
+};
+
+const CODEX_PROMPT_HOOK: CodexHookEntry = {
+  matcher: '',
+  hooks: [{ type: 'command', command: HOOK_COMMANDS.CODEX_PROMPT, timeout: 5 }],
 };
 
 // =============================================================================
@@ -87,6 +93,7 @@ async function ensureCodexHooks(paths: CodexPaths): Promise<boolean> {
     const config: CodexHooksConfig = {
       hooks: {
         SessionStart: [CODEX_START_HOOK],
+        UserPromptSubmit: [CODEX_PROMPT_HOOK],
         Stop: [CODEX_STOP_HOOK],
       }
     };
@@ -108,6 +115,7 @@ function registerCodexHooks(config: CodexHooksConfig): boolean {
   let updated = false;
 
   updated = ensureCodexHookEntry(config, 'SessionStart', CODEX_START_HOOK) || updated;
+  updated = ensureCodexHookEntry(config, 'UserPromptSubmit', CODEX_PROMPT_HOOK) || updated;
   updated = ensureCodexHookEntry(config, 'Stop', CODEX_STOP_HOOK) || updated;
   updated = removeLegacyCodexSessionEndHook(config) || updated;
 
@@ -116,7 +124,7 @@ function registerCodexHooks(config: CodexHooksConfig): boolean {
 
 function ensureCodexHookEntry(
   config: CodexHooksConfig,
-  key: 'SessionStart' | 'Stop',
+  key: 'SessionStart' | 'UserPromptSubmit' | 'Stop',
   entry: CodexHookEntry,
 ): boolean {
   if (config.hooks === undefined) {

@@ -1,8 +1,9 @@
 import { CAC } from 'cac';
 import path from 'node:path';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
 import type { CommandContext } from '../../types.js';
-import { HOOK_COMMANDS, OPENCODE_SCHEMA_URL, REQUIRED_INSTRUCTION_ENTRIES } from '../../constant.js';
+import { OPENCODE_SCHEMA_URL, REQUIRED_INSTRUCTION_ENTRIES } from '../../constant.js';
 import {
   type BasePaths,
   getBasePaths,
@@ -17,27 +18,27 @@ import { HOOK_PROTOCOLS } from './hookProtocol.js';
 // Single-source-of-truth sanity check
 // =============================================================================
 //
-// The plugin body below hardcodes opencode event names (it has to — the
-// generated .js file must be self-contained, it can't import our dist).
-// To prevent the next "session.start"-class drift, assert at module load
-// that the hardcoded strings still match HOOK_PROTOCOLS.opencode. If a
-// future edit to the protocol forgets to update the template (or vice
-// versa), this throws and the init command fails fast instead of silently
-// shipping a broken plugin.
+// The standalone OpenCode plugin is authored as TypeScript, compiled with the
+// rest of this package, then copied verbatim by this initializer. Verify its
+// emitted event names against the registry before copying it so a future
+// protocol/template mismatch fails loudly instead of silently shipping a
+// broken plugin.
 
 const OPENCODE_PROTOCOL = HOOK_PROTOCOLS.opencode;
 const PROTOCOL_EVENT_NAMES: Set<string> = new Set(
   (
     [
       OPENCODE_PROTOCOL.eventNames.pre,
+      OPENCODE_PROTOCOL.eventNames.prompt,
       OPENCODE_PROTOCOL.eventNames.stop,
       OPENCODE_PROTOCOL.eventNames.post,
       OPENCODE_PROTOCOL.contextInjectionEvent,
+      OPENCODE_PROTOCOL.eventNames.prompt,
     ] as Array<string | null>
   ).filter((v): v is string => v !== null),
 );
 
-function assertTemplateEventNamesMatchProtocol(template: string): void {
+function assertPluginEventNamesMatchProtocol(plugin: string): void {
   const required = (
     [
       OPENCODE_PROTOCOL.contextInjectionEvent,
@@ -47,7 +48,7 @@ function assertTemplateEventNamesMatchProtocol(template: string): void {
   ).filter((v): v is string => v !== null);
 
   for (const evt of required) {
-    if (!template.includes(`"${evt}"`)) {
+    if (!plugin.includes(`"${evt}"`) && !plugin.includes(`'${evt}'`)) {
       throw new Error(
         `initOpencode: plugin template lost the "${evt}" event declared in HOOK_PROTOCOLS.opencode. ` +
           `Update the template to use it, or update the protocol — they must stay in sync.`,
@@ -61,7 +62,7 @@ function assertTemplateEventNamesMatchProtocol(template: string): void {
   // `"memoryanchor-opencode"`, etc. aren't mis-flagged as events.
   const OPENCODE_EVENT_PREFIXES = new Set(['session', 'chat', 'tool', 'shell', 'permission', 'command', 'experimental']);
   const seenUnknown = new Set<string>();
-  const matches = template.matchAll(/"((?:[a-z][a-z0-9_]*)(?:\.[a-z][a-z0-9_]*)+)"/g);
+  const matches = plugin.matchAll(/["']((?:[a-z][a-z0-9_]*)(?:\.[a-z][a-z0-9_]*)+)["']/g);
   for (const m of matches) {
     const candidate = m[1];
     const prefix = candidate.split('.')[0];
@@ -75,7 +76,7 @@ function assertTemplateEventNamesMatchProtocol(template: string): void {
   }
   if (seenUnknown.size > 0) {
     throw new Error(
-      `initOpencode: plugin template references event(s) ${JSON.stringify([...seenUnknown])} ` +
+      `initOpencode: compiled plugin references event(s) ${JSON.stringify([...seenUnknown])} ` +
         `which are not in HOOK_PROTOCOLS.opencode.`,
     );
   }
@@ -105,11 +106,11 @@ export interface OpencodeSetupResult {
 }
 
 // =============================================================================
-// OpenCode Plugin Template
+// Compiled OpenCode Plugin
 // =============================================================================
 //
 // This file is copied to `<cwd>/.opencode/plugins/memory-anchor.js` and is
-// auto-loaded by opencode at startup. It does two distinct jobs:
+// auto-loaded by opencode at startup. It does three distinct jobs:
 //
 //   1. Context injection — the "${""}experimental.chat.system.transform"
 //      hook is the only documented way for a plugin to extend opencode's
@@ -122,7 +123,11 @@ export interface OpencodeSetupResult {
 //      return values through their `output` argument, not via subprocess
 //      stdout, and (c) fire-and-forget discards any result anyway.
 //
-//   2. Side-effect hooks — "session.idle" (work finished) and
+//   2. Per-message reminder — the stable "chat.message" hook appends the
+//      Memory Anchor reminder as the final user-message part. OpenCode has
+//      no documented block decision for this hook, so it must be non-blocking.
+//
+//   3. Side-effect hooks — "session.idle" (work finished) and
 //      "session.deleted" trigger the published memoryanchor-opencode-stop /
 //      -post CLI bins via ctx.$. These genuinely ARE fire-and-forget because
 //      we only need the side effect (incremental chart refresh / session-end
@@ -131,94 +136,10 @@ export interface OpencodeSetupResult {
 //      "import { $ } from 'bun'" — the latter isn't part of the plugin
 //      contract.
 
-const OPENCODE_PLUGIN_BODY = `// Auto-generated by Memory Anchor. Do not edit by hand.
-import * as fs from "node:fs";
-import * as path from "node:path";
-
-const ANCHOR_DIR = path.join(process.cwd(), ".memoryanchor");
-const INDEX_PATH = path.join(ANCHOR_DIR, "index.md");
-const ROOT_CHART_PATH = path.join(ANCHOR_DIR, "chart", "chart.md");
-const BALLAST_PATH = path.join(ANCHOR_DIR, "ballast.md");
-const MANIFEST_PATH = path.join(ANCHOR_DIR, "manifest.md");
-
-const HOOK_BIN = "${HOOK_COMMANDS.OPENCODE}";
-
-function readFileSafe(p, fallback) {
-  try {
-    return fs.existsSync(p) ? fs.readFileSync(p, "utf-8").trim() : fallback;
-  } catch {
-    return fallback;
-  }
-}
-
-function buildMemoryCore() {
-  const index = readFileSafe(INDEX_PATH, "No project chart available.");
-  const rootChart = fs.existsSync(ROOT_CHART_PATH)
-    ? readFileSafe(ROOT_CHART_PATH, "")
-    : "";
-  const chart = rootChart
-    ? "[INDEX ROUTING RULES — ALWAYS INJECTED]\\n" + index +
-      "\\n\\n[ROOT CHART ALREADY INJECTED — DO NOT READ IT AGAIN]\\n" + rootChart
-    : "[INDEX ROUTING RULES — ALWAYS INJECTED]\\n" + index;
-  const ballastStr = readFileSafe(BALLAST_PATH, "No active coding constraints or lessons-learned enforced.");
-  const manifest = readFileSafe(MANIFEST_PATH, "No active cross-session tasks found.");
-
-  const hasStaleRules = ballastStr.includes("[STALE]");
-  const taskSection = hasStaleRules
-    ? "\\n[TRIGGERED MISSION: MEMORY PRUNING]\\n- Urgent Status: Some developer-enforced limits inside the [2. BALLAST RULES] section are currently flagged with '[STALE]'.\\n- Your Action Required: These rules are likely obsolete due to recent code changes. You MUST evaluate and directly rewrite '.memoryanchor/ballast.md' to DELETE any invalid stale rules during this session.\\n"
-    : "";
-
-  return [
-    "==================================================",
-    "[MEMORY ANCHOR: CONTEXT INJECTED]",
-    "Target: Assist the developer by ensuring all generated code aligns with local repository constraints.",
-    "",
-    taskSection,
-    "[1. CHART (project structure & architectural symbols)]",
-    chart,
-    "",
-    "[2. BALLAST (rules must follow)]",
-    ballastStr,
-    "",
-    "[3. MANIFEST (module status & key decisions)]",
-    manifest,
-    "==================================================",
-  ].join("\\n");
-}
-
-export const MemoryAnchorPlugin = async ({ $ }) => {
-  return {
-    // Inject chart + ballast + manifest into the system prompt on every LLM turn.
-    // This is the only documented plugin hook that can extend system context.
-    "experimental.chat.system.transform": async (_input, output) => {
-      try {
-        output.system.push(buildMemoryCore());
-      } catch {
-        // Swallow — must never break the agent loop.
-      }
-    },
-
-    // Session idle (work finished) → fire-and-forget incremental chart refresh.
-    // We only need the side effect; stdout is intentionally discarded.
-    "session.idle": async () => {
-      try {
-        await $\`\${HOOK_BIN}-stop\`.quiet();
-      } catch {
-        // Swallow — hooks should never break the agent loop.
-      }
-    },
-
-    // Session deleted (closed/reset) → fire-and-forget session-end bookkeeping.
-    "session.deleted": async () => {
-      try {
-        await $\`\${HOOK_BIN}-post\`.quiet();
-      } catch {
-        // Swallow — hooks should never break the agent loop.
-      }
-    },
-  };
-};
-`;
+const COMPILED_PLUGIN_PATH = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  '../../hooks/opencode/memory-anchor-plugin.js',
+);
 
 // =============================================================================
 // OpenCode Paths
@@ -243,25 +164,27 @@ function getOpencodePaths(cwd: string): OpencodePaths {
 // =============================================================================
 //
 // Strategy:
-//   - If the plugin file doesn't exist → write the current template.
-//   - If the file exists and its content is exactly the current template →
+//   - If the plugin file doesn't exist → copy the compiled plugin.
+//   - If the file exists and its content is exactly the compiled plugin →
 //     leave it alone.
 //   - Otherwise (any difference — v1, stale v2, empty, corrupted, or
-//     manually edited) → overwrite with the canonical template.
+//     manually edited) → overwrite with the canonical compiled plugin.
 
-// Validate the template before we ever write it to disk. This runs once
-// per process (the const initializer is hoisted) but throws eagerly if
-// the template drifted from HOOK_PROTOCOLS.opencode.
-assertTemplateEventNamesMatchProtocol(OPENCODE_PLUGIN_BODY);
+async function loadCompiledPlugin(): Promise<string> {
+  const plugin = await readFile(COMPILED_PLUGIN_PATH, 'utf8');
+  assertPluginEventNamesMatchProtocol(plugin);
+  return plugin;
+}
 
 async function ensurePluginFile(paths: OpencodePaths): Promise<boolean> {
   await mkdir(paths.pluginsDir, { recursive: true });
+  const compiledPlugin = await loadCompiledPlugin();
 
   const exists = await fileExists(paths.pluginPath);
   if (exists) {
     try {
       const current = await readFile(paths.pluginPath, 'utf8');
-      if (current === OPENCODE_PLUGIN_BODY) {
+      if (current === compiledPlugin) {
         return false;
       }
     } catch {
@@ -269,7 +192,7 @@ async function ensurePluginFile(paths: OpencodePaths): Promise<boolean> {
     }
   }
 
-  await writeFile(paths.pluginPath, OPENCODE_PLUGIN_BODY, 'utf8');
+  await copyFile(COMPILED_PLUGIN_PATH, paths.pluginPath);
   return true;
 }
 
