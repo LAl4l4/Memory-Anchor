@@ -81,6 +81,28 @@ test('copies the TypeScript-compiled plugin verbatim', async () => {
   expect(plugin).toBe(compiledPlugin);
 });
 
+test('appends the reminder to an existing OpenCode text part without creating an invalid ID', async () => {
+  const { MemoryAnchorPlugin } = await import('../dist/hooks/opencode/memory-anchor-plugin.js');
+  const hooks = await MemoryAnchorPlugin({
+    $: () => ({ quiet: async () => undefined }),
+  });
+  const output = {
+    message: { id: 'msg_test', sessionID: 'ses_test' },
+    parts: [
+      { id: 'prt_file', messageID: 'msg_test', sessionID: 'ses_test', type: 'file' },
+      { id: 'prt_text', messageID: 'msg_test', sessionID: 'ses_test', type: 'text', text: 'Inspect this.' },
+    ],
+  };
+
+  await hooks['chat.message']({}, output);
+
+  expect(output.parts).toHaveLength(2);
+  expect(output.parts[1].id).toBe('prt_text');
+  expect(output.parts[1].text).toBe(
+    'Inspect this.\n\n[IMPORTANT!] Must read ./.memoryanchor/chart/.../chart.md before any works and glob/grep.',
+  );
+});
+
 test('creates opencode.json with schema and instructions', async () => {
   await runInitOpencode(tempDir);
 

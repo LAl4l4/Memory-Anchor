@@ -91,6 +91,10 @@ function buildMemoryCore(): string {
   ].join('\n');
 }
 
+function isTextPartWithText(part: MessagePart): part is MessagePart & { text: string } {
+  return part.type === 'text' && typeof part.text === 'string';
+}
+
 export const MemoryAnchorPlugin = async ({ $ }: PluginInput) => ({
   // System context can only be extended through this experimental hook.
   'experimental.chat.system.transform': async (
@@ -104,24 +108,14 @@ export const MemoryAnchorPlugin = async ({ $ }: PluginInput) => ({
     }
   },
 
-  // Append a persisted final part to the model-facing user message.
+  // Reuse the final text part's OpenCode-generated ID rather than creating a
+  // new part: plugin hooks cannot access the internal PartID allocator.
   'chat.message': async (_input: unknown, output: ChatMessageOutput): Promise<void> => {
     try {
-      const alreadyAppended = output.parts.some(
-        (part) =>
-          part.type === 'text' &&
-          typeof part.text === 'string' &&
-          part.text.includes(USER_PROMPT_APPENDIX),
-      );
-      if (alreadyAppended) return;
+      const textPart = [...output.parts].reverse().find(isTextPartWithText);
+      if (!textPart || textPart.text.includes(USER_PROMPT_APPENDIX)) return;
 
-      output.parts.push({
-        id: crypto.randomUUID(),
-        sessionID: output.message.sessionID,
-        messageID: output.message.id,
-        type: 'text',
-        text: USER_PROMPT_APPENDIX,
-      });
+      textPart.text = `${textPart.text}\n\n${USER_PROMPT_APPENDIX}`;
     } catch {
       // Hooks must never break the agent loop.
     }
