@@ -12,10 +12,21 @@ const WORKER_PATH = path.join(__dirname, 'chartWorker.js');
 export class ChartWorkerPool {
     private readonly pool: LazyWorkerPool<ChartRenderTask, ChartRenderResult>;
 
-    constructor(dependencyFiles: readonly string[]) {
+    constructor(
+        dependencyFiles: readonly string[],
+        defaultDependencyPaths?: ReadonlySet<string>
+    ) {
+        // Worker data is cloned per worker, rather than per queued task. This
+        // lets registry sizing reuse one repository-wide dependency-path set.
+        const workerData = {
+            dependencyFiles,
+            defaultDependencyPaths: defaultDependencyPaths
+                ? [...defaultDependencyPaths]
+                : undefined,
+        };
         this.pool = new LazyWorkerPool({
             createWorker: () => new Worker(WORKER_PATH, {
-                workerData: { dependencyFiles },
+                workerData,
             }),
             getResult: message => message as ChartRenderResult,
             getError: message => new Error(

@@ -12,6 +12,7 @@ import type { ChartRenderTask } from '../chartBuildHelper/chartWorker.js';
 import {
     isCodeFile,
     listProjectFiles,
+    logToUser,
     resolveWorkspacePaths,
 } from '../chartBuildHelper/utils.js';
 import {
@@ -129,6 +130,7 @@ export async function buildDirectoryTreeRegistry(
 
     // One wide batch gives the pool useful parallel work and prevents reparsing
     // the same files once per registry/chart phase.
+    logToUser(`Parsing ${dependencyFiles.length} source files...`, '36');
     await primeChartParseCache(dirGroups, projectRoot, parseCache);
 
     const sizingTasks: { directory: string; task: ChartRenderTask }[] = [];
@@ -144,16 +146,13 @@ export async function buildDirectoryTreeRegistry(
                 chartHeading: 'PROJECT CHART',
                 childChartsSection: '',
                 writeOutput: false,
-                // An explicit caller override must be preserved exactly.
-                dependencyPaths: options.dependencyPaths
-                    ? [...dependencyPaths]
-                    : undefined,
             },
         });
     }
 
     const directChartLengths = new Map<string, number>();
-    const chartPool = new ChartWorkerPool(dependencyFiles);
+    logToUser(`Sizing ${sizingTasks.length} directories for chart partitions...`, '36');
+    const chartPool = new ChartWorkerPool(dependencyFiles, dependencyPaths);
     try {
         await chartPool.init(WORKER_THREAD_POOL_SIZE);
         const results = await Promise.all(sizingTasks.map(({ task }) => chartPool.render(task)));

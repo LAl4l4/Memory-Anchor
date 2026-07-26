@@ -6,6 +6,8 @@ import type { FileNode } from './symbolExtractor.js';
 
 interface ChartWorkerData {
     dependencyFiles: string[];
+    /** Paths relative to the shared source directory for this worker batch. */
+    defaultDependencyPaths?: string[];
 }
 
 export interface ChartRenderTask {
@@ -24,7 +26,23 @@ export interface ChartRenderResult {
     contentLength: number;
 }
 
-const { dependencyFiles } = workerData as ChartWorkerData;
+const { dependencyFiles, defaultDependencyPaths } = workerData as ChartWorkerData;
+const sharedDependencyPaths = defaultDependencyPaths
+    ? new Set(defaultDependencyPaths)
+    : undefined;
+const dependencyPathsBySourceDirectory = new Map<string, ReadonlySet<string>>();
+
+function getDependencyPaths(task: ChartRenderTask): ReadonlySet<string> {
+    if (task.dependencyPaths) return new Set(task.dependencyPaths);
+    if (sharedDependencyPaths) return sharedDependencyPaths;
+
+    const cached = dependencyPathsBySourceDirectory.get(task.sourceDirectory);
+    if (cached) return cached;
+
+    const dependencyPaths = createDependencyPaths(dependencyFiles, task.sourceDirectory);
+    dependencyPathsBySourceDirectory.set(task.sourceDirectory, dependencyPaths);
+    return dependencyPaths;
+}
 
 parentPort!.postMessage({ type: 'ready' });
 
@@ -34,9 +52,7 @@ parentPort!.on('message', (task: ChartRenderTask) => {
             new Map(task.dirGroups),
             task.fileNodes,
             task.chartHeading,
-            task.dependencyPaths
-                ? new Set(task.dependencyPaths)
-                : createDependencyPaths(dependencyFiles, task.sourceDirectory)
+            getDependencyPaths(task)
         );
         const chartContent = task.childChartsSection
             ? `${content.trimEnd()}\n\n${task.childChartsSection}\n`

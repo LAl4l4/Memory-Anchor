@@ -11,6 +11,7 @@ import type { ChartRenderTask } from '../chartBuildHelper/chartWorker.js';
 import {
     listParseableProjectFiles,
     listProjectFiles,
+    logToUser,
     resolveWorkspacePaths,
 } from '../chartBuildHelper/utils.js';
 import {
@@ -177,6 +178,7 @@ async function writeChartSet(
 
     // Each task owns a different chart path. Chart workers therefore perform
     // reverse-dependency analysis and file writes concurrently without locks.
+    logToUser(`Rendering ${tasks.length} partition charts...`, '36');
     const pool = new ChartWorkerPool(options.dependencyFiles ?? listParseableProjectFiles(projectRoot));
     try {
         await pool.init(WORKER_THREAD_POOL_SIZE);
