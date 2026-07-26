@@ -8,6 +8,7 @@ import {
 } from '../chartBuildHelper/chartContentBuilder.js';
 import { ChartWorkerPool } from '../chartBuildHelper/chartPool.js';
 import type { ChartRenderTask } from '../chartBuildHelper/chartWorker.js';
+import type { GlobalDependencyRegistry } from '../chartBuildHelper/dependencyGraph.js';
 import {
     listParseableProjectFiles,
     listProjectFiles,
@@ -15,7 +16,7 @@ import {
     resolveWorkspacePaths,
 } from '../chartBuildHelper/utils.js';
 import {
-    buildDirectoryTreeRegistry,
+    buildDirectoryTreeRegistryWithDependencies,
     BuildDirectoryTreeRegistryOptions,
     getDirectoriesToScan,
     getRootChartDirectories,
@@ -37,6 +38,8 @@ export interface CreatePartitionedChartsOptions {
     rootDirectories?: readonly string[];
     /** Absolute paths available as forward dependency targets. */
     dependencyFiles?: readonly string[];
+    /** Project-wide reverse edges built from the shared parse cache. */
+    globalDependencyRegistry?: GlobalDependencyRegistry;
 }
 
 export interface ChartTopologySnapshot {
@@ -153,6 +156,7 @@ async function preparePartitionedChart(
         fileNodes: getChartFileNodes(dirGroups, sourceDirectory, parseCache),
         chartHeading: `CHART AT ${getChartWorkspacePath(directory)}`,
         childChartsSection,
+        chartDirectory: directory,
         writeOutput: true,
     };
 }
@@ -179,7 +183,11 @@ async function writeChartSet(
     // Each task owns a different chart path. Chart workers therefore perform
     // reverse-dependency analysis and file writes concurrently without locks.
     logToUser(`Rendering ${tasks.length} partition charts...`, '36');
-    const pool = new ChartWorkerPool(options.dependencyFiles ?? listParseableProjectFiles(projectRoot));
+    const pool = new ChartWorkerPool(
+        options.dependencyFiles ?? listParseableProjectFiles(projectRoot),
+        undefined,
+        options.globalDependencyRegistry
+    );
     try {
         await pool.init(WORKER_THREAD_POOL_SIZE);
         const results = await Promise.all(tasks.map(task => pool.render(task)));
@@ -359,7 +367,11 @@ export async function buildPartitionedCharts(
     options: BuildDirectoryTreeRegistryOptions = {}
 ): Promise<PartitionedChartsBuildResult> {
     const parseCache = options.parseCache ?? new Map();
-    const root = await buildDirectoryTreeRegistry({ ...options, parseCache });
+    const {
+        root,
+        dependencyFiles,
+        globalDependencyRegistry,
+    } = await buildDirectoryTreeRegistryWithDependencies({ ...options, parseCache });
     const directories = getDirectoriesToScan(root);
     const chartPaths = await createPartitionedCharts(directories, {
         projectRoot: options.projectRoot,
@@ -367,6 +379,8 @@ export async function buildPartitionedCharts(
         shallowDirectories: getShallowPartitionDirectories(root),
         chartChildren: getChartChildren(root),
         rootDirectories: getRootChartDirectories(root),
+        dependencyFiles,
+        globalDependencyRegistry,
     });
     const projectRoot = path.resolve(options.projectRoot ?? resolveWorkspacePaths().projectRoot);
     const indexPath = path.join(

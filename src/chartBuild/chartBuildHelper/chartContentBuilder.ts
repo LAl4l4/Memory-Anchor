@@ -1,6 +1,11 @@
 import * as path from 'node:path';
 import { batchParseFiles } from './ASTParser.js';
-import { buildChartDependencyGraph } from './dependencyGraph.js';
+import {
+    applyGlobalReverseDependencies,
+    buildChartDependencyGraph,
+    GlobalDependencyRegistry,
+    resolveFileDependencies,
+} from './dependencyGraph.js';
 import { buildNodesSection } from './nodesEditor.js';
 import { buildSkeletonSection } from './skeletonEditor.js';
 import { FileNode } from './symbolExtractor.js';
@@ -97,9 +102,16 @@ export function renderChartContent(
     dirGroups: Map<string, string[]>,
     fileNodes: FileNode[],
     chartHeading: string,
-    dependencyPaths: ReadonlySet<string>
+    dependencyPaths: ReadonlySet<string>,
+    globalDependencyRegistry?: GlobalDependencyRegistry,
+    chartDirectory: string = '.'
 ): string {
-    const graphNodes = buildChartDependencyGraph(fileNodes, dependencyPaths);
+    const graphNodes = globalDependencyRegistry
+        ? (() => {
+            resolveFileDependencies(fileNodes, dependencyPaths);
+            return applyGlobalReverseDependencies(fileNodes, globalDependencyRegistry, chartDirectory);
+        })()
+        : buildChartDependencyGraph(fileNodes, dependencyPaths);
     const skeletonSection = buildSkeletonSection(dirGroups, graphNodes);
     const nodesSection = buildNodesSection(graphNodes);
 

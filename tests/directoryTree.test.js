@@ -86,6 +86,36 @@ test('directory tree scans deepest directories first and rolls chars up', async 
   expect(root.isSplit).toBe(true);
 });
 
+test('partition charts render callers from the build-wide dependency registry', async () => {
+  tempDir = await mkdtemp(path.join(os.tmpdir(), 'memory-anchor-global-registry-'));
+  await mkdir(path.join(tempDir, 'providers'));
+  await mkdir(path.join(tempDir, 'consumers'));
+  await writeFile(
+    path.join(tempDir, 'providers', 'shared.ts'),
+    'export function shared() { return 1; }\n',
+    'utf8'
+  );
+  await writeFile(
+    path.join(tempDir, 'consumers', 'caller.ts'),
+    'import { shared } from "../providers/shared.js";\n' +
+      'export function caller() { return shared(); }\n',
+    'utf8'
+  );
+
+  await buildPartitionedChartsForDebug({
+    projectRoot: tempDir,
+    thresholds: { splitAt: 1, mergeAt: 0 }
+  });
+
+  const providerChart = await readFile(
+    path.join(tempDir, '.memoryanchor', 'chart', 'providers', 'chart.md'),
+    'utf8'
+  );
+  expect(providerChart).toContain(
+    '+ shared() [L1-1] <- consumers/caller.ts:caller()'
+  );
+});
+
 test('registry serialization replaces circular parent references with paths', () => {
   const root = createDirectoryTree(['src', 'src/deep']);
   const src = root.children[0];

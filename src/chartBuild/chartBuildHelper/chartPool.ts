@@ -2,6 +2,7 @@ import { Worker } from 'node:worker_threads';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { LazyWorkerPool } from './lazyWorkerPool.js';
+import type { GlobalDependencyRegistry } from './dependencyGraph.js';
 import type { ChartRenderResult, ChartRenderTask } from './chartWorker.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -14,7 +15,8 @@ export class ChartWorkerPool {
 
     constructor(
         dependencyFiles: readonly string[],
-        defaultDependencyPaths?: ReadonlySet<string>
+        defaultDependencyPaths?: ReadonlySet<string>,
+        globalDependencyRegistry?: GlobalDependencyRegistry
     ) {
         // Worker data is cloned per worker, rather than per queued task. This
         // lets registry sizing reuse one repository-wide dependency-path set.
@@ -23,6 +25,7 @@ export class ChartWorkerPool {
             defaultDependencyPaths: defaultDependencyPaths
                 ? [...defaultDependencyPaths]
                 : undefined,
+            globalDependencyRegistry,
         };
         this.pool = new LazyWorkerPool({
             createWorker: () => new Worker(WORKER_PATH, {

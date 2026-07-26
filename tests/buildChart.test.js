@@ -133,7 +133,9 @@ test('chart uses in-chart Tree-sitter imports and emits symbol reverse dependenc
 
   const chartContent = (await readFile(chartPath, 'utf8')).replace(/\\/g, '/');
   expect(chartContent).toContain('### /tests/test-src/consumer.ts -> tests/test-src/dependency.ts');
-  expect(chartContent).toContain('+ shared() [L1-1] <- caller()');
+  expect(chartContent).toContain(
+    '+ shared() [L1-1] <- tests/test-src/consumer.ts:caller()'
+  );
   expect(chartContent).not.toContain('external-package');
   expect(chartContent).not.toContain('Source code module.');
 });
@@ -183,8 +185,10 @@ test('reverse dependency lookup isolates same-named exports by resolved file pat
     const chartContent = (await readFile(chartPath, 'utf8')).replace(/\\/g, '/');
     const firstDependency = getNodeBlock(chartContent, 'tests/test-src/dependency-a.ts');
     const secondDependency = getNodeBlock(chartContent, 'tests/test-src/dependency-b.ts');
-    expect(firstDependency).not.toContain('<- caller()');
-    expect(secondDependency).toContain('+ shared() [L1-1] <- caller()');
+    expect(firstDependency).not.toContain('<- tests/test-src/consumer.ts:caller()');
+    expect(secondDependency).toContain(
+      '+ shared() [L1-1] <- tests/test-src/consumer.ts:caller()'
+    );
     expect(secondDependency.match(/caller\(\)/g)).toHaveLength(1);
   } finally {
     await Promise.all(createdFiles.map(file =>

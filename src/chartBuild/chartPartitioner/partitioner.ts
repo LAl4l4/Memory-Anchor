@@ -4,11 +4,14 @@ import { destroyPool, WORKER_THREAD_POOL_SIZE } from '../chartBuildHelper/ASTPar
 import {
     ChartParseCache,
     createDependencyPaths,
+    getChartFiles,
     getChartFileNodes,
     primeChartParseCache,
 } from '../chartBuildHelper/chartContentBuilder.js';
 import { ChartWorkerPool } from '../chartBuildHelper/chartPool.js';
 import type { ChartRenderTask } from '../chartBuildHelper/chartWorker.js';
+import { buildGlobalDependencyRegistry } from '../chartBuildHelper/dependencyRegistryPool.js';
+import type { GlobalDependencyRegistry } from '../chartBuildHelper/dependencyGraph.js';
 import {
     isCodeFile,
     listProjectFiles,
@@ -40,6 +43,15 @@ export interface BuildDirectoryTreeRegistryOptions {
     parseCache?: ChartParseCache;
     /** Repository-relative files available as forward dependency targets. */
     dependencyPaths?: ReadonlySet<string>;
+    /** Reuse a build-wide reverse registry when the caller already has one. */
+    globalDependencyRegistry?: GlobalDependencyRegistry;
+}
+
+export interface DirectoryTreeRegistryBuildResult {
+    root: DirectoryTreeNode;
+    dependencyFiles: string[];
+    dependencyPaths: ReadonlySet<string>;
+    globalDependencyRegistry: GlobalDependencyRegistry;
 }
 
 /**
@@ -111,6 +123,14 @@ export function getRootChartDirectories(root: DirectoryTreeNode): string[] {
 export async function buildDirectoryTreeRegistry(
     options: BuildDirectoryTreeRegistryOptions = {}
 ): Promise<DirectoryTreeNode> {
+    const { root } = await buildDirectoryTreeRegistryWithDependencies(options);
+    return root;
+}
+
+/** Build topology and the immutable reverse registry from one parsed file cache. */
+export async function buildDirectoryTreeRegistryWithDependencies(
+    options: BuildDirectoryTreeRegistryOptions = {}
+): Promise<DirectoryTreeRegistryBuildResult> {
     const workspace = resolveWorkspacePaths();
     const projectRoot = path.resolve(options.projectRoot ?? workspace.projectRoot);
     const registryPath = path.resolve(
@@ -119,10 +139,9 @@ export async function buildDirectoryTreeRegistry(
     const dirGroups = listProjectFiles(projectRoot);
     const root = createDirectoryTree(dirGroups.keys());
     const parseCache = options.parseCache ?? new Map();
-    const dependencyFiles = [...dirGroups.values()]
-        .flat()
-        .filter(isCodeFile)
-        .map(file => path.resolve(projectRoot, file));
+    const dependencyFiles = getChartFiles(dirGroups, projectRoot)
+        .filter(({ absolutePath }) => isCodeFile(absolutePath))
+        .map(({ absolutePath }) => absolutePath);
     const dependencyPaths = options.dependencyPaths ?? createDependencyPaths(
         dependencyFiles,
         projectRoot
@@ -132,6 +151,15 @@ export async function buildDirectoryTreeRegistry(
     // the same files once per registry/chart phase.
     logToUser(`Parsing ${dependencyFiles.length} source files...`, '36');
     await primeChartParseCache(dirGroups, projectRoot, parseCache);
+    logToUser('Indexing project-wide reverse dependencies...', '36');
+    const globalDependencyRegistry = options.globalDependencyRegistry ?? await buildGlobalDependencyRegistry(
+        dependencyFiles.map(file => ({
+            ...parseCache.get(file)!,
+            relativePath: path.relative(projectRoot, file).split(path.sep).join('/'),
+        })),
+        dependencyPaths,
+        WORKER_THREAD_POOL_SIZE
+    );
 
     const sizingTasks: { directory: string; task: ChartRenderTask }[] = [];
     for (const [directory, files] of dirGroups) {
@@ -145,6 +173,7 @@ export async function buildDirectoryTreeRegistry(
                 fileNodes: getChartFileNodes(directoryGroup, projectRoot, parseCache),
                 chartHeading: 'PROJECT CHART',
                 childChartsSection: '',
+                chartDirectory: '.',
                 writeOutput: false,
             },
         });
@@ -152,7 +181,11 @@ export async function buildDirectoryTreeRegistry(
 
     const directChartLengths = new Map<string, number>();
     logToUser(`Sizing ${sizingTasks.length} directories for chart partitions...`, '36');
-    const chartPool = new ChartWorkerPool(dependencyFiles, dependencyPaths);
+    const chartPool = new ChartWorkerPool(
+        dependencyFiles,
+        dependencyPaths,
+        globalDependencyRegistry
+    );
     try {
         await chartPool.init(WORKER_THREAD_POOL_SIZE);
         const results = await Promise.all(sizingTasks.map(({ task }) => chartPool.render(task)));
@@ -176,7 +209,7 @@ export async function buildDirectoryTreeRegistry(
         'utf-8'
     );
 
-    return root;
+    return { root, dependencyFiles, dependencyPaths, globalDependencyRegistry };
 }
 
 /** Debug entry point. Always destroys the parser pool so the process can exit. */

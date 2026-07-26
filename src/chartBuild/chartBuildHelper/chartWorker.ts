@@ -2,12 +2,14 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { parentPort, workerData } from 'node:worker_threads';
 import { createDependencyPaths, renderChartContent } from './chartContentBuilder.js';
+import type { GlobalDependencyRegistry } from './dependencyGraph.js';
 import type { FileNode } from './symbolExtractor.js';
 
 interface ChartWorkerData {
     dependencyFiles: string[];
     /** Paths relative to the shared source directory for this worker batch. */
     defaultDependencyPaths?: string[];
+    globalDependencyRegistry?: GlobalDependencyRegistry;
 }
 
 export interface ChartRenderTask {
@@ -19,6 +21,8 @@ export interface ChartRenderTask {
     childChartsSection: string;
     writeOutput: boolean;
     dependencyPaths?: string[];
+    /** Project-relative directory containing this chart's local paths. */
+    chartDirectory?: string;
 }
 
 export interface ChartRenderResult {
@@ -26,7 +30,7 @@ export interface ChartRenderResult {
     contentLength: number;
 }
 
-const { dependencyFiles, defaultDependencyPaths } = workerData as ChartWorkerData;
+const { dependencyFiles, defaultDependencyPaths, globalDependencyRegistry } = workerData as ChartWorkerData;
 const sharedDependencyPaths = defaultDependencyPaths
     ? new Set(defaultDependencyPaths)
     : undefined;
@@ -52,7 +56,9 @@ parentPort!.on('message', (task: ChartRenderTask) => {
             new Map(task.dirGroups),
             task.fileNodes,
             task.chartHeading,
-            getDependencyPaths(task)
+            getDependencyPaths(task),
+            globalDependencyRegistry,
+            task.chartDirectory
         );
         const chartContent = task.childChartsSection
             ? `${content.trimEnd()}\n\n${task.childChartsSection}\n`

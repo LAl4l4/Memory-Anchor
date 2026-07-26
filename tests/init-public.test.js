@@ -85,8 +85,9 @@ test('creates AGENTS.md with memory anchor rules', async () => {
   expect(agents).toContain('## Chart Relationship Notation');
   expect(agents).toContain("'+' marks an exported symbol; '-' marks the default/internal symbol");
   expect(agents).toContain("'->' lists parseable repository files referenced by a file, including targets in full repository.");
-  expect(agents).toContain("'<-' lists current-chart symbols that depend on or call a symbol");
-  expect(agents).toContain("a cross-chart '->' target may not be rendered in this chart");
+  expect(agents).toContain(
+    "'<-' lists import-resolved cross-file callers (across charts in full builds), never same-file, member, or dynamic calls; it is attached only to symbols."
+  );
 });
 
 test('upgrades the managed AGENTS.md block while preserving other instructions', async () => {

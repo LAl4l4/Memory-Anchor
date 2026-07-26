@@ -41,6 +41,23 @@ function resolveDependencyPath(
     return undefined;
 }
 
+/** Resolve forward file imports without performing reverse-edge inversion. */
+export function resolveFileDependencies(
+    fileNodes: readonly FileNode[],
+    dependencyPaths: ReadonlySet<string>
+): void {
+    for (const fileNode of fileNodes) {
+        const filePath = normalizePath(fileNode.relativePath);
+        for (const dependency of fileNode.dependencies) {
+            dependency.resolvedPath = resolveDependencyPath(
+                filePath,
+                dependency.source,
+                dependencyPaths
+            );
+        }
+    }
+}
+
 function symbolKey(filePath: string, symbolName: string): string {
     return `${normalizePath(filePath)}\0${symbolName}`;
 }
@@ -55,6 +72,23 @@ interface ReverseDependent {
     label: string;
 }
 
+/** Serializable caller information shared from the global registry to chart workers. */
+export interface GlobalReverseDependent {
+    sourcePath: string;
+    name: string;
+    type: string;
+    startIndex: number;
+    startLine: number;
+    endLine: number;
+}
+
+/** Immutable, project-relative reverse edges produced once per full build. */
+export interface GlobalDependencyRegistry {
+    reverseDependencies: ReadonlyMap<string, readonly GlobalReverseDependent[]>;
+    /** First declaration offsets preserve local duplicate-name semantics. */
+    targetSymbolOffsets: ReadonlyMap<string, number>;
+}
+
 function callerKey(sourcePath: string, symbol: FileSymbol): string {
     return `${sourcePath}\0${symbol.startIndex}`;
 }
@@ -63,19 +97,21 @@ function incrementCount(counts: Map<string, number>, key: string): void {
     counts.set(key, (counts.get(key) ?? 0) + 1);
 }
 
+function formatGlobalDependent(dependent: GlobalReverseDependent): string {
+    return dependent.type.includes('function') ? `${dependent.name}()` : dependent.name;
+}
+
 /**
- * Keep unique caller names compact. Qualify collisions by path, and add the
- * source range/offset only when the same file contains duplicate symbol names.
- * Both passes are linear in this target symbol's reverse-edge count.
+ * Always include the caller source path. Add the source range/offset only
+ * when one file contains duplicate caller names. Both passes are linear in
+ * this target symbol's reverse-edge count.
  */
 function formatReverseDependents(
     dependents: ReadonlyMap<string, ReverseDependent>
 ): string[] {
-    const labelCounts = new Map<string, number>();
     const sourceLabelCounts = new Map<string, number>();
 
     for (const dependent of dependents.values()) {
-        incrementCount(labelCounts, dependent.label);
         incrementCount(
             sourceLabelCounts,
             `${dependent.sourcePath}\0${dependent.label}`
@@ -84,11 +120,6 @@ function formatReverseDependents(
 
     const formatted: string[] = [];
     for (const dependent of dependents.values()) {
-        if (labelCounts.get(dependent.label) === 1) {
-            formatted.push(dependent.label);
-            continue;
-        }
-
         const sourceLabelKey = `${dependent.sourcePath}\0${dependent.label}`;
         if (sourceLabelCounts.get(sourceLabelKey) === 1) {
             formatted.push(`${dependent.sourcePath}:${dependent.label}`);
@@ -105,6 +136,114 @@ function formatReverseDependents(
 }
 
 /**
+ * Build the target-symbol lookup once before worker tasks traverse forward
+ * calls. Duplicate names in one file deliberately retain the first symbol.
+ */
+export function createTargetSymbols(fileNodes: readonly FileNode[]): Map<string, number> {
+    const targetSymbols = new Map<string, number>();
+    for (const fileNode of fileNodes) {
+        const filePath = normalizePath(fileNode.relativePath);
+        for (const symbol of fileNode.symbols) {
+            const key = symbolKey(filePath, symbol.name);
+            if (!targetSymbols.has(key)) targetSymbols.set(key, symbol.startIndex);
+        }
+    }
+    return targetSymbols;
+}
+
+/**
+ * Return reverse-edge candidates for one independent worker task. The caller
+ * merges these into the build-wide registry with constant-time Map writes.
+ */
+export function collectGlobalReverseDependencies(
+    fileNodes: readonly FileNode[],
+    dependencyPaths: ReadonlySet<string>,
+    targetSymbolKeys: ReadonlySet<string>
+): [string, GlobalReverseDependent][] {
+    const entries: [string, GlobalReverseDependent][] = [];
+
+    for (const sourceFile of fileNodes) {
+        const sourcePath = normalizePath(sourceFile.relativePath);
+        const importedSymbolByLocalName = new Map<string, string>();
+        for (const dependency of sourceFile.dependencies) {
+            const resolvedPath = resolveDependencyPath(
+                sourcePath,
+                dependency.source,
+                dependencyPaths
+            );
+            if (!resolvedPath) continue;
+
+            for (const binding of dependency.bindings) {
+                const targetKey = symbolKey(resolvedPath, binding.imported);
+                if (targetSymbolKeys.has(targetKey) && !importedSymbolByLocalName.has(binding.local)) {
+                    importedSymbolByLocalName.set(binding.local, targetKey);
+                }
+            }
+        }
+
+        for (const caller of sourceFile.symbols) {
+            const callerData: GlobalReverseDependent = {
+                sourcePath,
+                name: caller.name,
+                type: caller.type,
+                startIndex: caller.startIndex,
+                startLine: caller.startLine,
+                endLine: caller.endLine,
+            };
+            for (const dependencyName of caller.forwardDependencies) {
+                const targetKey = importedSymbolByLocalName.get(dependencyName);
+                if (targetKey) entries.push([targetKey, callerData]);
+            }
+        }
+    }
+
+    return entries;
+}
+
+/** Apply previously indexed project-wide callers to the symbols in one chart. */
+export function applyGlobalReverseDependencies(
+    fileNodes: FileNode[],
+    registry: GlobalDependencyRegistry,
+    chartDirectory: string = '.'
+): FileNode[] {
+    const normalizedDirectory = normalizePath(chartDirectory);
+
+    for (const fileNode of fileNodes) {
+        const localPath = normalizePath(fileNode.relativePath);
+        const filePath = normalizedDirectory === '.'
+            ? localPath
+            : normalizePath(path.posix.join(normalizedDirectory, localPath));
+        for (const symbol of fileNode.symbols) {
+            const key = symbolKey(filePath, symbol.name);
+            const dependents = registry.targetSymbolOffsets.get(key) === symbol.startIndex
+                ? registry.reverseDependencies.get(key) ?? []
+                : [];
+            const uniqueDependents = new Map<string, ReverseDependent>();
+            for (const dependent of dependents) {
+                const label = formatGlobalDependent(dependent);
+                uniqueDependents.set(
+                    `${dependent.sourcePath}\0${dependent.startIndex}`,
+                    {
+                        sourcePath: dependent.sourcePath,
+                        label,
+                        symbol: {
+                            ...symbol,
+                            name: dependent.name,
+                            type: dependent.type,
+                            startIndex: dependent.startIndex,
+                            startLine: dependent.startLine,
+                            endLine: dependent.endLine,
+                        },
+                    }
+                );
+            }
+            symbol.dependedOnBy = formatReverseDependents(uniqueDependents);
+        }
+    }
+    return fileNodes;
+}
+
+/**
  * Resolve file imports against every parseable repository file, then annotate
  * symbols with reverse callers from this chart only. FileNodes are mutated so
  * the same parsed batch can drive both the skeleton and the node section.
@@ -118,6 +257,8 @@ export function buildChartDependencyGraph(
     const symbolByKey = new Map<string, FileSymbol>();
     const reverseDependencies = new Map<FileSymbol, Map<string, ReverseDependent>>();
 
+    resolveFileDependencies(fileNodes, dependencyPaths);
+
     for (const fileNode of fileNodes) {
         const filePath = normalizePath(fileNode.relativePath);
         for (const symbol of fileNode.symbols) {
@@ -126,13 +267,6 @@ export function buildChartDependencyGraph(
             const key = symbolKey(filePath, symbol.name);
             // Preserve the previous first-match behavior for duplicate names in one file.
             if (!symbolByKey.has(key)) symbolByKey.set(key, symbol);
-        }
-        for (const dependency of fileNode.dependencies) {
-            dependency.resolvedPath = resolveDependencyPath(
-                filePath,
-                dependency.source,
-                dependencyPaths
-            );
         }
     }
 
