@@ -8,6 +8,16 @@ import { listParseableProjectFiles, PROJECT_ROOT } from './utils.js';
 
 export type ChartParseCache = Map<string, FileNode>;
 
+/** Normalize repository files once for reuse across multiple chart renders. */
+export function createDependencyPaths(
+    dependencyFiles: readonly string[],
+    projectRoot: string
+): ReadonlySet<string> {
+    return new Set(dependencyFiles.map(file =>
+        path.relative(projectRoot, file).split(path.sep).join('/')
+    ));
+}
+
 interface ChartFile {
     absolutePath: string;
     relativePath: string;
@@ -55,19 +65,17 @@ export async function buildChartContent(
     projectRoot: string = PROJECT_ROOT,
     parseCache: ChartParseCache = new Map(),
     chartHeading: string = 'PROJECT CHART',
-    dependencyFiles: readonly string[] = listParseableProjectFiles(projectRoot)
+    dependencyFiles: readonly string[] = listParseableProjectFiles(projectRoot),
+    dependencyPaths?: ReadonlySet<string>
 ): Promise<string> {
     const chartFiles = getChartFiles(dirGroups, projectRoot);
     await primeChartParseCache(dirGroups, projectRoot, parseCache);
-    const dependencyPaths = new Set(dependencyFiles.map(file =>
-        path.relative(projectRoot, file).split(path.sep).join('/')
-    ));
     const fileNodes = buildChartDependencyGraph(
         chartFiles.map(({ absolutePath, relativePath }) => ({
             ...parseCache.get(absolutePath)!,
             relativePath,
         })),
-        dependencyPaths
+        dependencyPaths ?? createDependencyPaths(dependencyFiles, projectRoot)
     );
     const skeletonSection = buildSkeletonSection(dirGroups, fileNodes);
     const nodesSection = buildNodesSection(fileNodes);

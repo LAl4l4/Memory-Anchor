@@ -4,10 +4,11 @@ import { destroyPool } from '../chartBuildHelper/ASTParser.js';
 import {
     buildChartContent,
     ChartParseCache,
+    createDependencyPaths,
     primeChartParseCache,
 } from '../chartBuildHelper/chartContentBuilder.js';
 import {
-    listParseableProjectFiles,
+    isCodeFile,
     listProjectFiles,
     resolveWorkspacePaths,
 } from '../chartBuildHelper/utils.js';
@@ -34,6 +35,8 @@ export interface BuildDirectoryTreeRegistryOptions {
     registryPath?: string;
     thresholds?: DirectoryCharThresholds;
     parseCache?: ChartParseCache;
+    /** Repository-relative files available as forward dependency targets. */
+    dependencyPaths?: ReadonlySet<string>;
 }
 
 /**
@@ -111,9 +114,15 @@ export async function buildDirectoryTreeRegistry(
         options.registryPath ?? path.join(projectRoot, '.memoryanchor', DIRECTORY_TREE_REGISTRY_NAME)
     );
     const dirGroups = listProjectFiles(projectRoot);
-    const dependencyFiles = listParseableProjectFiles(projectRoot);
     const root = createDirectoryTree(dirGroups.keys());
     const parseCache = options.parseCache ?? new Map();
+    const dependencyPaths = options.dependencyPaths ?? createDependencyPaths(
+        [...dirGroups.values()]
+            .flat()
+            .filter(isCodeFile)
+            .map(file => path.resolve(projectRoot, file)),
+        projectRoot
+    );
 
     // One wide batch gives the pool useful parallel work and prevents reparsing
     // the same files once per registry/chart phase.
@@ -131,7 +140,8 @@ export async function buildDirectoryTreeRegistry(
                 projectRoot,
                 parseCache,
                 'PROJECT CHART',
-                dependencyFiles
+                [],
+                dependencyPaths
             )).length;
         },
         options.thresholds ?? DIRECTORY_CHAR_THRESHOLDS

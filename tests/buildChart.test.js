@@ -291,6 +291,29 @@ test('forward dependencies resolve parseable files outside the rendered chart', 
   await rm(path.join(tempDir, 'src'), { recursive: true, force: true });
 });
 
+test('buildChartContent accepts precomputed repository dependency paths', async () => {
+  await mkdir(path.join(tempDir, 'src'), { recursive: true });
+  await writeFile(path.join(tempDir, 'shared.ts'), 'export function shared() { return 1; }\n');
+  await writeFile(
+    path.join(tempDir, 'src', 'consumer.ts'),
+    'import { shared } from "../shared.js";\nexport function caller() { return shared(); }\n'
+  );
+
+  const chart = await buildChartContent(
+    new Map([['src', ['src/consumer.ts']]]),
+    tempDir,
+    new Map(),
+    'PROJECT CHART',
+    [],
+    new Set(['shared.ts', 'src/consumer.ts'])
+  );
+
+  expect(chart).toContain('### /src/consumer.ts -> shared.ts');
+
+  await rm(path.join(tempDir, 'shared.ts'));
+  await rm(path.join(tempDir, 'src'), { recursive: true, force: true });
+});
+
 test('incremental updates rebuild reverse dependencies for the complete chart whitelist', async () => {
   const fixturesDir = path.join(tempDir, 'tests', 'test-src');
   await writeFile(
