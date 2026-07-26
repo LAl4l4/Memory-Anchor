@@ -82,6 +82,11 @@ test('creates AGENTS.md with memory anchor rules', async () => {
   expect(agents).toContain('At the start of every task, read ./.memoryanchor/chart/.../chart.md');
   expect(agents).toContain('If the agent has any uncertainty about the overall project structure');
   expect(agents).toContain('read the closest matching directory chart listed there');
+  expect(agents).toContain('## Chart Relationship Notation');
+  expect(agents).toContain("'+' marks an exported symbol; '-' marks the default/internal symbol");
+  expect(agents).toContain("'->' lists parseable repository files referenced by a file, including targets outside the current chart.");
+  expect(agents).toContain("'<-' lists current-chart symbols that depend on or call a symbol");
+  expect(agents).toContain("a cross-chart '->' target may not be rendered in this chart");
 });
 
 test('upgrades the managed AGENTS.md block while preserving other instructions', async () => {

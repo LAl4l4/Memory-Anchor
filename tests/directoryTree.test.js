@@ -250,31 +250,31 @@ test('persisted chart edges are restored without recomputing nearest owners', ()
   expect(getRootChartDirectories(restored)).toEqual(['a', 'a/b']);
 });
 
-test('directory char hysteresis splits above 12000 and merges below 9000', () => {
+test('directory char hysteresis splits above 18000 and merges below 14000', () => {
   const splitRoot = createDirectoryTree(['Frontend']);
   const frontend = splitRoot.children[0];
   splitRoot.isSplit = true;
-  splitRoot.thisDirectoryChars = 15000;
+  splitRoot.thisDirectoryChars = 20000;
   frontend.isSplit = false;
-  frontend.thisDirectoryChars = 11900;
+  frontend.thisDirectoryChars = 17900;
 
   const splitBoundary = applyDirectoryCharsDelta(frontend, 101);
   expect(splitBoundary).toBe(frontend);
   expect(frontend.isSplit).toBe(true);
-  expect(frontend.thisDirectoryChars).toBe(12001);
-  expect(splitRoot.thisDirectoryChars).toBe(15101);
+  expect(frontend.thisDirectoryChars).toBe(18001);
+  expect(splitRoot.thisDirectoryChars).toBe(20101);
 
   const mergeRoot = createDirectoryTree(['Frontend']);
   const mergeFrontend = mergeRoot.children[0];
   mergeRoot.isSplit = true;
-  mergeRoot.thisDirectoryChars = 9100;
+  mergeRoot.thisDirectoryChars = 14100;
   mergeFrontend.isSplit = false;
   mergeFrontend.thisDirectoryChars = 2000;
 
   const mergeBoundary = applyDirectoryCharsDelta(mergeFrontend, -101);
   expect(mergeBoundary).toBe(mergeRoot);
   expect(mergeRoot.isSplit).toBe(false);
-  expect(mergeRoot.thisDirectoryChars).toBe(8999);
+  expect(mergeRoot.thisDirectoryChars).toBe(13999);
 });
 
 test('a merge keeps propagating through every eligible ancestor to root', () => {
@@ -282,9 +282,9 @@ test('a merge keeps propagating through every eligible ancestor to root', () => 
   const src = root.children[0];
   const feature = src.children[0];
   root.isSplit = true;
-  root.thisDirectoryChars = 9050;
+  root.thisDirectoryChars = 14050;
   src.isSplit = true;
-  src.thisDirectoryChars = 9025;
+  src.thisDirectoryChars = 14025;
   feature.isSplit = false;
   feature.thisDirectoryChars = 1000;
 
@@ -292,9 +292,9 @@ test('a merge keeps propagating through every eligible ancestor to root', () => 
 
   expect(mergeBoundary).toBe(root);
   expect(feature.thisDirectoryChars).toBe(900);
-  expect(src.thisDirectoryChars).toBe(8925);
+  expect(src.thisDirectoryChars).toBe(13925);
   expect(src.isSplit).toBe(false);
-  expect(root.thisDirectoryChars).toBe(8950);
+  expect(root.thisDirectoryChars).toBe(13950);
   expect(root.isSplit).toBe(false);
 });
 
@@ -318,17 +318,16 @@ test('directory-scoped incremental preflight deduplicates changed files', () => 
   ])).toEqual(['src', 'tests', 'tests/deep']);
 });
 
-test('partition index uses heading blocks, workspace paths, and inferred scopes', () => {
+test('partition index uses workspace paths as heading blocks', () => {
   const index = buildPartitionedChartIndex(['Frontend', 'Backend']);
 
-  expect(index).toContain(`### Frontend
-- path: .memoryanchor/chart/Frontend/chart.md
-- scope: UI, React components, client APIs, state management.`);
-  expect(index).toContain(`### Backend
-- path: .memoryanchor/chart/Backend/chart.md
-- scope: Spring Boot controllers, services, entities, database.`);
+  expect(index).toContain('### .memoryanchor/chart/Frontend/chart.md');
+  expect(index).toContain('### .memoryanchor/chart/Backend/chart.md');
+  expect(index).not.toContain('- path:');
+  expect(index).not.toContain('- scope:');
   expect(index).not.toContain('- [Frontend]');
   expect(index).toContain('How to find the right chart:');
+  expect(index).toContain('whose path is closest to the task');
   expect(index).toContain('follow only the listed paths');
   expect(index).toContain('A non-split frontier');
   expect(index).toContain('Follow only listed paths');
@@ -418,8 +417,7 @@ test('a non-shallow frontier chart recursively scans its selected subtree', asyn
   expect(chart).toContain('buttonFunction');
   expect(chart).not.toContain('backendFunction');
   expect(index).toContain('# Project Chart Index');
-  expect(index).toContain('### Frontend');
-  expect(index).toContain('.memoryanchor/chart/Frontend/chart.md');
+  expect(index).toContain('### .memoryanchor/chart/Frontend/chart.md');
   await expect(readFile(path.join(anchorDir, 'chart.md'), 'utf8'))
     .rejects.toMatchObject({ code: 'ENOENT' });
 });
@@ -732,8 +730,8 @@ test('a nested boundary rebuild leaves unrelated sibling charts untouched', asyn
     path.join(outputRoot, 'Frontend', 'deep', 'chart.md'),
     'utf8'
   );
-  expect(frontendChart).toContain('- /readme.md:');
-  expect(frontendChart).not.toContain('- detail.md:');
+  expect(frontendChart).toContain('- /readme.md\n');
+  expect(frontendChart).not.toContain('- detail.md\n');
   expect(frontendChart).toContain('.memoryanchor/chart/Frontend/deep/chart.md');
-  expect(deepChart).toContain('- /detail.md:');
+  expect(deepChart).toContain('- /detail.md\n');
 });

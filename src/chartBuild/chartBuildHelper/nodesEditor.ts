@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { formatSymbol, batchParseFiles } from './ASTParser.js';
+import { getResolvedDependencyPaths } from './dependencyGraph.js';
 import { FileNode } from './symbolExtractor.js';
 import { CHART_PATH, PROJECT_ROOT } from './utils.js';
 import { getSkeletonFileOrder, addFileToSkeleton, removeFileFromSkeleton } from './skeletonEditor.js';
@@ -16,13 +17,15 @@ export function buildNodesSection(fileNodes: FileNode[]): string {
             exp => exp.type !== 'error'
         );
 
+        const dependencies = getResolvedDependencyPaths(fileNode);
+        const dependencySuffix = dependencies.length > 0 ? ` -> ${dependencies.join('; ')}` : '';
+        nodesSection += `### /${fileNode.relativePath}${dependencySuffix}\n`;
         if (validSymbols.length > 0) {
-            nodesSection += `### /${fileNode.relativePath}\n`;
             validSymbols.forEach((exp) => {
                 nodesSection += `${formatSymbol(exp)}\n`;
             });
-            nodesSection += '\n';
         }
+        nodesSection += '\n';
     }
     return nodesSection;
 }
@@ -63,7 +66,7 @@ export function classifyChangedFiles(
 // =============================================================================
 
 export function parseNodeBlocksToMap(nodesSection: string): Map<string, string> {
-    const blockRegex = /### (\/[^\n]+)\n((?:- [^\n]*\n?)*)/g;
+    const blockRegex = /### (\/[^\n]+?)(?: -> [^\n]+)?\n((?:[+-] [^\n]*\n?)*)/g;
     const map = new Map<string, string>();
     let match;
     while ((match = blockRegex.exec(nodesSection)) !== null) {

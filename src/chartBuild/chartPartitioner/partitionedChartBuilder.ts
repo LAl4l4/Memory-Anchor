@@ -2,7 +2,11 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { destroyPool } from '../chartBuildHelper/ASTParser.js';
 import { buildChartContent, ChartParseCache } from '../chartBuildHelper/chartContentBuilder.js';
-import { listProjectFiles, resolveWorkspacePaths } from '../chartBuildHelper/utils.js';
+import {
+    listParseableProjectFiles,
+    listProjectFiles,
+    resolveWorkspacePaths,
+} from '../chartBuildHelper/utils.js';
 import {
     buildDirectoryTreeRegistry,
     BuildDirectoryTreeRegistryOptions,
@@ -24,6 +28,8 @@ export interface CreatePartitionedChartsOptions {
     chartChildren?: ReadonlyMap<string, readonly string[]>;
     /** First virtual-chart layer to expose in index.md. */
     rootDirectories?: readonly string[];
+    /** Absolute paths available as forward dependency targets. */
+    dependencyFiles?: readonly string[];
 }
 
 export interface ChartTopologySnapshot {
@@ -65,73 +71,13 @@ function validateDirectory(directory: string): void {
     }
 }
 
-enum ScopeState {
-    Frontend,
-    Backend,
-    Crawler,
-    Tests,
-    Assets,
-    Parser,
-    Source,
-    Root,
-    Generic,
-}
-
-function classifyScopeState(directory: string): ScopeState {
-    if (directory === '.') return ScopeState.Root;
-
-    const normalized = directory.toLowerCase();
-    if (/(^|\/)(frontend|client|ui|web)(\/|$)/.test(normalized)) return ScopeState.Frontend;
-    if (/(^|\/)(backend|server)(\/|$)/.test(normalized)) return ScopeState.Backend;
-    if (/(^|\/)(crawler|spider|scraper)(\/|$)/.test(normalized)) return ScopeState.Crawler;
-    if (/(^|\/)(tests?|specs?)(\/|$)/.test(normalized)) return ScopeState.Tests;
-    if (/(^|\/)(assets?|resources?|public)(\/|$)/.test(normalized)) return ScopeState.Assets;
-    if (normalized.includes('parser') || normalized.includes('grammar')) return ScopeState.Parser;
-    if (/(^|\/)src(\/|$)/.test(normalized)) return ScopeState.Source;
-    return ScopeState.Generic;
-}
-
-function describeScope(state: ScopeState): string {
-    switch (state) {
-        case ScopeState.Frontend:
-            return 'UI, React components, client APIs, state management.';
-        case ScopeState.Backend:
-            return 'Spring Boot controllers, services, entities, database.';
-        case ScopeState.Crawler:
-            return 'Crawlers, scraping workflows, data extraction, ingestion.';
-        case ScopeState.Tests:
-            return 'Automated tests, fixtures, and verification workflows.';
-        case ScopeState.Assets:
-            return 'Static assets and project resources.';
-        case ScopeState.Parser:
-            return 'Parser runtimes, language grammars, and syntax-analysis resources.';
-        case ScopeState.Source:
-            return 'Core source code and application implementation.';
-        case ScopeState.Root:
-            return 'Repository-wide architecture and project configuration.';
-        case ScopeState.Generic:
-            return 'Architecture and implementation for this directory.';
-        default:
-            throw new Error(`Cannot describe incomplete scope state '${state}'`);
-    }
-}
-
-/** Temporary scope inference; a dedicated scope builder comes later. */
-export function inferPartitionScope(directory: string): string {
-    return describeScope(classifyScopeState(directory));
-}
-
 function getChartWorkspacePath(directory: string): string {
     const chartDirectory = directory === '.' ? '' : `${directory}/`;
     return `.memoryanchor/chart/${chartDirectory}chart.md`;
 }
 
 function buildChartReference(directory: string): string {
-    const label = directory === '.' ? 'Root' : directory;
-
-    return `### ${label}
-- path: ${getChartWorkspacePath(directory)}
-- scope: ${inferPartitionScope(directory)}`;
+    return `### ${getChartWorkspacePath(directory)}`;
 }
 
 function buildChildChartsSection(directories: readonly string[]): string {
@@ -177,7 +123,8 @@ async function writePartitionedChart(
     outputRoot: string,
     parseCache?: ChartParseCache,
     childCharts: readonly string[] = [],
-    shallow = false
+    shallow = false,
+    dependencyFiles: readonly string[] = []
 ): Promise<string> {
     validateDirectory(directory);
     const sourceDirectory = resolveSourceDirectory(projectRoot, directory);
@@ -190,7 +137,8 @@ async function writePartitionedChart(
         dirGroups,
         sourceDirectory,
         parseCache,
-        `CHART AT ${getChartWorkspacePath(directory)}`
+        `CHART AT ${getChartWorkspacePath(directory)}`,
+        dependencyFiles
     );
     const childChartsSection = buildChildChartsSection(childCharts);
     const chartContent = childChartsSection
@@ -217,7 +165,8 @@ async function writeChartSet(
             outputRoot,
             options.parseCache,
             options.chartChildren?.get(directory) ?? [],
-            options.shallowDirectories?.has(directory) ?? false
+            options.shallowDirectories?.has(directory) ?? false,
+            options.dependencyFiles ?? listParseableProjectFiles(projectRoot)
         ));
     }
     return chartPaths;
@@ -239,7 +188,7 @@ export function buildPartitionedChartIndex(directories: readonly string[]): stri
 How to find the right chart:
 
 1. Start with the chart paths listed under Root Partitions.
-2. Open the chart whose scope is closest to the task.
+2. Open the chart whose path is closest to the task.
 3. Read that chart's Child Charts section and follow only the listed paths
    when the task belongs to a more specific area.
 4. Repeat until the current chart is the closest match. Every chart exposes
@@ -268,6 +217,7 @@ export async function createPartitionedCharts(
     const anchorDirectory = path.dirname(outputRoot);
     const legacyChartPath = path.join(anchorDirectory, 'chart.md');
     const selectedDirectories = [...new Set(directories)];
+    const dependencyFiles = options.dependencyFiles ?? listParseableProjectFiles(projectRoot);
 
     for (const directory of selectedDirectories) validateDirectory(directory);
 
@@ -278,7 +228,7 @@ export async function createPartitionedCharts(
         selectedDirectories,
         projectRoot,
         outputRoot,
-        options
+        { ...options, dependencyFiles }
     );
 
     fs.rmSync(legacyChartPath, { force: true });
@@ -373,7 +323,10 @@ export async function rebuildPartitionBoundary(
         rebuildDirectories,
         projectRoot,
         outputRoot,
-        getTopologyChartOptions(nextTopology, parseCache)
+        {
+            ...getTopologyChartOptions(nextTopology, parseCache),
+            dependencyFiles: listParseableProjectFiles(projectRoot),
+        }
     );
 
     writePartitionIndex(projectRoot, nextTopology.rootDirectories);

@@ -50,12 +50,12 @@ export async function parseFileArchitecture(
     const lang = EXT_TO_LANGUAGE[ext];
 
     if (!lang) {
-        return { relativePath, language: '', symbols: [] };
+        return { relativePath, language: '', symbols: [], dependencies: [], calls: [] };
     }
 
     const availableParsers = getAvailableParsers();
     if (!availableParsers.has(lang)) {
-        return { relativePath, language: '', symbols: [] };
+        return { relativePath, language: '', symbols: [], dependencies: [], calls: [] };
     }
 
     // Ensure pool is initialized
@@ -69,7 +69,17 @@ export async function parseFileArchitecture(
         return {
             relativePath,
             language: lang,
-            symbols: [{ type: "error", name: String(err) }]
+            symbols: [{
+                type: "error",
+                name: String(err),
+                startIndex: 0,
+                endIndex: 0,
+                startLine: 1,
+                endLine: 1,
+                dependedOnBy: [],
+            }],
+            dependencies: [],
+            calls: [],
         };
     }
 }
@@ -91,6 +101,8 @@ export async function batchParseFiles(
             relativePath,
             language: lang && availableParsers.has(lang) ? lang : '',
             symbols: [],
+            dependencies: [],
+            calls: [],
         };
     });
 
@@ -117,38 +129,57 @@ export async function batchParseFiles(
 }
 
 export function formatSymbol(exp: FileSymbol): string {
+    let formatted: string;
+    const lineRange = `[L${exp.startLine}-${exp.endLine}]`;
     switch (exp.type) {
         case 'function_declaration':
-            return `- function ${exp.name}()`;
+            formatted = `- ${exp.name}() ${lineRange}`;
+            break;
 
         case 'class_declaration':
-            return `- class ${exp.name}`;
+            formatted = `- class ${exp.name} ${lineRange}`;
+            break;
 
         case 'interface_declaration':
-            return `- interface ${exp.name}`;
+            formatted = `- interface ${exp.name} ${lineRange}`;
+            break;
 
         case 'enum_declaration':
-            return `- enum ${exp.name}`;
+            formatted = `- enum ${exp.name} ${lineRange}`;
+            break;
 
         case 'type_declaration':
-            return `- type ${exp.name}`;
+            formatted = `- type ${exp.name} ${lineRange}`;
+            break;
 
         case 'exported_function_declaration':
-            return `- export function ${exp.name}()`;
+            formatted = `+ ${exp.name}${exp.parameters ?? '()'}${
+                exp.returnType ? `: ${exp.returnType}` : ''
+            } ${lineRange}`;
+            break;
 
         case 'exported_class_declaration':
-            return `- export class ${exp.name}`;
+            formatted = `+ export class ${exp.name} ${lineRange}`;
+            break;
 
         case 'exported_interface_declaration':
-            return `- export interface ${exp.name}`;
+            formatted = `+ export interface ${exp.name} ${lineRange}`;
+            break;
 
         case 'exported_enum_declaration':
-            return `- export enum ${exp.name}`;
+            formatted = `+ export enum ${exp.name} ${lineRange}`;
+            break;
 
         case 'exported_type_declaration':
-            return `- export type ${exp.name}`;
+            formatted = `+ export type ${exp.name} ${lineRange}`;
+            break;
 
         default:
-            return `- ${exp.name}`;
+            formatted = `- ${exp.name} ${lineRange}`;
     }
+
+    const withReverseDependencies = exp.dependedOnBy.length > 0
+        ? `${formatted} <- ${exp.dependedOnBy.join('; ')}`
+        : formatted;
+    return withReverseDependencies;
 }

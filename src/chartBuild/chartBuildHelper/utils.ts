@@ -94,6 +94,14 @@ export function listProjectFiles(
     return dirGroups;
 }
 
+/** Return absolute paths for every repository file supported by a parser. */
+export function listParseableProjectFiles(projectRoot: string = PROJECT_ROOT): string[] {
+    return [...listProjectFiles(projectRoot).values()]
+        .flat()
+        .filter(isCodeFile)
+        .map(file => path.resolve(projectRoot, file));
+}
+
 /** Check direct file ownership without paying for a glob traversal. */
 export function hasDirectProjectFiles(directory: string): boolean {
     let entries: fs.Dirent[];

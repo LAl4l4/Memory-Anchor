@@ -24,7 +24,7 @@ Memory Anchor keeps its generated state under `.memoryanchor/`:
 | Path | Purpose |
 | --- | --- |
 | `.memoryanchor/index.md` | Small repository-level index that routes an agent to the closest chart partition. |
-| `.memoryanchor/chart/**/chart.md` | Directory-scoped architecture charts containing a skeleton and extracted symbols. |
+| `.memoryanchor/chart/**/chart.md` | Directory-scoped architecture charts containing a dependency skeleton, extracted symbols, and in-chart reverse symbol dependencies. |
 | `.memoryanchor/dirTree.json` | Internal directory topology, aggregate character counts, and split state used by incremental updates. |
 | `.memoryanchor/ballast.md` | Durable default and repository-specific rules. |
 | `.memoryanchor/manifest.md` | Module status, known issues, dependencies, and architectural decisions. |
@@ -40,7 +40,7 @@ During a full build it:
 
 1. Scans directories deepest-first.
 2. Generates architecture content with tree-sitter and records aggregate character counts.
-3. Splits directory subtrees above `12000` characters.
+3. Splits directory subtrees above `18000` characters.
 4. Writes one chart for every first non-split directory on each branch.
 5. Writes `.memoryanchor/index.md` as the routing layer for those charts.
 
@@ -76,9 +76,9 @@ For each changed file, the updater:
 
 The thresholds are:
 
-- Split when a non-split directory grows above `12000` characters.
-- Merge when a split directory shrinks below `9000` characters.
-- Keep the current state inside the neutral `9000–12000` band.
+- Split when a non-split directory grows above `18000` characters.
+- Merge when a split directory shrinks below `14000` characters.
+- Keep the current state inside the neutral `14000–18000` band.
 
 Growth stops structural propagation after the first split; higher ancestors only need updated metadata. Shrinkage continues checking merge eligibility through the root because a merge can cascade upward. When several ancestors merge, only the highest merged boundary is rebuilt because that rebuild already includes every lower subtree.
 

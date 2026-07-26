@@ -11,12 +11,39 @@ import {
 export interface FileSymbol {
     type: string;
     name: string;
+    startIndex: number;
+    endIndex: number;
+    startLine: number;
+    endLine: number;
+    /** Present only for exported functions, where it can avoid a source read. */
+    parameters?: string;
+    /** Present only for exported functions with an explicit source annotation. */
+    returnType?: string;
+    dependedOnBy: string[];
+}
+
+export interface FileDependencyBinding {
+    imported: string;
+    local: string;
+}
+
+export interface FileDependency {
+    source: string;
+    bindings: FileDependencyBinding[];
+    resolvedPath?: string;
+}
+
+export interface FileCall {
+    name: string;
+    startIndex: number;
 }
 
 export interface FileNode {
     relativePath: string;
     language: string;
     symbols: FileSymbol[];
+    dependencies: FileDependency[];
+    calls: FileCall[];
 }
 
 export function extractSymbols(node: any, fileNode: FileNode) {
@@ -78,7 +105,20 @@ export function getSymbolInfo(node: any, lang: string): FileSymbol | null {
         type = 'exported_' + type;
     }
 
-    return { type, name };
+    const signature = isExported && FUNCTION_DECLARATION_TYPES.has(node.type)
+        ? getFunctionSignature(node)
+        : {};
+
+    return {
+        type,
+        name,
+        startIndex: node.startIndex,
+        endIndex: node.endIndex,
+        startLine: node.startPosition.row + 1,
+        endLine: node.endPosition.row + 1,
+        ...signature,
+        dependedOnBy: [],
+    };
 
 }
 
@@ -109,4 +149,153 @@ export function findIdentifier(node: any): any | null {
     }
 
     return null;
+}
+
+function fieldText(node: any, fields: readonly string[]): string | undefined {
+    for (const field of fields) {
+        const value = node.childForFieldName?.(field)?.text;
+        if (value) return value;
+    }
+    return undefined;
+}
+
+/** Extract explicit TypeScript-style function annotations directly from AST fields. */
+function getFunctionSignature(node: any): Pick<FileSymbol, 'parameters' | 'returnType'> {
+    const rawParameters = fieldText(node, ['parameters', 'formal_parameters']);
+    // Parameter names alone do not help an agent call an exported API without
+    // reading it. Retain the list only when it carries source type annotations.
+    const parameters = rawParameters?.includes(':') ? rawParameters : undefined;
+    const rawReturnType = fieldText(node, ['return_type', 'returnType']);
+    const returnType = rawReturnType?.replace(/^\s*:\s*/, '').trim();
+
+    return {
+        ...(parameters ? { parameters } : {}),
+        ...(returnType ? { returnType } : {}),
+    };
+}
+
+function unquote(value: string): string {
+    return value.replace(/^['\"`]|['\"`]$/g, '');
+}
+
+function sourceFromImportNode(node: any): string | null {
+    const sourceNode = node.childForFieldName?.('source');
+    if (sourceNode?.text) return unquote(sourceNode.text);
+
+    const quoted = node.text.match(/['\"]([^'\"]+)['\"]/);
+    if (quoted) return quoted[1];
+
+    const pythonFrom = node.text.match(/^\s*from\s+([\w.]+)/m);
+    return pythonFrom?.[1] ?? null;
+}
+
+function bindingsFromImportNode(node: any, source: string): FileDependencyBinding[] {
+    const text = node.text;
+    const bindings: FileDependencyBinding[] = [];
+    const named = text.match(/\{([\s\S]*?)\}/);
+
+    if (named) {
+        for (const part of named[1].split(',')) {
+            const [imported, local = imported] = part.trim().split(/\s+as\s+/);
+            if (imported) bindings.push({ imported, local });
+        }
+    }
+
+    const pythonFrom = text.match(/^\s*from\s+[\w.]+\s+import\s+(.+)$/m);
+    if (pythonFrom) {
+        for (const part of pythonFrom[1].split(',')) {
+            const [imported, local = imported] = part.trim().split(/\s+as\s+/);
+            if (imported && imported !== '*') bindings.push({ imported, local });
+        }
+    }
+
+    // Default imports do not identify an exported symbol reliably, but the
+    // file-level dependency is still retained through `source`.
+    return bindings;
+}
+
+function callName(node: any): string | null {
+    const functionNode = node.childForFieldName?.('function')
+        ?? node.childForFieldName?.('name')
+        ?? node.namedChildren?.[0];
+    const text = functionNode?.text;
+    return text && /^[A-Za-z_$][\w$]*$/.test(text) ? text : null;
+}
+
+/**
+ * Extract import edges and call sites from the already-parsed Tree-sitter AST.
+ * Resolution deliberately happens later, when the current chart's whitelist
+ * of scanned files is available.
+ */
+export function extractDependencies(root: any, fileNode: FileNode): void {
+    const seenDependencies = new Set<string>();
+    const seenCalls = new Set<string>();
+
+    const visit = (node: any): void => {
+        collectDependencyData(node, fileNode, seenDependencies, seenCalls);
+
+        for (const child of node.namedChildren ?? []) visit(child);
+    };
+
+    visit(root);
+}
+
+function collectDependencyData(
+    node: any,
+    fileNode: FileNode,
+    seenDependencies: Set<string>,
+    seenCalls: Set<string>
+): void {
+    if (
+        node.type === 'import_statement' ||
+        node.type === 'import_declaration' ||
+        node.type === 'import_from_statement' ||
+        node.type === 'preproc_include'
+    ) {
+        const source = sourceFromImportNode(node);
+        if (source && !seenDependencies.has(source)) {
+            seenDependencies.add(source);
+            fileNode.dependencies.push({
+                source,
+                bindings: bindingsFromImportNode(node, source),
+            });
+        }
+    }
+
+    if (node.type === 'call_expression' || node.type === 'method_invocation') {
+        const name = callName(node);
+        const key = `${name ?? ''}:${node.startIndex}`;
+        if (name && !seenCalls.has(key)) {
+            seenCalls.add(key);
+            fileNode.calls.push({ name, startIndex: node.startIndex });
+        }
+    }
+}
+
+/**
+ * Extract every serializable chart fact from one depth-first Tree-sitter walk.
+ * The worker uses this instead of walking the already-parsed tree separately
+ * for symbols and dependency data.
+ */
+export function extractFileArchitecture(root: any, fileNode: FileNode): void {
+    const seenDependencies = new Set<string>();
+    const seenCalls = new Set<string>();
+
+    const visit = (node: any, skipOwnSymbol = false): void => {
+        let symbolInfo: FileSymbol | null = null;
+        if (!skipOwnSymbol) {
+            symbolInfo = getSymbolInfo(node, fileNode.language);
+            if (symbolInfo) fileNode.symbols.push(symbolInfo);
+        }
+        collectDependencyData(node, fileNode, seenDependencies, seenCalls);
+
+        const exportedDeclaration = node.type === 'export_statement'
+            ? node.namedChildren?.find((child: any) => GENERIC_DECLARATIONS.has(child.type))
+            : undefined;
+        for (const child of node.namedChildren ?? []) {
+            visit(child, child === exportedDeclaration && symbolInfo !== null);
+        }
+    };
+
+    visit(root);
 }

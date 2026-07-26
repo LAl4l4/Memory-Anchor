@@ -1,9 +1,10 @@
 import * as path from 'node:path';
 import { batchParseFiles } from './ASTParser.js';
+import { buildChartDependencyGraph } from './dependencyGraph.js';
 import { buildNodesSection } from './nodesEditor.js';
 import { buildSkeletonSection } from './skeletonEditor.js';
 import { FileNode } from './symbolExtractor.js';
-import { PROJECT_ROOT } from './utils.js';
+import { listParseableProjectFiles, PROJECT_ROOT } from './utils.js';
 
 export type ChartParseCache = Map<string, FileNode>;
 
@@ -53,15 +54,22 @@ export async function buildChartContent(
     dirGroups: Map<string, string[]>,
     projectRoot: string = PROJECT_ROOT,
     parseCache: ChartParseCache = new Map(),
-    chartHeading: string = 'PROJECT CHART'
+    chartHeading: string = 'PROJECT CHART',
+    dependencyFiles: readonly string[] = listParseableProjectFiles(projectRoot)
 ): Promise<string> {
-    const skeletonSection = buildSkeletonSection(dirGroups);
     const chartFiles = getChartFiles(dirGroups, projectRoot);
     await primeChartParseCache(dirGroups, projectRoot, parseCache);
-    const fileNodes = chartFiles.map(({ absolutePath, relativePath }) => ({
-        ...parseCache.get(absolutePath)!,
-        relativePath,
-    }));
+    const dependencyPaths = new Set(dependencyFiles.map(file =>
+        path.relative(projectRoot, file).split(path.sep).join('/')
+    ));
+    const fileNodes = buildChartDependencyGraph(
+        chartFiles.map(({ absolutePath, relativePath }) => ({
+            ...parseCache.get(absolutePath)!,
+            relativePath,
+        })),
+        dependencyPaths
+    );
+    const skeletonSection = buildSkeletonSection(dirGroups, fileNodes);
     const nodesSection = buildNodesSection(fileNodes);
 
     return `# ${chartHeading}\n\n${skeletonSection}\n\n${nodesSection}`;

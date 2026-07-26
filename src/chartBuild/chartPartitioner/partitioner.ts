@@ -6,7 +6,11 @@ import {
     ChartParseCache,
     primeChartParseCache,
 } from '../chartBuildHelper/chartContentBuilder.js';
-import { listProjectFiles, resolveWorkspacePaths } from '../chartBuildHelper/utils.js';
+import {
+    listParseableProjectFiles,
+    listProjectFiles,
+    resolveWorkspacePaths,
+} from '../chartBuildHelper/utils.js';
 import {
     createDirectoryTree,
     DIRECTORY_CHAR_THRESHOLDS,
@@ -107,6 +111,7 @@ export async function buildDirectoryTreeRegistry(
         options.registryPath ?? path.join(projectRoot, '.memoryanchor', DIRECTORY_TREE_REGISTRY_NAME)
     );
     const dirGroups = listProjectFiles(projectRoot);
+    const dependencyFiles = listParseableProjectFiles(projectRoot);
     const root = createDirectoryTree(dirGroups.keys());
     const parseCache = options.parseCache ?? new Map();
 
@@ -121,7 +126,13 @@ export async function buildDirectoryTreeRegistry(
             if (!files || files.length === 0) return 0;
 
             const directoryGroup = new Map<string, string[]>([[directory, files]]);
-            return (await buildChartContent(directoryGroup, projectRoot, parseCache)).length;
+            return (await buildChartContent(
+                directoryGroup,
+                projectRoot,
+                parseCache,
+                'PROJECT CHART',
+                dependencyFiles
+            )).length;
         },
         options.thresholds ?? DIRECTORY_CHAR_THRESHOLDS
     );

@@ -4,8 +4,8 @@ export interface DirectoryCharThresholds {
 }
 
 export const DIRECTORY_CHAR_THRESHOLDS: Readonly<DirectoryCharThresholds> = {
-    splitAt: 12000,
-    mergeAt: 9000,
+    splitAt: 18000,
+    mergeAt: 14000,
 };
 
 const CHART_TOPOLOGY_VERSION = 2;

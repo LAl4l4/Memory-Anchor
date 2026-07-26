@@ -2,7 +2,7 @@ import * as fs from 'fs';
 import { parentPort } from 'worker_threads';
 import { Parser, type Tree } from "web-tree-sitter";
 import { loadLanguage } from '../parser-loader.js';
-import { extractSymbols, FileNode } from './symbolExtractor.js';
+import { extractFileArchitecture, FileNode } from './symbolExtractor.js';
 
 // Per-worker state: init once, reuse parser across tasks
 await Parser.init();
@@ -37,7 +37,9 @@ parentPort!.on('message', async (msg: { absolutePath: string; relativePath: stri
                 fileNode: {
                     relativePath,
                     language: lang,
-                    symbols: []
+                    symbols: [],
+                    dependencies: [],
+                    calls: [],
                 } satisfies FileNode
             });
             return;
@@ -46,10 +48,12 @@ parentPort!.on('message', async (msg: { absolutePath: string; relativePath: stri
         const fileNode: FileNode = {
             relativePath,
             language: lang,
-            symbols: []
+            symbols: [],
+            dependencies: [],
+            calls: [],
         };
 
-        extractSymbols(tree.rootNode, fileNode);
+        extractFileArchitecture(tree.rootNode, fileNode);
 
         parentPort!.postMessage({ fileNode });
     } catch (err) {
@@ -57,7 +61,17 @@ parentPort!.on('message', async (msg: { absolutePath: string; relativePath: stri
             fileNode: {
                 relativePath,
                 language: lang,
-                symbols: [{ type: "error", name: String(err) }]
+                symbols: [{
+                    type: "error",
+                    name: String(err),
+                    startIndex: 0,
+                    endIndex: 0,
+                    startLine: 1,
+                    endLine: 1,
+                    dependedOnBy: [],
+                }],
+                dependencies: [],
+                calls: [],
             }
         });
     } finally {

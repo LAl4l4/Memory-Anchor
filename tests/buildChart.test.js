@@ -33,10 +33,10 @@ const fixtureRelPaths = fixtures.map(({ file }) =>
 );
 
 const expectedExports = new Map([
-  [path.posix.join('tests', 'test-src', 'sample.c'), ['- function add()']],
-  [path.posix.join('tests', 'test-src', 'sample.py'), ['- function greet()']],
-  [path.posix.join('tests', 'test-src', 'sample.js'), ['- export function add()']],
-  [path.posix.join('tests', 'test-src', 'sample.ts'), ['- export function add()']]
+  [path.posix.join('tests', 'test-src', 'sample.c'), ['- add()']],
+  [path.posix.join('tests', 'test-src', 'sample.py'), ['- greet()']],
+  [path.posix.join('tests', 'test-src', 'sample.js'), ['+ add()']],
+  [path.posix.join('tests', 'test-src', 'sample.ts'), ['+ add(a: number, b: number): number [L1-3]']]
 ]);
 const incrementalRelPaths = Array.from(expectedExports.keys());
 
@@ -46,7 +46,7 @@ function escapeRegExp(value) {
 
 function getNodeBlock(chartContent, relPath) {
   const matcher = new RegExp(
-    `### \\/${escapeRegExp(relPath)}\\n([\\s\\S]*?)(?=\\n### \\/|$)`
+    `### \\/${escapeRegExp(relPath)}(?: -> [^\\n]+)?\\n([\\s\\S]*?)(?=\\n### \\/|$)`
   );
   const match = chartContent.match(matcher);
   return match ? match[1] : null;
@@ -106,12 +106,103 @@ test('buildChartFull includes fixture paths in the skeleton', async () => {
   const chartContent = await readFile(chartPath, 'utf8');
   const normalizedChart = chartContent.replace(/\\/g, '/');
 
-  expect(indexContent).toContain('### Root');
-  expect(indexContent).toContain('.memoryanchor/chart/chart.md');
+  expect(indexContent).toContain('### .memoryanchor/chart/chart.md');
   expect(normalizedChart).toContain('### tests/test-src/');
   for (const { file } of fixtures) {
-    expect(normalizedChart).toContain(`- ${file}:`);
+    expect(normalizedChart).toContain(`- ${file}\n`);
   }
+  expect(normalizedChart).toContain('### /tests/test-src/sample.c\n');
+  expect(normalizedChart).not.toContain('dependencies:');
+  expect(normalizedChart).not.toContain('none');
+});
+
+test('chart uses in-chart Tree-sitter imports and emits symbol reverse dependencies', async () => {
+  const fixturesDir = path.join(tempDir, 'tests', 'test-src');
+  await writeFile(
+    path.join(fixturesDir, 'dependency.ts'),
+    'export function shared() { return 1; }\n'
+  );
+  await writeFile(
+    path.join(fixturesDir, 'consumer.ts'),
+    'import { unused } from "external-package";\nimport { shared } from "./dependency.js";\nexport function caller() { return shared(); }\n'
+  );
+
+  await buildChartFull();
+
+  const chartContent = (await readFile(chartPath, 'utf8')).replace(/\\/g, '/');
+  expect(chartContent).toContain('### /tests/test-src/consumer.ts -> tests/test-src/dependency.ts');
+  expect(chartContent).toContain('+ shared() [L1-1] <- caller()');
+  expect(chartContent).not.toContain('external-package');
+  expect(chartContent).not.toContain('Source code module.');
+});
+
+test('forward dependencies resolve parseable files outside the rendered chart', async () => {
+  await mkdir(path.join(tempDir, 'src'), { recursive: true });
+  await writeFile(path.join(tempDir, 'shared.ts'), 'export function shared() { return 1; }\n');
+  await writeFile(
+    path.join(tempDir, 'src', 'consumer.ts'),
+    'import { shared } from "../shared.js";\nexport function caller() { return shared(); }\n'
+  );
+
+  const chart = await buildChartContent(
+    new Map([['src', ['src/consumer.ts']]]),
+    tempDir,
+  );
+
+  expect(chart).toContain('### /src/consumer.ts -> shared.ts');
+  expect(chart).not.toContain('### /shared.ts');
+  expect(chart).not.toContain('<- caller()');
+
+  await rm(path.join(tempDir, 'shared.ts'));
+  await rm(path.join(tempDir, 'src'), { recursive: true, force: true });
+});
+
+test('incremental updates rebuild reverse dependencies for the complete chart whitelist', async () => {
+  const fixturesDir = path.join(tempDir, 'tests', 'test-src');
+  await writeFile(
+    path.join(fixturesDir, 'dependency.ts'),
+    'export function shared() { return 1; }\n'
+  );
+  await writeFile(
+    path.join(fixturesDir, 'consumer.ts'),
+    'import { shared } from "./dependency.js";\nexport function caller() { return shared(); }\n'
+  );
+  await buildChartFull();
+
+  await writeFile(
+    path.join(fixturesDir, 'consumer.ts'),
+    'import { shared } from "./dependency.js";\nexport function caller() { return 2; }\n'
+  );
+  await updateChartIncrementally(['tests/test-src/consumer.ts']);
+
+  const chartContent = (await readFile(chartPath, 'utf8')).replace(/\\/g, '/');
+  expect(chartContent).toContain('### /tests/test-src/consumer.ts -> tests/test-src/dependency.ts');
+  expect(chartContent).not.toContain('+ shared() [L1-1] <- caller()');
+});
+
+test('exports include source signatures while internal symbols retain only location', async () => {
+  const fixturesDir = path.join(tempDir, 'tests', 'test-src');
+  await writeFile(
+    path.join(fixturesDir, 'signature.ts'),
+    '/** Public entry point. Extra implementation detail. */\n' +
+      'export function publish(value: string, count: number): Promise<boolean> {\n' +
+      '  return Promise.resolve(value.length === count);\n' +
+      '}\n' +
+      '\n' +
+      '/** Internal helper. */\n' +
+      'function helper(value: boolean): string { return String(value); }\n'
+  );
+
+  await buildChartFull();
+
+  const chartContent = await readFile(chartPath, 'utf8');
+  expect(chartContent).toContain(
+    '+ publish(value: string, count: number): Promise<boolean> [L2-4]'
+  );
+  expect(chartContent).toContain('- helper() [L7-7]');
+  expect(chartContent).not.toContain('helper(value: boolean)');
+  expect(chartContent).not.toContain('Public entry point.');
+  expect(chartContent).not.toContain('Internal helper.');
 });
 
 test('ParserWorkerPool queues the full batch while lazily bounding workers', async () => {
@@ -209,7 +300,7 @@ test('updateChartIncrementally edits the matching partition and updates chars', 
 
   const chartContent = await readFile(chartPath, 'utf8');
   const registryAfter = JSON.parse(await readFile(registryPath, 'utf8'));
-  expect(chartContent).toContain('- export function newlyAdded()');
+  expect(chartContent).toContain('+ newlyAdded(): string');
   expect(registryAfter.thisDirectoryChars).toBeGreaterThan(
     registryBefore.thisDirectoryChars
   );

@@ -36,3 +36,11 @@ threadpool can reinit the worker. And remove some duplicated redundent autotests
 
 - `2026/07/24`:
     - Add non-blocking per-user-prompt chart reminders for Claude, Codex, CodeBuddy, Qoder, Copilot, and OpenCode. OpenCode's plugin is now type-checked and compiled from TypeScript before init copies the generated JavaScript into the workspace.
+
+- `2026/07/24`:
+    - 需要增加hook 触发测试，通过真实输入opencode启动agent，输入命令启动测试，然后ctrl+c退出测试是否真的成功调用了hook
+
+- `2026/07/26`:
+    - Enrich generated chart nodes from the existing single Tree-sitter traversal: charts now show repository-wide file dependencies (`->`), chart-local imported-symbol reverse callers (`<-`), export/internal visibility (`+` / `-`), source line ranges, and source-declared types for exported functions. The relationship legend is injected once through generated `AGENTS.md`; source comment summaries and unresolved external package dependencies are deliberately omitted.
+    - Resolve file-heading `->` edges against every parseable repository file, including cross-chart targets, because they serve as low-cost module-coupling navigation. Keep `<-` edges chart-local and attach them only to the referenced function or symbol: file-level reverse edges blur which declaration is used, create misleading impact sets for multi-symbol files, and add unnecessary work and output during incremental refreshes.
+    - Raise partition hysteresis thresholds to `{ splitAt: 18000, mergeAt: 14000 }`, reducing chart fragmentation while retaining a 4,000-character merge buffer.

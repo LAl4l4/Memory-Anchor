@@ -1,52 +1,59 @@
 import * as path from 'path';
-import { isCodeFile, getSemanticHint, escapeRegex } from './utils.js';
+import { getResolvedDependencyPaths } from './dependencyGraph.js';
+import { FileNode } from './symbolExtractor.js';
+import { escapeRegex } from './utils.js';
 
 /**
  * Generate directory-grouped file skeleton from pre-built dir-to-files mapping.
  * - Root-level files (.) are listed directly without a heading.
- * - Subdirectories with code files get a ### heading and list basenames with hints.
- * - Subdirectories without code files get a ### heading and a generic "resources" note.
+ * - Subdirectories get a ### heading and list their basenames with in-chart dependencies.
  * - Directories are listed recursively — each directory containing files gets its own section.
  */
-export function generateTreeSkeleton(dirGroups: Map<string, string[]>): string {
+function formatDependencySuffix(fileNode: FileNode | undefined): string {
+    const dependencies = fileNode ? getResolvedDependencyPaths(fileNode) : [];
+    return dependencies.length > 0 ? ` -> ${dependencies.join('; ')}` : '';
+}
+
+export function generateTreeSkeleton(
+    dirGroups: Map<string, string[]>,
+    fileNodes: readonly FileNode[] = []
+): string {
     // Sort directories depth-first (parent before children, then alphabetically)
     const sortedDirs = [...dirGroups.keys()].sort((a, b) => a.localeCompare(b));
 
+    const nodesByPath = new Map(fileNodes.map(fileNode => [fileNode.relativePath, fileNode]));
     let skeletonStr = "";
 
     for (const dir of sortedDirs) {
         const dirFiles = dirGroups.get(dir)!.sort();
 
-        const hasCodeFile = dirFiles.some((f) => isCodeFile(f));
-
         if (dir === '.') {
             // Root-level files — no heading, use full path
             for (const file of dirFiles) {
-                skeletonStr += `- /${file}: ${getSemanticHint(file)}\n`;
+                skeletonStr += `- /${file}${formatDependencySuffix(nodesByPath.get(file))}\n`;
             }
             if (dirFiles.length > 0) {
                 skeletonStr += '\n';
             }
-        } else if (hasCodeFile) {
+        } else {
             skeletonStr += `### ${dir}/\n`;
             for (const file of dirFiles) {
                 const base = path.basename(file);
-                skeletonStr += `- ${base}: ${getSemanticHint(file)}\n`;
+                skeletonStr += `- ${base}${formatDependencySuffix(nodesByPath.get(file))}\n`;
             }
             skeletonStr += '\n';
-        } else {
-            // Directory has files but none are code files
-            skeletonStr += `### ${dir}/\n`;
-            skeletonStr += `- This is resources directory\n\n`;
         }
     }
 
     return skeletonStr.trimEnd();
 }
 
-export function buildSkeletonSection(dirGroups: Map<string, string[]>): string {
+export function buildSkeletonSection(
+    dirGroups: Map<string, string[]>,
+    fileNodes: readonly FileNode[] = []
+): string {
     let skeletonSection = "## 1. Directory Skeleton\n";
-    skeletonSection += generateTreeSkeleton(dirGroups);
+    skeletonSection += generateTreeSkeleton(dirGroups, fileNodes);
     return skeletonSection;
 }
 
@@ -67,8 +74,9 @@ export function getSkeletonFileOrder(skeletonSection: string): string[] {
             continue;
         }
 
-        // Root files: "- /filename: ..."   Dir files: "- basename: ..."
-        const fileMatch = line.match(/^- ([^\s:]+):/);
+        // Root files: "- /filename -> dependency"; directory files follow
+        // the same shape without the leading slash.
+        const fileMatch = line.match(/^- ([^\s]+)(?: -> .*)?$/);
         if (fileMatch) {
             const name = fileMatch[1];
             if (name.startsWith('/')) {
@@ -85,11 +93,10 @@ export function getSkeletonFileOrder(skeletonSection: string): string[] {
 export function addFileToSkeleton(skeletonSection: string, file: string): string {
     const dir = path.dirname(file);
     const base = path.basename(file);
-    const hint = getSemanticHint(file);
 
     if (dir === '.') {
         // Root-level file
-        const rootLine = `- /${base}: ${hint}`;
+        const rootLine = `- /${base}`;
         const lines = skeletonSection.split('\n');
         const titleIndex = lines.findIndex(l => l.startsWith('## 1. Directory Skeleton'));
         let insertIndex = titleIndex + 1;
@@ -107,7 +114,7 @@ export function addFileToSkeleton(skeletonSection: string, file: string): string
     }
 
     // File under a directory
-    const newLine = `- ${base}: ${hint}`;
+    const newLine = `- ${base}`;
     const sectionRegex = new RegExp(`### ${escapeRegex(dir)}/\\n((?:- [^\\n]*\\n)*)`, 'g');
     const sectionMatch = sectionRegex.exec(skeletonSection);
 
@@ -164,7 +171,7 @@ export function removeFileFromSkeleton(skeletonSection: string, file: string): s
 
     if (dir === '.') {
         const escapedFile = escapeRegex(`/${base}`);
-        const lineRegex = new RegExp(`^- ${escapedFile}: [^\\n]*\\n?`, 'gm');
+        const lineRegex = new RegExp(`^- ${escapedFile}(?: -> [^\\n]*)?\\n?`, 'gm');
         return skeletonSection.replace(lineRegex, '');
     }
 
@@ -174,7 +181,7 @@ export function removeFileFromSkeleton(skeletonSection: string, file: string): s
     if (!sectionMatch) return skeletonSection;
 
     const remainingLines = sectionMatch[2].split('\n').filter(
-        l => l.trim() && !l.trim().startsWith(`- ${base}:`)
+        l => l.trim() && !l.trim().startsWith(`- ${base}`)
     );
 
     if (remainingLines.length === 0) {

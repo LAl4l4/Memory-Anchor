@@ -7,8 +7,6 @@ coverage/
 *.log
 
 node_modules/   
-.github
-.github/*
 .npmrc
 .vscode
 .vscode/*
