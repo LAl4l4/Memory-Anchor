@@ -18,12 +18,12 @@ export function createDependencyPaths(
     ));
 }
 
-interface ChartFile {
+export interface ChartFile {
     absolutePath: string;
     relativePath: string;
 }
 
-function getChartFiles(
+export function getChartFiles(
     dirGroups: Map<string, string[]>,
     projectRoot: string
 ): ChartFile[] {
@@ -40,6 +40,18 @@ function getChartFiles(
     }
 
     return files;
+}
+
+/** Materialize a chart-local, independently mutable view of cached AST data. */
+export function getChartFileNodes(
+    dirGroups: Map<string, string[]>,
+    projectRoot: string,
+    parseCache: ReadonlyMap<string, FileNode>
+): FileNode[] {
+    return getChartFiles(dirGroups, projectRoot).map(({ absolutePath, relativePath }) => ({
+        ...parseCache.get(absolutePath)!,
+        relativePath,
+    }));
 }
 
 /** Parse every cache miss in one batch so the lazy worker pool can parallelize it. */
@@ -68,17 +80,28 @@ export async function buildChartContent(
     dependencyFiles: readonly string[] = listParseableProjectFiles(projectRoot),
     dependencyPaths?: ReadonlySet<string>
 ): Promise<string> {
-    const chartFiles = getChartFiles(dirGroups, projectRoot);
     await primeChartParseCache(dirGroups, projectRoot, parseCache);
-    const fileNodes = buildChartDependencyGraph(
-        chartFiles.map(({ absolutePath, relativePath }) => ({
-            ...parseCache.get(absolutePath)!,
-            relativePath,
-        })),
+    return renderChartContent(
+        dirGroups,
+        getChartFileNodes(dirGroups, projectRoot, parseCache),
+        chartHeading,
         dependencyPaths ?? createDependencyPaths(dependencyFiles, projectRoot)
     );
-    const skeletonSection = buildSkeletonSection(dirGroups, fileNodes);
-    const nodesSection = buildNodesSection(fileNodes);
+}
+
+/**
+ * CPU-only chart rendering. Its FileNodes are intentionally mutable because
+ * dependency inversion annotates them; callers must provide task-local nodes.
+ */
+export function renderChartContent(
+    dirGroups: Map<string, string[]>,
+    fileNodes: FileNode[],
+    chartHeading: string,
+    dependencyPaths: ReadonlySet<string>
+): string {
+    const graphNodes = buildChartDependencyGraph(fileNodes, dependencyPaths);
+    const skeletonSection = buildSkeletonSection(dirGroups, graphNodes);
+    const nodesSection = buildNodesSection(graphNodes);
 
     return `# ${chartHeading}\n\n${skeletonSection}\n\n${nodesSection}`;
 }

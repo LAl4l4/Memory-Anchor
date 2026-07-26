@@ -1,7 +1,13 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { destroyPool } from '../chartBuildHelper/ASTParser.js';
-import { buildChartContent, ChartParseCache } from '../chartBuildHelper/chartContentBuilder.js';
+import { destroyPool, WORKER_THREAD_POOL_SIZE } from '../chartBuildHelper/ASTParser.js';
+import {
+    ChartParseCache,
+    getChartFileNodes,
+    primeChartParseCache,
+} from '../chartBuildHelper/chartContentBuilder.js';
+import { ChartWorkerPool } from '../chartBuildHelper/chartPool.js';
+import type { ChartRenderTask } from '../chartBuildHelper/chartWorker.js';
 import {
     listParseableProjectFiles,
     listProjectFiles,
@@ -117,15 +123,14 @@ function getPartitionOutputRoot(projectRoot: string): string {
     return path.join(projectRoot, '.memoryanchor', PARTITIONED_CHART_DIRECTORY_NAME);
 }
 
-async function writePartitionedChart(
+async function preparePartitionedChart(
     directory: string,
     projectRoot: string,
     outputRoot: string,
-    parseCache?: ChartParseCache,
+    parseCache: ChartParseCache,
     childCharts: readonly string[] = [],
-    shallow = false,
-    dependencyFiles: readonly string[] = []
-): Promise<string> {
+    shallow = false
+): Promise<ChartRenderTask> {
     validateDirectory(directory);
     const sourceDirectory = resolveSourceDirectory(projectRoot, directory);
     if (!fs.existsSync(sourceDirectory) || !fs.statSync(sourceDirectory).isDirectory()) {
@@ -133,22 +138,22 @@ async function writePartitionedChart(
     }
 
     const dirGroups = listProjectFiles(sourceDirectory, !shallow);
-    const baseContent = await buildChartContent(
-        dirGroups,
-        sourceDirectory,
-        parseCache,
-        `CHART AT ${getChartWorkspacePath(directory)}`,
-        dependencyFiles
-    );
     const childChartsSection = buildChildChartsSection(childCharts);
-    const chartContent = childChartsSection
-        ? `${baseContent.trimEnd()}\n\n${childChartsSection}\n`
-        : baseContent;
     const chartDirectory = resolveChartDirectory(outputRoot, directory);
     const chartPath = path.join(chartDirectory, 'chart.md');
-    fs.mkdirSync(chartDirectory, { recursive: true });
-    fs.writeFileSync(chartPath, chartContent, 'utf-8');
-    return chartPath;
+    await primeChartParseCache(dirGroups, sourceDirectory, parseCache);
+
+    return {
+        chartPath,
+        sourceDirectory,
+        dirGroups: [...dirGroups.entries()],
+        // Structured-clone into the worker makes each graph inversion task
+        // independent: it cannot mutate the build-scoped parse cache.
+        fileNodes: getChartFileNodes(dirGroups, sourceDirectory, parseCache),
+        chartHeading: `CHART AT ${getChartWorkspacePath(directory)}`,
+        childChartsSection,
+        writeOutput: true,
+    };
 }
 
 async function writeChartSet(
@@ -157,19 +162,29 @@ async function writeChartSet(
     outputRoot: string,
     options: CreatePartitionedChartsOptions
 ): Promise<string[]> {
-    const chartPaths: string[] = [];
+    const parseCache = options.parseCache ?? new Map();
+    const tasks: ChartRenderTask[] = [];
     for (const directory of directories) {
-        chartPaths.push(await writePartitionedChart(
+        tasks.push(await preparePartitionedChart(
             directory,
             projectRoot,
             outputRoot,
-            options.parseCache,
+            parseCache,
             options.chartChildren?.get(directory) ?? [],
-            options.shallowDirectories?.has(directory) ?? false,
-            options.dependencyFiles ?? listParseableProjectFiles(projectRoot)
+            options.shallowDirectories?.has(directory) ?? false
         ));
     }
-    return chartPaths;
+
+    // Each task owns a different chart path. Chart workers therefore perform
+    // reverse-dependency analysis and file writes concurrently without locks.
+    const pool = new ChartWorkerPool(options.dependencyFiles ?? listParseableProjectFiles(projectRoot));
+    try {
+        await pool.init(WORKER_THREAD_POOL_SIZE);
+        const results = await Promise.all(tasks.map(task => pool.render(task)));
+        return results.map(({ chartPath }) => chartPath!);
+    } finally {
+        await pool.destroy();
+    }
 }
 
 function writePartitionIndex(projectRoot: string, directories: readonly string[]): string {

@@ -1,12 +1,14 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { destroyPool } from '../chartBuildHelper/ASTParser.js';
+import { destroyPool, WORKER_THREAD_POOL_SIZE } from '../chartBuildHelper/ASTParser.js';
 import {
-    buildChartContent,
     ChartParseCache,
     createDependencyPaths,
+    getChartFileNodes,
     primeChartParseCache,
 } from '../chartBuildHelper/chartContentBuilder.js';
+import { ChartWorkerPool } from '../chartBuildHelper/chartPool.js';
+import type { ChartRenderTask } from '../chartBuildHelper/chartWorker.js';
 import {
     isCodeFile,
     listProjectFiles,
@@ -116,11 +118,12 @@ export async function buildDirectoryTreeRegistry(
     const dirGroups = listProjectFiles(projectRoot);
     const root = createDirectoryTree(dirGroups.keys());
     const parseCache = options.parseCache ?? new Map();
+    const dependencyFiles = [...dirGroups.values()]
+        .flat()
+        .filter(isCodeFile)
+        .map(file => path.resolve(projectRoot, file));
     const dependencyPaths = options.dependencyPaths ?? createDependencyPaths(
-        [...dirGroups.values()]
-            .flat()
-            .filter(isCodeFile)
-            .map(file => path.resolve(projectRoot, file)),
+        dependencyFiles,
         projectRoot
     );
 
@@ -128,22 +131,42 @@ export async function buildDirectoryTreeRegistry(
     // the same files once per registry/chart phase.
     await primeChartParseCache(dirGroups, projectRoot, parseCache);
 
+    const sizingTasks: { directory: string; task: ChartRenderTask }[] = [];
+    for (const [directory, files] of dirGroups) {
+        if (files.length === 0) continue;
+        const directoryGroup = new Map<string, string[]>([[directory, files]]);
+        sizingTasks.push({
+            directory,
+            task: {
+                sourceDirectory: projectRoot,
+                dirGroups: [...directoryGroup.entries()],
+                fileNodes: getChartFileNodes(directoryGroup, projectRoot, parseCache),
+                chartHeading: 'PROJECT CHART',
+                childChartsSection: '',
+                writeOutput: false,
+                // An explicit caller override must be preserved exactly.
+                dependencyPaths: options.dependencyPaths
+                    ? [...dependencyPaths]
+                    : undefined,
+            },
+        });
+    }
+
+    const directChartLengths = new Map<string, number>();
+    const chartPool = new ChartWorkerPool(dependencyFiles);
+    try {
+        await chartPool.init(WORKER_THREAD_POOL_SIZE);
+        const results = await Promise.all(sizingTasks.map(({ task }) => chartPool.render(task)));
+        sizingTasks.forEach(({ directory }, index) => {
+            directChartLengths.set(directory, results[index].contentLength);
+        });
+    } finally {
+        await chartPool.destroy();
+    }
+
     await scanDirectoryTree(
         root,
-        async (directory) => {
-            const files = dirGroups.get(directory);
-            if (!files || files.length === 0) return 0;
-
-            const directoryGroup = new Map<string, string[]>([[directory, files]]);
-            return (await buildChartContent(
-                directoryGroup,
-                projectRoot,
-                parseCache,
-                'PROJECT CHART',
-                [],
-                dependencyPaths
-            )).length;
-        },
+        async directory => directChartLengths.get(directory) ?? 0,
         options.thresholds ?? DIRECTORY_CHAR_THRESHOLDS
     );
 

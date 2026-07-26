@@ -10,7 +10,7 @@ export type { FileSymbol, FileNode };
 
 // The max amount of worker threads
 const availableParallelism = os.availableParallelism?.() ?? os.cpus().length;
-const THREAD_POOL_SIZE = Math.max(2, availableParallelism - 1);
+export const WORKER_THREAD_POOL_SIZE = Math.max(2, availableParallelism - 1);
 
 let pool: ParserWorkerPool | null = null;
 let poolInitPromise: Promise<void> | null = null;
@@ -21,7 +21,7 @@ export async function ensureParserInit() {
 
     const nextPool = new ParserWorkerPool();
     pool = nextPool;
-    const initPromise = nextPool.init(THREAD_POOL_SIZE);
+    const initPromise = nextPool.init(WORKER_THREAD_POOL_SIZE);
     poolInitPromise = initPromise;
 
     try {
