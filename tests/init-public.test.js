@@ -84,7 +84,7 @@ test('creates AGENTS.md with memory anchor rules', async () => {
   expect(agents).toContain('read the closest matching directory chart listed there');
   expect(agents).toContain('## Chart Relationship Notation');
   expect(agents).toContain("'+' marks an exported symbol; '-' marks the default/internal symbol");
-  expect(agents).toContain("'->' lists parseable repository files referenced by a file, including targets outside the current chart.");
+  expect(agents).toContain("'->' lists parseable repository files referenced by a file, including targets in full repository.");
   expect(agents).toContain("'<-' lists current-chart symbols that depend on or call a symbol");
   expect(agents).toContain("a cross-chart '->' target may not be rendered in this chart");
 });

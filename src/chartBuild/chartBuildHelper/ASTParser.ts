@@ -50,12 +50,12 @@ export async function parseFileArchitecture(
     const lang = EXT_TO_LANGUAGE[ext];
 
     if (!lang) {
-        return { relativePath, language: '', symbols: [], dependencies: [], calls: [] };
+        return { relativePath, language: '', symbols: [], dependencies: [] };
     }
 
     const availableParsers = getAvailableParsers();
     if (!availableParsers.has(lang)) {
-        return { relativePath, language: '', symbols: [], dependencies: [], calls: [] };
+        return { relativePath, language: '', symbols: [], dependencies: [] };
     }
 
     // Ensure pool is initialized
@@ -76,10 +76,10 @@ export async function parseFileArchitecture(
                 endIndex: 0,
                 startLine: 1,
                 endLine: 1,
+                forwardDependencies: [],
                 dependedOnBy: [],
             }],
             dependencies: [],
-            calls: [],
         };
     }
 }
@@ -102,7 +102,6 @@ export async function batchParseFiles(
             language: lang && availableParsers.has(lang) ? lang : '',
             symbols: [],
             dependencies: [],
-            calls: [],
         };
     });
 

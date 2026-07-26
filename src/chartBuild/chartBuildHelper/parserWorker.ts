@@ -39,7 +39,6 @@ parentPort!.on('message', async (msg: { absolutePath: string; relativePath: stri
                     language: lang,
                     symbols: [],
                     dependencies: [],
-                    calls: [],
                 } satisfies FileNode
             });
             return;
@@ -50,7 +49,6 @@ parentPort!.on('message', async (msg: { absolutePath: string; relativePath: stri
             language: lang,
             symbols: [],
             dependencies: [],
-            calls: [],
         };
 
         extractFileArchitecture(tree.rootNode, fileNode);
@@ -68,10 +66,10 @@ parentPort!.on('message', async (msg: { absolutePath: string; relativePath: stri
                     endIndex: 0,
                     startLine: 1,
                     endLine: 1,
+                    forwardDependencies: [],
                     dependedOnBy: [],
                 }],
                 dependencies: [],
-                calls: [],
             }
         });
     } finally {

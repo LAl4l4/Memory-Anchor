@@ -19,6 +19,8 @@ export interface FileSymbol {
     parameters?: string;
     /** Present only for exported functions with an explicit source annotation. */
     returnType?: string;
+    /** Deduplicated bare call names made by this symbol, collected in the AST worker. */
+    forwardDependencies: string[];
     dependedOnBy: string[];
 }
 
@@ -33,17 +35,11 @@ export interface FileDependency {
     resolvedPath?: string;
 }
 
-export interface FileCall {
-    name: string;
-    startIndex: number;
-}
-
 export interface FileNode {
     relativePath: string;
     language: string;
     symbols: FileSymbol[];
     dependencies: FileDependency[];
-    calls: FileCall[];
 }
 
 export function extractSymbols(node: any, fileNode: FileNode) {
@@ -117,6 +113,7 @@ export function getSymbolInfo(node: any, lang: string): FileSymbol | null {
         startLine: node.startPosition.row + 1,
         endLine: node.endPosition.row + 1,
         ...signature,
+        forwardDependencies: [],
         dependedOnBy: [],
     };
 
@@ -222,29 +219,12 @@ function callName(node: any): string | null {
     return text && /^[A-Za-z_$][\w$]*$/.test(text) ? text : null;
 }
 
-/**
- * Extract import edges and call sites from the already-parsed Tree-sitter AST.
- * Resolution deliberately happens later, when the current chart's whitelist
- * of scanned files is available.
- */
-export function extractDependencies(root: any, fileNode: FileNode): void {
-    const seenDependencies = new Set<string>();
-    const seenCalls = new Set<string>();
-
-    const visit = (node: any): void => {
-        collectDependencyData(node, fileNode, seenDependencies, seenCalls);
-
-        for (const child of node.namedChildren ?? []) visit(child);
-    };
-
-    visit(root);
-}
-
 function collectDependencyData(
     node: any,
     fileNode: FileNode,
     seenDependencies: Set<string>,
-    seenCalls: Set<string>
+    containingSymbol: FileSymbol | undefined,
+    seenForwardDependencies: Set<string>
 ): void {
     if (
         node.type === 'import_statement' ||
@@ -264,10 +244,12 @@ function collectDependencyData(
 
     if (node.type === 'call_expression' || node.type === 'method_invocation') {
         const name = callName(node);
-        const key = `${name ?? ''}:${node.startIndex}`;
-        if (name && !seenCalls.has(key)) {
-            seenCalls.add(key);
-            fileNode.calls.push({ name, startIndex: node.startIndex });
+        if (name && containingSymbol) {
+            const key = `${containingSymbol.startIndex}\0${name}`;
+            if (!seenForwardDependencies.has(key)) {
+                seenForwardDependencies.add(key);
+                containingSymbol.forwardDependencies.push(name);
+            }
         }
     }
 }
@@ -279,23 +261,38 @@ function collectDependencyData(
  */
 export function extractFileArchitecture(root: any, fileNode: FileNode): void {
     const seenDependencies = new Set<string>();
-    const seenCalls = new Set<string>();
+    const seenForwardDependencies = new Set<string>();
 
-    const visit = (node: any, skipOwnSymbol = false): void => {
+    const visit = (
+        node: any,
+        containingSymbol: FileSymbol | undefined,
+        skipOwnSymbol = false
+    ): void => {
         let symbolInfo: FileSymbol | null = null;
         if (!skipOwnSymbol) {
             symbolInfo = getSymbolInfo(node, fileNode.language);
             if (symbolInfo) fileNode.symbols.push(symbolInfo);
         }
-        collectDependencyData(node, fileNode, seenDependencies, seenCalls);
+        const currentSymbol = symbolInfo ?? containingSymbol;
+        collectDependencyData(
+            node,
+            fileNode,
+            seenDependencies,
+            currentSymbol,
+            seenForwardDependencies
+        );
 
         const exportedDeclaration = node.type === 'export_statement'
             ? node.namedChildren?.find((child: any) => GENERIC_DECLARATIONS.has(child.type))
             : undefined;
         for (const child of node.namedChildren ?? []) {
-            visit(child, child === exportedDeclaration && symbolInfo !== null);
+            visit(
+                child,
+                currentSymbol,
+                child === exportedDeclaration && symbolInfo !== null
+            );
         }
     };
 
-    visit(root);
+    visit(root, undefined);
 }

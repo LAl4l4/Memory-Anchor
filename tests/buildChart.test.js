@@ -13,6 +13,7 @@ let buildChartFull;
 let updateChartIncrementally;
 let destroyPool;
 let buildChartContent;
+let batchParseFiles;
 let ParserWorkerPool;
 let tempDir = '';
 let anchorDir = '';
@@ -77,6 +78,7 @@ beforeAll(async () => {
 
   ({ buildChartFull, updateChartIncrementally, destroyPool } = await import('../dist/chartBuild/build-chart.js'));
   ({ buildChartContent } = await import('../dist/chartBuild/chartBuildHelper/chartContentBuilder.js'));
+  ({ batchParseFiles } = await import('../dist/chartBuild/chartBuildHelper/ASTParser.js'));
   ({ ParserWorkerPool } = await import('../dist/chartBuild/chartBuildHelper/parserPool.js'));
 
   anchorDir = path.join(tempDir, '.memoryanchor');
@@ -134,6 +136,138 @@ test('chart uses in-chart Tree-sitter imports and emits symbol reverse dependenc
   expect(chartContent).toContain('+ shared() [L1-1] <- caller()');
   expect(chartContent).not.toContain('external-package');
   expect(chartContent).not.toContain('Source code module.');
+});
+
+test('workers attach deduplicated forward calls directly to their containing symbols', async () => {
+  const sourcePath = path.join(tempDir, 'tests', 'test-src', 'worker-dependencies.ts');
+  try {
+    await writeFile(
+      sourcePath,
+      'import { shared } from "./dependency.js";\n' +
+        'export function caller() { shared(); shared(); }\n'
+    );
+
+    const [fileNode] = await batchParseFiles([{
+      absolutePath: sourcePath,
+      relativePath: 'tests/test-src/worker-dependencies.ts'
+    }]);
+    const caller = fileNode.symbols.find(symbol => symbol.name === 'caller');
+
+    expect(caller?.forwardDependencies).toEqual(['shared']);
+    expect(fileNode).not.toHaveProperty('calls');
+  } finally {
+    await rm(sourcePath, { force: true });
+  }
+});
+
+test('reverse dependency lookup isolates same-named exports by resolved file path', async () => {
+  const fixturesDir = path.join(tempDir, 'tests', 'test-src');
+  const createdFiles = ['dependency-a.ts', 'dependency-b.ts', 'consumer.ts'];
+  try {
+    await writeFile(
+      path.join(fixturesDir, 'dependency-a.ts'),
+      'export function shared() { return "a"; }\n'
+    );
+    await writeFile(
+      path.join(fixturesDir, 'dependency-b.ts'),
+      'export function shared() { return "b"; }\n'
+    );
+    await writeFile(
+      path.join(fixturesDir, 'consumer.ts'),
+      'import { shared as selected } from "./dependency-b.js";\n' +
+        'export function caller() { selected(); selected(); }\n'
+    );
+
+    await buildChartFull();
+
+    const chartContent = (await readFile(chartPath, 'utf8')).replace(/\\/g, '/');
+    const firstDependency = getNodeBlock(chartContent, 'tests/test-src/dependency-a.ts');
+    const secondDependency = getNodeBlock(chartContent, 'tests/test-src/dependency-b.ts');
+    expect(firstDependency).not.toContain('<- caller()');
+    expect(secondDependency).toContain('+ shared() [L1-1] <- caller()');
+    expect(secondDependency.match(/caller\(\)/g)).toHaveLength(1);
+  } finally {
+    await Promise.all(createdFiles.map(file =>
+      rm(path.join(fixturesDir, file), { force: true })
+    ));
+  }
+});
+
+test('reverse dependencies qualify same-named callers from different files', async () => {
+  const fixturesDir = path.join(tempDir, 'tests', 'test-src');
+  const createdFiles = [
+    'caller-one.ts',
+    'caller-two.ts',
+    'dependency-caller-collision.ts'
+  ];
+  try {
+    await writeFile(
+      path.join(fixturesDir, 'dependency-caller-collision.ts'),
+      'export function sharedCollision() { return 1; }\n'
+    );
+    for (const callerFile of ['caller-one.ts', 'caller-two.ts']) {
+      await writeFile(
+        path.join(fixturesDir, callerFile),
+        'import { sharedCollision } from "./dependency-caller-collision.js";\n' +
+          'export function run() { return sharedCollision(); }\n'
+      );
+    }
+
+    await buildChartFull();
+
+    const chartContent = (await readFile(chartPath, 'utf8')).replace(/\\/g, '/');
+    const dependency = getNodeBlock(
+      chartContent,
+      'tests/test-src/dependency-caller-collision.ts'
+    );
+    expect(dependency).toContain(
+      '+ sharedCollision() [L1-1] <- ' +
+      'tests/test-src/caller-one.ts:run(); ' +
+      'tests/test-src/caller-two.ts:run()'
+    );
+  } finally {
+    await Promise.all(createdFiles.map(file =>
+      rm(path.join(fixturesDir, file), { force: true })
+    ));
+  }
+});
+
+test('reverse dependencies distinguish duplicate caller names within one file', async () => {
+  const fixturesDir = path.join(tempDir, 'tests', 'test-src');
+  const createdFiles = ['same-file-callers.ts', 'dependency-same-file.ts'];
+  try {
+    await writeFile(
+      path.join(fixturesDir, 'dependency-same-file.ts'),
+      'export function sharedSameFile() { return 1; }\n'
+    );
+    await writeFile(
+      path.join(fixturesDir, 'same-file-callers.ts'),
+      'import { sharedSameFile } from "./dependency-same-file.js";\n' +
+        'class Alpha {\n' +
+        '  run() { return sharedSameFile(); }\n' +
+        '}\n' +
+        'class Beta {\n' +
+        '  run() { return sharedSameFile(); }\n' +
+        '}\n'
+    );
+
+    await buildChartFull();
+
+    const chartContent = (await readFile(chartPath, 'utf8')).replace(/\\/g, '/');
+    const dependency = getNodeBlock(
+      chartContent,
+      'tests/test-src/dependency-same-file.ts'
+    );
+    const qualifiedCallers = dependency.match(
+      /tests\/test-src\/same-file-callers\.ts:run\(\)\[L\d+-\d+@\d+\]/g
+    );
+    expect(qualifiedCallers).toHaveLength(2);
+    expect(new Set(qualifiedCallers).size).toBe(2);
+  } finally {
+    await Promise.all(createdFiles.map(file =>
+      rm(path.join(fixturesDir, file), { force: true })
+    ));
+  }
 });
 
 test('forward dependencies resolve parseable files outside the rendered chart', async () => {
