@@ -1,6 +1,4 @@
 ## Update log
-- `2026/07/31`: Reorganize `src/chartBuild/` from flat domain folders into pipeline-stage folders, each exposing one `run*` interface composed by an external orchestrator. `buildChart.ts` runs `parse/runParse` → `reverse/runReverseDependency` → `partition/runPartitioner.partition` → `render/runRender` with explicit data hand-off and no cross-stage coupling. `buildChartFull` and the full-build debug entries live with that orchestrator, while the compatibility incremental entry points live in `incremental.ts`. `chartPartitioner/` is absorbed into the `partition/` stage; the old chartBuildHelper-derived code lands in `parse/`, `reverse/`, `render/`, `shared/`. Worker pools keep their paired worker files in the same stage so `import.meta.url`-based worker paths stay valid. Updated src/tests/Makefile paths, PROJECT_SPEC.md, and regenerated the memory-anchor charts.
-
 - `2026/07/08`: [Known Limitation] Manual edits/deletions in chart.md are not resolved by incremental updating, because it relies on registry mtime which doesn't change. This is by design - chart.md is auto-generated and should never be edited manually. Will not occur in normal use.
 
 - `2026/07/14`: Opencode's plugin does not injecting ballast.md and manifest.md successfully, add this
@@ -52,3 +50,6 @@ threadpool can reinit the worker. And remove some duplicated redundent autotests
 - `2026/07/31`: 
     - dependencyGraph might not safe to parallel call, need further check.
     - Fuck, dep worker will call collectGlobalReverseDependencies() as many as core - 1 times, it do same work.
+
+- `2026/07/31`: 
+    - Reorganize `src/chartBuild/` from flat domain folders into pipeline-stage folders, each exposing one `run*` interface composed by an external orchestrator. `buildChart.ts` runs `parse/runParse` → `reverse/runReverseDependency` → `partition/runPartitioner.partition` → `render/runRender` with explicit data hand-off and no cross-stage coupling. `buildChartFull` and the full-build debug entries live with that orchestrator, while the compatibility incremental entry points live in `incremental.ts`. `chartPartitioner/` is absorbed into the `partition/` stage; the old chartBuildHelper-derived code lands in `parse/`, `reverse/`, `render/`, `shared/`. Worker pools keep their paired worker files in the same stage so `import.meta.url`-based worker paths stay valid. Updated src/tests/Makefile paths, PROJECT_SPEC.md, and regenerated the memory-anchor charts.

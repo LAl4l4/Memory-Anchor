@@ -119,6 +119,27 @@ test('buildChartFull includes fixture paths in the skeleton', async () => {
   expect(normalizedChart).not.toContain('none');
 });
 
+test('buildChartFull logs completion and duration for every build stage', async () => {
+  const originalWrite = process.stderr.write;
+  const output = [];
+  process.stderr.write = ((chunk) => {
+    output.push(String(chunk));
+    return true;
+  });
+
+  try {
+    await buildChartFull();
+  } finally {
+    process.stderr.write = originalWrite;
+  }
+
+  const logs = output.join('');
+  expect(logs).toMatch(/\[Stage 1\/4\] parse finished in \d+\.\d+ms/);
+  expect(logs).toMatch(/\[Stage 2\/4\] reverse dependency finished in \d+\.\d+ms/);
+  expect(logs).toMatch(/\[Stage 3\/4\] partition finished in \d+\.\d+ms/);
+  expect(logs).toMatch(/\[Stage 4\/4\] render finished in \d+\.\d+ms/);
+});
+
 test('chart uses in-chart Tree-sitter imports and emits symbol reverse dependencies', async () => {
   const fixturesDir = path.join(tempDir, 'tests', 'test-src');
   await writeFile(

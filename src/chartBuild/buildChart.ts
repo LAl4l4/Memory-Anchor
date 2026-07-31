@@ -17,6 +17,16 @@ export interface BuildChartResult {
     indexPath: string;
 }
 
+const BUILD_STAGE_COUNT = 4;
+
+function logStageEnd(stage: number, name: string, startedAt: bigint): void {
+    const elapsedMilliseconds = Number(process.hrtime.bigint() - startedAt) / 1_000_000;
+    logToUser(
+        `[Stage ${stage}/${BUILD_STAGE_COUNT}] ${name} finished in ${elapsedMilliseconds.toFixed(2)}ms`,
+        '32'
+    );
+}
+
 /**
  * External full-build orchestrator. Composes the four pipeline stages with
  * explicit data hand-off so each stage stays independently invocable:
@@ -25,20 +35,32 @@ export interface BuildChartResult {
 export async function buildChart(
     options: BuildDirectoryTreeRegistryOptions = {}
 ): Promise<BuildChartResult> {
+    const parseStartedAt = process.hrtime.bigint();
     const parsed = await runParse(options);
+    logStageEnd(1, 'parse', parseStartedAt);
+
+    const reverseDependencyStartedAt = process.hrtime.bigint();
     const globalDependencyRegistry = options.globalDependencyRegistry
         ?? await runReverseDependency(parsed);
+    logStageEnd(2, 'reverse dependency', reverseDependencyStartedAt);
+
+    const partitionStartedAt = process.hrtime.bigint();
     const topology = await partition({
         ...parsed,
         globalDependencyRegistry,
         registryPath: options.registryPath,
         thresholds: options.thresholds,
     });
+    logStageEnd(3, 'partition', partitionStartedAt);
+
+    const renderStartedAt = process.hrtime.bigint();
     const chartPaths = await runRender({
         ...parsed,
         globalDependencyRegistry,
         ...topology,
     });
+    logStageEnd(4, 'render', renderStartedAt);
+
     const indexPath = path.join(
         parsed.projectRoot,
         '.memoryanchor',

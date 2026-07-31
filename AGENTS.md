@@ -23,8 +23,7 @@ Memory Anchor is initialized in this repository. Follow these rules to ensure it
 - '+' marks an exported symbol; '-' marks the default/internal symbol. Function rows omit the words 'function'; '+' functions include only source-declared parameter/return types, while '-' functions omit signatures.
 - Every symbol includes an '[Lstart-end]' source range. Source comments are not included in charts.
 - '->' lists parseable repository files referenced by a file, including targets in full repository.
-- '<-' lists current-chart symbols that depend on or call a symbol; it is attached only to the referenced symbol, never a file heading.
-- Known limitation: a cross-chart '->' target may not be rendered in this chart, and '<-' deliberately omits callers from other charts. Do not treat a missing '<-' as proof that a symbol has no repository-wide callers.
+- '<-' lists import-resolved cross-file callers (across charts in full builds), never same-file, member, or dynamic calls; it is attached only to symbols.
 - A missing '->' means no parseable repository target was resolved; package and other unresolved imports are omitted.
 
 ### Workflow
