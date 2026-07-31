@@ -6,6 +6,7 @@ import { getChartFileNodes, primeChartParseCache } from './chartContentBuilder.j
 import type {
     ChartParseCache,
     ChartRenderTask,
+    ChartRenderTiming,
     GlobalDependencyRegistry,
 } from '../shared/CBHTypes.js';
 import { listParseableProjectFiles, listProjectFiles, logToUser, resolveWorkspacePaths } from '../shared/utils.js';
@@ -68,6 +69,29 @@ function getPartitionOutputRoot(projectRoot: string): string {
     return path.join(projectRoot, '.memoryanchor', PARTITIONED_CHART_DIRECTORY_NAME);
 }
 
+function elapsedMilliseconds(startedAt: bigint): number {
+    return Number(process.hrtime.bigint() - startedAt) / 1_000_000;
+}
+
+function sumRenderTimings(results: readonly { timing?: ChartRenderTiming }[]): ChartRenderTiming {
+    return results.reduce<ChartRenderTiming>((total, result) => {
+        const timing = result.timing;
+        if (!timing) return total;
+        total.dependencyMs += timing.dependencyMs;
+        total.skeletonMs += timing.skeletonMs;
+        total.nodesMs += timing.nodesMs;
+        total.assemblyMs += timing.assemblyMs;
+        total.writeMs += timing.writeMs;
+        return total;
+    }, {
+        dependencyMs: 0,
+        skeletonMs: 0,
+        nodesMs: 0,
+        assemblyMs: 0,
+        writeMs: 0,
+    });
+}
+
 async function preparePartitionedChart(
     directory: string,
     projectRoot: string,
@@ -108,6 +132,7 @@ export async function writeChartSet(
     outputRoot: string,
     options: CreatePartitionedChartsOptions
 ): Promise<string[]> {
+    const preparationStartedAt = process.hrtime.bigint();
     const parseCache = options.parseCache ?? new Map();
     const tasks: ChartRenderTask[] = [];
     for (const directory of directories) {
@@ -120,6 +145,12 @@ export async function writeChartSet(
             options.shallowDirectories?.has(directory) ?? false
         ));
     }
+    const preparationMs = elapsedMilliseconds(preparationStartedAt);
+    const taskFileCount = tasks.reduce((total, task) => total + task.fileNodes.length, 0);
+    logToUser(
+        `[Render] prepared ${tasks.length} chart tasks / ${taskFileCount} file nodes in ${preparationMs.toFixed(2)}ms`,
+        '36'
+    );
 
     // Each task owns a different chart path. Chart workers therefore perform
     // reverse-dependency analysis and file writes concurrently without locks.
@@ -130,8 +161,32 @@ export async function writeChartSet(
         options.globalDependencyRegistry
     );
     try {
+        const workerRenderStartedAt = process.hrtime.bigint();
         await pool.init(WORKER_THREAD_POOL_SIZE);
         const results = await Promise.all(tasks.map(task => pool.render(task)));
+        const workerWallMs = elapsedMilliseconds(workerRenderStartedAt);
+        const workerTiming = sumRenderTimings(results);
+        const maxTaskMs = results.reduce((maximum, result) => {
+            if (!result.timing) return maximum;
+            return Math.max(
+                maximum,
+                result.timing.dependencyMs +
+                result.timing.skeletonMs +
+                result.timing.nodesMs +
+                result.timing.assemblyMs +
+                result.timing.writeMs
+            );
+        }, 0);
+        logToUser(
+            `[Render] workers wall=${workerWallMs.toFixed(2)}ms, ` +
+            `cpu-sum dependency=${workerTiming.dependencyMs.toFixed(2)}ms ` +
+            `skeleton=${workerTiming.skeletonMs.toFixed(2)}ms ` +
+            `nodes=${workerTiming.nodesMs.toFixed(2)}ms ` +
+            `assembly=${workerTiming.assemblyMs.toFixed(2)}ms ` +
+            `write=${workerTiming.writeMs.toFixed(2)}ms, ` +
+            `max-task=${maxTaskMs.toFixed(2)}ms`,
+            '36'
+        );
         return results.map(({ chartPath }) => chartPath!);
     } finally {
         await pool.destroy();
@@ -187,8 +242,10 @@ export async function createPartitionedCharts(
 
     for (const directory of selectedDirectories) validateDirectory(directory);
 
+    const resetStartedAt = process.hrtime.bigint();
     fs.rmSync(outputRoot, { recursive: true, force: true });
     fs.mkdirSync(outputRoot, { recursive: true });
+    logToUser(`[Render] reset chart output in ${elapsedMilliseconds(resetStartedAt).toFixed(2)}ms`, '36');
 
     const chartPaths = await writeChartSet(
         selectedDirectories,
@@ -197,8 +254,10 @@ export async function createPartitionedCharts(
         { ...options, dependencyFiles }
     );
 
+    const indexStartedAt = process.hrtime.bigint();
     fs.rmSync(legacyChartPath, { force: true });
     writePartitionIndex(projectRoot, options.rootDirectories ?? selectedDirectories);
+    logToUser(`[Render] wrote chart index in ${elapsedMilliseconds(indexStartedAt).toFixed(2)}ms`, '36');
 
     return chartPaths;
 }

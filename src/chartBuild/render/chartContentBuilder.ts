@@ -3,7 +3,13 @@ import { batchParseFiles } from '../parse/ASTParser.js';
 import { applyGlobalReverseDependencies, buildChartDependencyGraph, resolveFileDependencies } from '../reverse/dependencyGraph.js';
 import { buildNodesSection } from './nodesEditor.js';
 import { buildSkeletonSection } from './skeletonEditor.js';
-import type { ChartFile, ChartParseCache, FileNode, GlobalDependencyRegistry } from '../shared/CBHTypes.js';
+import type {
+    ChartFile,
+    ChartParseCache,
+    ChartRenderTiming,
+    FileNode,
+    GlobalDependencyRegistry,
+} from '../shared/CBHTypes.js';
 import { listParseableProjectFiles, PROJECT_ROOT } from '../shared/utils.js';
 
 export type { ChartFile, ChartParseCache } from '../shared/CBHTypes.js';
@@ -94,16 +100,28 @@ export function renderChartContent(
     chartHeading: string,
     dependencyPaths: ReadonlySet<string>,
     globalDependencyRegistry?: GlobalDependencyRegistry,
-    chartDirectory: string = '.'
+    chartDirectory: string = '.',
+    timing?: Partial<ChartRenderTiming>
 ): string {
+    const dependencyStartedAt = process.hrtime.bigint();
     const graphNodes = globalDependencyRegistry
         ? (() => {
             resolveFileDependencies(fileNodes, dependencyPaths);
             return applyGlobalReverseDependencies(fileNodes, globalDependencyRegistry, chartDirectory);
         })()
         : buildChartDependencyGraph(fileNodes, dependencyPaths);
-    const skeletonSection = buildSkeletonSection(dirGroups, graphNodes);
-    const nodesSection = buildNodesSection(graphNodes);
+    timing && (timing.dependencyMs = Number(process.hrtime.bigint() - dependencyStartedAt) / 1_000_000);
 
-    return `# ${chartHeading}\n\n${skeletonSection}\n\n${nodesSection}`;
+    const skeletonStartedAt = process.hrtime.bigint();
+    const skeletonSection = buildSkeletonSection(dirGroups, graphNodes);
+    timing && (timing.skeletonMs = Number(process.hrtime.bigint() - skeletonStartedAt) / 1_000_000);
+
+    const nodesStartedAt = process.hrtime.bigint();
+    const nodesSection = buildNodesSection(graphNodes);
+    timing && (timing.nodesMs = Number(process.hrtime.bigint() - nodesStartedAt) / 1_000_000);
+
+    const assemblyStartedAt = process.hrtime.bigint();
+    const content = `# ${chartHeading}\n\n${skeletonSection}\n\n${nodesSection}`;
+    timing && (timing.assemblyMs = Number(process.hrtime.bigint() - assemblyStartedAt) / 1_000_000);
+    return content;
 }

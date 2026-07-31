@@ -89,6 +89,15 @@ export interface ChartWorkerData {
     globalDependencyRegistry?: GlobalDependencyRegistry;
 }
 
+/** CPU and write timings returned by one chart-render worker task. */
+export interface ChartRenderTiming {
+    dependencyMs: number;
+    skeletonMs: number;
+    nodesMs: number;
+    assemblyMs: number;
+    writeMs: number;
+}
+
 export interface ChartRenderTask {
     chartPath?: string;
     sourceDirectory: string;
@@ -105,6 +114,7 @@ export interface ChartRenderTask {
 export interface ChartRenderResult {
     chartPath?: string;
     contentLength: number;
+    timing?: ChartRenderTiming;
 }
 
 export type RegistryEntry = [string, GlobalReverseDependent];
