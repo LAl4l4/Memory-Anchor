@@ -54,3 +54,8 @@ threadpool can reinit the worker. And remove some duplicated redundent autotests
 - `2026/07/31`: 
     - Reorganize `src/chartBuild/` from flat domain folders into pipeline-stage folders, each exposing one `run*` interface composed by an external orchestrator. `buildChart.ts` runs `parse/runParse` → `reverse/runReverseDependency` → `partition/runPartitioner.partition` → `render/runRender` with explicit data hand-off and no cross-stage coupling. `buildChartFull` and the full-build debug entries live with that orchestrator, while the compatibility incremental entry points live in `incremental.ts`. `chartPartitioner/` is absorbed into the `partition/` stage; the old chartBuildHelper-derived code lands in `parse/`, `reverse/`, `render/`, `shared/`. Worker pools keep their paired worker files in the same stage so `import.meta.url`-based worker paths stay valid. Updated src/tests/Makefile paths, PROJECT_SPEC.md, and regenerated the memory-anchor charts.
     - Add time clock to show performance.
+
+- `2026/07/31`:
+    - Fix a severe Stage 4 partition-render performance regression on large repositories. Full rendering now runs on the main heap, reusing the project-wide reverse dependency registry and parsed file-node cache instead of structured-cloning them into render workers per chart.
+    - Build the repository dependency-path Set once and adapt it to each chart with a constant-cost path-prefix lookup. This removes the repeated full-repository `path.relative` conversion previously performed for every partition chart.
+    - Deep-copy the mutable nested fields of chart-local FileNodes before rendering, preserving build-cache isolation without worker structured cloning. See [Render Performance Regression Fix](./RENDER_PERFORMANCE_FIX.md).

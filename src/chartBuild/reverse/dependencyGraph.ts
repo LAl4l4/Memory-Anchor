@@ -9,6 +9,11 @@ import type {
 
 export type { GlobalDependencyRegistry, GlobalReverseDependent } from '../shared/CBHTypes.js';
 
+/** Any lookup that can answer whether a normalized repository path exists. */
+export interface DependencyPathLookup {
+    has(path: string): boolean;
+}
+
 const RESOLVABLE_EXTENSIONS = [
     '', '.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.py', '.java',
     '.c', '.cpp', '.h', '.go', '.rs', '.php', '.rb', '.kt', '.swift', '.cs',
@@ -21,7 +26,7 @@ function normalizePath(value: string): string {
 function resolveDependencyPath(
     fromFile: string,
     source: string,
-    dependencyPaths: ReadonlySet<string>
+    dependencyPaths: DependencyPathLookup
 ): string | undefined {
     // Package imports remain unresolved; relative imports can target any
     // parseable repository file, including files outside this chart.
@@ -52,7 +57,7 @@ function resolveDependencyPath(
 /** Resolve forward file imports without performing reverse-edge inversion. */
 export function resolveFileDependencies(
     fileNodes: readonly FileNode[],
-    dependencyPaths: ReadonlySet<string>
+    dependencyPaths: DependencyPathLookup
 ): void {
     for (const fileNode of fileNodes) {
         const filePath = normalizePath(fileNode.relativePath);
@@ -146,7 +151,7 @@ export function createTargetSymbols(fileNodes: readonly FileNode[]): Map<string,
  */
 export function collectGlobalReverseDependencies(
     fileNodes: readonly FileNode[],
-    dependencyPaths: ReadonlySet<string>,
+    dependencyPaths: DependencyPathLookup,
     targetSymbolKeys: ReadonlySet<string>
 ): [string, GlobalReverseDependent][] {
     const entries: [string, GlobalReverseDependent][] = [];
@@ -239,7 +244,7 @@ export function applyGlobalReverseDependencies(
  */
 export function buildChartDependencyGraph(
     fileNodes: FileNode[],
-    dependencyPaths: ReadonlySet<string> = new Set(
+    dependencyPaths: DependencyPathLookup = new Set(
         fileNodes.map(fileNode => normalizePath(fileNode.relativePath))
     )
 ): FileNode[] {

@@ -1,6 +1,11 @@
 import * as path from 'node:path';
 import { batchParseFiles } from '../parse/ASTParser.js';
-import { applyGlobalReverseDependencies, buildChartDependencyGraph, resolveFileDependencies } from '../reverse/dependencyGraph.js';
+import {
+    applyGlobalReverseDependencies,
+    buildChartDependencyGraph,
+    resolveFileDependencies,
+    type DependencyPathLookup,
+} from '../reverse/dependencyGraph.js';
 import { buildNodesSection } from './nodesEditor.js';
 import { buildSkeletonSection } from './skeletonEditor.js';
 import type {
@@ -52,6 +57,17 @@ export function getChartFileNodes(
     return getChartFiles(dirGroups, projectRoot).map(({ absolutePath, relativePath }) => ({
         ...parseCache.get(absolutePath)!,
         relativePath,
+        // Rendering resolves imports and assigns reverse callers. Keep those
+        // mutable fields local so a later chart cannot alter the shared cache.
+        symbols: parseCache.get(absolutePath)!.symbols.map(symbol => ({
+            ...symbol,
+            forwardDependencies: [...symbol.forwardDependencies],
+            dependedOnBy: [...symbol.dependedOnBy],
+        })),
+        dependencies: parseCache.get(absolutePath)!.dependencies.map(dependency => ({
+            ...dependency,
+            bindings: dependency.bindings.map(binding => ({ ...binding })),
+        })),
     }));
 }
 
@@ -98,7 +114,7 @@ export function renderChartContent(
     dirGroups: Map<string, string[]>,
     fileNodes: FileNode[],
     chartHeading: string,
-    dependencyPaths: ReadonlySet<string>,
+    dependencyPaths: DependencyPathLookup,
     globalDependencyRegistry?: GlobalDependencyRegistry,
     chartDirectory: string = '.',
     timing?: Partial<ChartRenderTiming>

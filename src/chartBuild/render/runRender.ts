@@ -1,10 +1,15 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { WORKER_THREAD_POOL_SIZE } from '../parse/ASTParser.js';
-import { ChartWorkerPool } from './chartPool.js';
-import { getChartFileNodes, primeChartParseCache } from './chartContentBuilder.js';
+import {
+    createDependencyPaths,
+    getChartFileNodes,
+    primeChartParseCache,
+    renderChartContent,
+} from './chartContentBuilder.js';
+import type { DependencyPathLookup } from '../reverse/dependencyGraph.js';
 import type {
     ChartParseCache,
+    ChartRenderResult,
     ChartRenderTask,
     ChartRenderTiming,
     GlobalDependencyRegistry,
@@ -126,6 +131,69 @@ async function preparePartitionedChart(
     };
 }
 
+/**
+ * Render in-process so the full reverse registry and parsed nodes remain on
+ * one V8 heap. Small partition tasks cost substantially more to
+ * structured-clone into workers than to render.
+ */
+function renderPartitionedChart(
+    task: ChartRenderTask,
+    dependencyPaths: DependencyPathLookup,
+    globalDependencyRegistry?: GlobalDependencyRegistry
+): ChartRenderResult {
+    const timing: ChartRenderTiming = {
+        dependencyMs: 0,
+        skeletonMs: 0,
+        nodesMs: 0,
+        assemblyMs: 0,
+        writeMs: 0,
+    };
+    const content = renderChartContent(
+        new Map(task.dirGroups),
+        task.fileNodes,
+        task.chartHeading,
+        dependencyPaths,
+        globalDependencyRegistry,
+        task.chartDirectory,
+        timing
+    );
+    const assemblyStartedAt = process.hrtime.bigint();
+    const chartContent = task.childChartsSection
+        ? `${content.trimEnd()}\n\n${task.childChartsSection}\n`
+        : content;
+    timing.assemblyMs += elapsedMilliseconds(assemblyStartedAt);
+
+    if (task.writeOutput) {
+        if (!task.chartPath) throw new Error('Chart output path is required');
+        const writeStartedAt = process.hrtime.bigint();
+        fs.mkdirSync(path.dirname(task.chartPath), { recursive: true });
+        fs.writeFileSync(task.chartPath, chartContent, 'utf-8');
+        timing.writeMs = elapsedMilliseconds(writeStartedAt);
+    }
+
+    return { chartPath: task.chartPath, contentLength: chartContent.length, timing };
+}
+
+/**
+ * Adapt root-relative dependency paths to one chart's local paths without
+ * allocating another full Set or re-relativizing every repository file.
+ */
+function createScopedDependencyPathLookup(
+    rootDependencyPaths: ReadonlySet<string>,
+    chartDirectory: string
+): DependencyPathLookup {
+    const normalizedDirectory = chartDirectory.split(path.sep).join('/');
+    if (normalizedDirectory === '.') return rootDependencyPaths;
+
+    return {
+        has(candidate: string): boolean {
+            return rootDependencyPaths.has(path.posix.normalize(
+                path.posix.join(normalizedDirectory, candidate)
+            ));
+        },
+    };
+}
+
 export async function writeChartSet(
     directories: readonly string[],
     projectRoot: string,
@@ -152,45 +220,43 @@ export async function writeChartSet(
         '36'
     );
 
-    // Each task owns a different chart path. Chart workers therefore perform
-    // reverse-dependency analysis and file writes concurrently without locks.
+    // Rendering is intentionally in-process. Passing 3,000+ small tasks and
+    // a project-wide Map registry across worker isolates dwarfs the CPU work.
     logToUser(`Rendering ${tasks.length} partition charts...`, '36');
-    const pool = new ChartWorkerPool(
-        options.dependencyFiles ?? listParseableProjectFiles(projectRoot),
-        undefined,
-        options.globalDependencyRegistry
-    );
-    try {
-        const workerRenderStartedAt = process.hrtime.bigint();
-        await pool.init(WORKER_THREAD_POOL_SIZE);
-        const results = await Promise.all(tasks.map(task => pool.render(task)));
-        const workerWallMs = elapsedMilliseconds(workerRenderStartedAt);
-        const workerTiming = sumRenderTimings(results);
-        const maxTaskMs = results.reduce((maximum, result) => {
-            if (!result.timing) return maximum;
-            return Math.max(
-                maximum,
-                result.timing.dependencyMs +
-                result.timing.skeletonMs +
-                result.timing.nodesMs +
-                result.timing.assemblyMs +
-                result.timing.writeMs
-            );
-        }, 0);
-        logToUser(
-            `[Render] workers wall=${workerWallMs.toFixed(2)}ms, ` +
-            `cpu-sum dependency=${workerTiming.dependencyMs.toFixed(2)}ms ` +
-            `skeleton=${workerTiming.skeletonMs.toFixed(2)}ms ` +
-            `nodes=${workerTiming.nodesMs.toFixed(2)}ms ` +
-            `assembly=${workerTiming.assemblyMs.toFixed(2)}ms ` +
-            `write=${workerTiming.writeMs.toFixed(2)}ms, ` +
-            `max-task=${maxTaskMs.toFixed(2)}ms`,
-            '36'
+    const dependencyFiles = options.dependencyFiles ?? listParseableProjectFiles(projectRoot);
+    const rootDependencyPaths = createDependencyPaths(dependencyFiles, projectRoot);
+    const renderStartedAt = process.hrtime.bigint();
+    const results = tasks.map(task => {
+        const dependencyPaths = createScopedDependencyPathLookup(
+            rootDependencyPaths,
+            task.chartDirectory ?? '.'
         );
-        return results.map(({ chartPath }) => chartPath!);
-    } finally {
-        await pool.destroy();
-    }
+        return renderPartitionedChart(task, dependencyPaths, options.globalDependencyRegistry);
+    });
+    const renderWallMs = elapsedMilliseconds(renderStartedAt);
+    const renderTiming = sumRenderTimings(results);
+    const maxTaskMs = results.reduce((maximum, result) => {
+        if (!result.timing) return maximum;
+        return Math.max(
+            maximum,
+            result.timing.dependencyMs +
+            result.timing.skeletonMs +
+            result.timing.nodesMs +
+            result.timing.assemblyMs +
+            result.timing.writeMs
+        );
+    }, 0);
+    logToUser(
+        `[Render] in-process wall=${renderWallMs.toFixed(2)}ms, ` +
+        `cpu-sum dependency=${renderTiming.dependencyMs.toFixed(2)}ms ` +
+        `skeleton=${renderTiming.skeletonMs.toFixed(2)}ms ` +
+        `nodes=${renderTiming.nodesMs.toFixed(2)}ms ` +
+        `assembly=${renderTiming.assemblyMs.toFixed(2)}ms ` +
+        `write=${renderTiming.writeMs.toFixed(2)}ms, ` +
+        `max-task=${maxTaskMs.toFixed(2)}ms`,
+        '36'
+    );
+    return results.map(({ chartPath }) => chartPath!);
 }
 
 export function writePartitionIndex(projectRoot: string, directories: readonly string[]): string {
