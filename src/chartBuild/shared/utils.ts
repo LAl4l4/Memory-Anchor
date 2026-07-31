@@ -3,12 +3,7 @@ import * as path from 'path';
 import { globSync } from 'glob';
 import { EXT_TO_LANGUAGE } from '../../utils/ext-to-lang.js';
 import { IGNORED_DIR_NAMES, IGNORED_FILE_NAMES } from '../../constant.js';
-
-export interface WorkspacePaths {
-    anchorDir: string;
-    projectRoot: string;
-    chartPath: string;
-}
+import type { WorkspacePaths } from './CBHTypes.js';
 
 export function resolveWorkspacePaths(): WorkspacePaths {
     const projectRoot = process.cwd();

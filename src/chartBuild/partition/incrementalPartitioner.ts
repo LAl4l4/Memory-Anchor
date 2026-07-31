@@ -1,11 +1,11 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { updatePartitionChartContent } from '../chartBuildHelper/partitionChartIncrementalUpdater.js';
+import { updatePartitionChartContent } from '../render/partitionChartIncrementalUpdater.js';
 import {
     hasDirectProjectFiles,
     isIgnored,
     resolveWorkspacePaths,
-} from '../chartBuildHelper/utils.js';
+} from '../shared/utils.js';
 import {
     DIRECTORY_CHAR_THRESHOLDS,
     DirectoryCharThresholds,

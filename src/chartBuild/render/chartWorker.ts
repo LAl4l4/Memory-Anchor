@@ -2,33 +2,9 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { parentPort, workerData } from 'node:worker_threads';
 import { createDependencyPaths, renderChartContent } from './chartContentBuilder.js';
-import type { GlobalDependencyRegistry } from './dependencyGraph.js';
-import type { FileNode } from './symbolExtractor.js';
+import type { ChartRenderResult, ChartRenderTask, ChartWorkerData } from '../shared/CBHTypes.js';
 
-interface ChartWorkerData {
-    dependencyFiles: string[];
-    /** Paths relative to the shared source directory for this worker batch. */
-    defaultDependencyPaths?: string[];
-    globalDependencyRegistry?: GlobalDependencyRegistry;
-}
-
-export interface ChartRenderTask {
-    chartPath?: string;
-    sourceDirectory: string;
-    dirGroups: [string, string[]][];
-    fileNodes: FileNode[];
-    chartHeading: string;
-    childChartsSection: string;
-    writeOutput: boolean;
-    dependencyPaths?: string[];
-    /** Project-relative directory containing this chart's local paths. */
-    chartDirectory?: string;
-}
-
-export interface ChartRenderResult {
-    chartPath?: string;
-    contentLength: number;
-}
+export type { ChartRenderResult, ChartRenderTask } from '../shared/CBHTypes.js';
 
 const { dependencyFiles, defaultDependencyPaths, globalDependencyRegistry } = workerData as ChartWorkerData;
 const sharedDependencyPaths = defaultDependencyPaths

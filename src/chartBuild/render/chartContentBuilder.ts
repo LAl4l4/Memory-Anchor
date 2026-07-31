@@ -1,17 +1,12 @@
 import * as path from 'node:path';
-import { batchParseFiles } from './ASTParser.js';
-import {
-    applyGlobalReverseDependencies,
-    buildChartDependencyGraph,
-    GlobalDependencyRegistry,
-    resolveFileDependencies,
-} from './dependencyGraph.js';
+import { batchParseFiles } from '../parse/ASTParser.js';
+import { applyGlobalReverseDependencies, buildChartDependencyGraph, resolveFileDependencies } from '../reverse/dependencyGraph.js';
 import { buildNodesSection } from './nodesEditor.js';
 import { buildSkeletonSection } from './skeletonEditor.js';
-import { FileNode } from './symbolExtractor.js';
-import { listParseableProjectFiles, PROJECT_ROOT } from './utils.js';
+import type { ChartFile, ChartParseCache, FileNode, GlobalDependencyRegistry } from '../shared/CBHTypes.js';
+import { listParseableProjectFiles, PROJECT_ROOT } from '../shared/utils.js';
 
-export type ChartParseCache = Map<string, FileNode>;
+export type { ChartFile, ChartParseCache } from '../shared/CBHTypes.js';
 
 /** Normalize repository files once for reuse across multiple chart renders. */
 export function createDependencyPaths(
@@ -21,11 +16,6 @@ export function createDependencyPaths(
     return new Set(dependencyFiles.map(file =>
         path.relative(projectRoot, file).split(path.sep).join('/')
     ));
-}
-
-export interface ChartFile {
-    absolutePath: string;
-    relativePath: string;
 }
 
 export function getChartFiles(

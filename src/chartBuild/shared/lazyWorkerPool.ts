@@ -1,16 +1,5 @@
 import { Worker } from 'node:worker_threads';
-
-interface PendingTask<Request, Result> {
-    request: Request;
-    resolve: (result: Result) => void;
-    reject: (error: unknown) => void;
-}
-
-export interface LazyWorkerPoolOptions<Result> {
-    createWorker: () => Worker;
-    getResult: (message: any) => Result;
-    getError: (message: any) => Error;
-}
+import type { LazyWorkerPoolOptions, PendingTask } from './CBHTypes.js';
 
 /**
  * A demand-lazy worker queue shared by parsing and chart rendering. Workers

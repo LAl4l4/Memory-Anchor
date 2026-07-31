@@ -22,16 +22,16 @@ const captureChartTopology = jest.fn(() => ({
 }));
 
 jest.unstable_mockModule(
-  '../dist/chartBuild/chartBuildHelper/partitionChartIncrementalUpdater.js',
+  '../dist/chartBuild/render/partitionChartIncrementalUpdater.js',
   () => ({ updatePartitionChartContent })
 );
 jest.unstable_mockModule(
-  '../dist/chartBuild/chartPartitioner/partitionedChartBuilder.js',
+  '../dist/chartBuild/partition/partitionedChartBuilder.js',
   () => ({ buildPartitionedCharts, captureChartTopology, rebuildPartitionBoundary })
 );
 
 const { updatePartitionedChartsIncrementally } = await import(
-  '../dist/chartBuild/chartPartitioner/incrementalPartitioner.js'
+  '../dist/chartBuild/partition/incrementalPartitioner.js'
 );
 
 let tempDir = '';

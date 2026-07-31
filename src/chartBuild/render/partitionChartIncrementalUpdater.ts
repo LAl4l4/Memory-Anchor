@@ -3,16 +3,13 @@ import * as path from 'node:path';
 import {
     buildNodesSection,
 } from './nodesEditor.js';
-import { batchParseFiles } from './ASTParser.js';
-import { buildChartDependencyGraph } from './dependencyGraph.js';
+import { batchParseFiles } from '../parse/ASTParser.js';
+import { buildChartDependencyGraph } from '../reverse/dependencyGraph.js';
 import { buildSkeletonSection, getSkeletonFileOrder } from './skeletonEditor.js';
-import { listParseableProjectFiles } from './utils.js';
+import type { PartitionChartUpdateResult } from '../shared/CBHTypes.js';
+import { listParseableProjectFiles } from '../shared/utils.js';
 
-export interface PartitionChartUpdateResult {
-    changed: boolean;
-    previousChars: number;
-    currentChars: number;
-}
+export type { PartitionChartUpdateResult } from '../shared/CBHTypes.js';
 
 function groupFilesByDirectory(files: readonly string[]): Map<string, string[]> {
     const groups = new Map<string, string[]>();

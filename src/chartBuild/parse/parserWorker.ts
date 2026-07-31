@@ -2,7 +2,8 @@ import * as fs from 'fs';
 import { parentPort } from 'worker_threads';
 import { Parser, type Tree } from "web-tree-sitter";
 import { loadLanguage } from '../parser-loader.js';
-import { extractFileArchitecture, FileNode } from './symbolExtractor.js';
+import { extractFileArchitecture } from './symbolExtractor.js';
+import type { FileNode, ParseRequest } from '../shared/CBHTypes.js';
 
 // Per-worker state: init once, reuse parser across tasks
 await Parser.init();
@@ -13,7 +14,7 @@ const langCache = new Map<string, any>();
 // Signal to pool that this worker is ready
 parentPort!.postMessage({ type: 'ready' });
 
-parentPort!.on('message', async (msg: { absolutePath: string; relativePath: string; lang: string }) => {
+parentPort!.on('message', async (msg: ParseRequest) => {
     const { absolutePath, relativePath, lang } = msg;
     let tree: Tree | null = null;
 

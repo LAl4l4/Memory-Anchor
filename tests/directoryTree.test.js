@@ -9,30 +9,32 @@ import {
   getDeepestFirstNodes,
   rebuildChartTree,
   toDirectoryTreeRegistry
-} from '../dist/chartBuild/chartPartitioner/directoryTree.js';
+} from '../dist/chartBuild/partition/directoryTree.js';
 import {
   buildDirectoryTreeRegistry,
-  buildDirectoryTreeRegistryForDebug,
+  buildDirectoryTreeRegistryForDebug
+} from '../dist/chartBuild/buildChart.js';
+import {
   getDirectoriesToScan,
   getRootChartDirectories,
   getShallowPartitionDirectories,
   scanDirectoryTree
-} from '../dist/chartBuild/chartPartitioner/partitioner.js';
+} from '../dist/chartBuild/partition/partitioner.js';
 import {
   buildPartitionedChartsForDebug,
   buildPartitionedChartIndex,
   captureChartTopology,
   createPartitionedCharts,
   rebuildPartitionBoundary
-} from '../dist/chartBuild/chartPartitioner/partitionedChartBuilder.js';
-import { destroyPool } from '../dist/chartBuild/build-chart.js';
+} from '../dist/chartBuild/partition/partitionedChartBuilder.js';
+import { destroyPool } from '../dist/chartBuild/buildChart.js';
 import {
   applyDirectoryCharsDelta,
   findPartitionForFile,
   getUniqueChangedDirectories,
   isFileCoveredByRebuiltDirectory,
   updatePartitionedChartsIncrementally
-} from '../dist/chartBuild/chartPartitioner/incrementalPartitioner.js';
+} from '../dist/chartBuild/partition/incrementalPartitioner.js';
 
 let tempDir = '';
 

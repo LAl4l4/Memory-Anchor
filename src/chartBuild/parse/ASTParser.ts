@@ -3,10 +3,10 @@ import os from "os";
 import { ParserWorkerPool } from './parserPool.js';
 import { getAvailableParsers } from '../parser-loader.js';
 import { EXT_TO_LANGUAGE } from '../../utils/ext-to-lang.js';
-import { FileSymbol, FileNode } from './symbolExtractor.js';
+import type { ChartFile, FileNode, FileSymbol } from '../shared/CBHTypes.js';
 
 // Re-export types for backward compatibility
-export type { FileSymbol, FileNode };
+export type { FileSymbol, FileNode } from '../shared/CBHTypes.js';
 
 // The max amount of worker threads
 const availableParallelism = os.availableParallelism?.() ?? os.cpus().length;
@@ -89,7 +89,7 @@ export async function parseFileArchitecture(
  * Files that have no available parser are returned as empty FileNodes without going to the pool.
  */
 export async function batchParseFiles(
-    files: { absolutePath: string; relativePath: string }[]
+    files: ChartFile[]
 ): Promise<FileNode[]> {
     if (files.length === 0) return [];
 

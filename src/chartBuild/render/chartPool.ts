@@ -1,9 +1,8 @@
 import { Worker } from 'node:worker_threads';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { LazyWorkerPool } from './lazyWorkerPool.js';
-import type { GlobalDependencyRegistry } from './dependencyGraph.js';
-import type { ChartRenderResult, ChartRenderTask } from './chartWorker.js';
+import { LazyWorkerPool } from '../shared/lazyWorkerPool.js';
+import type { ChartRenderResult, ChartRenderTask, GlobalDependencyRegistry } from '../shared/CBHTypes.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);

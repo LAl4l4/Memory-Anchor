@@ -1,5 +1,13 @@
 import * as path from 'node:path';
-import { FileNode, FileSymbol } from './symbolExtractor.js';
+import type {
+    FileNode,
+    FileSymbol,
+    GlobalDependencyRegistry,
+    GlobalReverseDependent,
+    ReverseDependent,
+} from '../shared/CBHTypes.js';
+
+export type { GlobalDependencyRegistry, GlobalReverseDependent } from '../shared/CBHTypes.js';
 
 const RESOLVABLE_EXTENSIONS = [
     '', '.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.py', '.java',
@@ -66,29 +74,6 @@ function formatDependentSymbol(symbol: FileSymbol): string {
     return symbol.type.includes('function') ? `${symbol.name}()` : symbol.name;
 }
 
-interface ReverseDependent {
-    sourcePath: string;
-    symbol: FileSymbol;
-    label: string;
-}
-
-/** Serializable caller information shared from the global registry to chart workers. */
-export interface GlobalReverseDependent {
-    sourcePath: string;
-    name: string;
-    type: string;
-    startIndex: number;
-    startLine: number;
-    endLine: number;
-}
-
-/** Immutable, project-relative reverse edges produced once per full build. */
-export interface GlobalDependencyRegistry {
-    reverseDependencies: ReadonlyMap<string, readonly GlobalReverseDependent[]>;
-    /** First declaration offsets preserve local duplicate-name semantics. */
-    targetSymbolOffsets: ReadonlyMap<string, number>;
-}
-
 function callerKey(sourcePath: string, symbol: FileSymbol): string {
     return `${sourcePath}\0${symbol.startIndex}`;
 }
@@ -118,21 +103,25 @@ function formatReverseDependents(
         );
     }
 
-    const formatted: string[] = [];
+    // A source file can contain several symbols that call the same target.
+    // Keep those symbols together so the chart names the source path once.
+    const formattedBySource = new Map<string, string[]>();
     for (const dependent of dependents.values()) {
         const sourceLabelKey = `${dependent.sourcePath}\0${dependent.label}`;
-        if (sourceLabelCounts.get(sourceLabelKey) === 1) {
-            formatted.push(`${dependent.sourcePath}:${dependent.label}`);
-            continue;
+        const label = sourceLabelCounts.get(sourceLabelKey) === 1
+            ? dependent.label
+            : `${dependent.label}[L${dependent.symbol.startLine}-${dependent.symbol.endLine}` +
+                `@${dependent.symbol.startIndex}]`;
+        let labels = formattedBySource.get(dependent.sourcePath);
+        if (!labels) {
+            labels = [];
+            formattedBySource.set(dependent.sourcePath, labels);
         }
-
-        formatted.push(
-            `${dependent.sourcePath}:${dependent.label}` +
-            `[L${dependent.symbol.startLine}-${dependent.symbol.endLine}` +
-            `@${dependent.symbol.startIndex}]`
-        );
+        labels.push(label);
     }
-    return formatted;
+    return [...formattedBySource].map(([sourcePath, labels]) =>
+        `${sourcePath}:${labels.join(', ')}`
+    );
 }
 
 /**

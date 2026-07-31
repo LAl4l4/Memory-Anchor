@@ -76,10 +76,11 @@ beforeAll(async () => {
   process.chdir(tempDir);
   await seedFixtures(tempDir);
 
-  ({ buildChartFull, updateChartIncrementally, destroyPool } = await import('../dist/chartBuild/build-chart.js'));
-  ({ buildChartContent } = await import('../dist/chartBuild/chartBuildHelper/chartContentBuilder.js'));
-  ({ batchParseFiles } = await import('../dist/chartBuild/chartBuildHelper/ASTParser.js'));
-  ({ ParserWorkerPool } = await import('../dist/chartBuild/chartBuildHelper/parserPool.js'));
+  ({ buildChartFull, destroyPool } = await import('../dist/chartBuild/buildChart.js'));
+  ({ updateChartIncrementally } = await import('../dist/chartBuild/incremental.js'));
+  ({ buildChartContent } = await import('../dist/chartBuild/render/chartContentBuilder.js'));
+  ({ batchParseFiles } = await import('../dist/chartBuild/parse/ASTParser.js'));
+  ({ ParserWorkerPool } = await import('../dist/chartBuild/parse/parserPool.js'));
 
   anchorDir = path.join(tempDir, '.memoryanchor');
   indexPath = path.join(anchorDir, 'index.md');
@@ -236,6 +237,39 @@ test('reverse dependencies qualify same-named callers from different files', asy
   }
 });
 
+test('reverse dependencies group multiple callers from one source file', async () => {
+  const fixturesDir = path.join(tempDir, 'tests', 'test-src');
+  const createdFiles = ['dependency-grouped-callers.ts', 'grouped-callers.ts'];
+  try {
+    await writeFile(
+      path.join(fixturesDir, 'dependency-grouped-callers.ts'),
+      'export function sharedGrouped() { return 1; }\n'
+    );
+    await writeFile(
+      path.join(fixturesDir, 'grouped-callers.ts'),
+      'import { sharedGrouped } from "./dependency-grouped-callers.js";\n' +
+        'export function firstCaller() { return sharedGrouped(); }\n' +
+        'export function secondCaller() { return sharedGrouped(); }\n'
+    );
+
+    await buildChartFull();
+
+    const chartContent = (await readFile(chartPath, 'utf8')).replace(/\\/g, '/');
+    const dependency = getNodeBlock(
+      chartContent,
+      'tests/test-src/dependency-grouped-callers.ts'
+    );
+    expect(dependency).toContain(
+      'tests/test-src/grouped-callers.ts:firstCaller(), secondCaller()'
+    );
+    expect(dependency.match(/tests\/test-src\/grouped-callers\.ts:/g)).toHaveLength(1);
+  } finally {
+    await Promise.all(createdFiles.map(file =>
+      rm(path.join(fixturesDir, file), { force: true })
+    ));
+  }
+});
+
 test('reverse dependencies distinguish duplicate caller names within one file', async () => {
   const fixturesDir = path.join(tempDir, 'tests', 'test-src');
   const createdFiles = ['same-file-callers.ts', 'dependency-same-file.ts'];
@@ -262,9 +296,8 @@ test('reverse dependencies distinguish duplicate caller names within one file', 
       chartContent,
       'tests/test-src/dependency-same-file.ts'
     );
-    const qualifiedCallers = dependency.match(
-      /tests\/test-src\/same-file-callers\.ts:run\(\)\[L\d+-\d+@\d+\]/g
-    );
+    expect(dependency.match(/tests\/test-src\/same-file-callers\.ts:/g)).toHaveLength(1);
+    const qualifiedCallers = dependency.match(/run\(\)\[L\d+-\d+@\d+\]/g);
     expect(qualifiedCallers).toHaveLength(2);
     expect(new Set(qualifiedCallers).size).toBe(2);
   } finally {

@@ -1,9 +1,9 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { formatSymbol, batchParseFiles } from './ASTParser.js';
-import { getResolvedDependencyPaths } from './dependencyGraph.js';
-import { FileNode } from './symbolExtractor.js';
-import { CHART_PATH, PROJECT_ROOT } from './utils.js';
+import { formatSymbol, batchParseFiles } from '../parse/ASTParser.js';
+import { getResolvedDependencyPaths } from '../reverse/dependencyGraph.js';
+import type { ClassifiedFiles, FileNode, ParsedFileResult, PendingFileParse } from '../shared/CBHTypes.js';
+import { CHART_PATH, PROJECT_ROOT } from '../shared/utils.js';
 import { getSkeletonFileOrder, addFileToSkeleton, removeFileFromSkeleton } from './skeletonEditor.js';
 
 /**
@@ -34,18 +34,13 @@ export function buildNodesSection(fileNodes: FileNode[]): string {
 // Step 1: 分类 —— 判断每个变更文件属于 删除 / 跳过 / 待重新parse
 // =============================================================================
 
-interface ClassifiedFiles {
-    toDelete: string[];
-    toParse: { file: string; absPath: string; stats: fs.Stats }[];
-}
-
 export function classifyChangedFiles(
     files: string[],
     registry: Record<string, any>,
     projectRoot: string = PROJECT_ROOT
 ): ClassifiedFiles {
     const toDelete: string[] = [];
-    const toParse: { file: string; absPath: string; stats: fs.Stats }[] = [];
+    const toParse: PendingFileParse[] = [];
 
     for (const file of files) {
         const absPath = path.join(projectRoot, file);
@@ -104,14 +99,8 @@ export function applyDeletions(
 // Step 4: 批量 parse 新增/修改文件 —— 纯 IO/CPU,不碰 skeleton/nodeMap/registry
 // =============================================================================
 
-interface ParsedFileResult {
-    file: string;
-    stats: fs.Stats;
-    newNodeContent: string; // 可能为空字符串(无 symbol)
-}
-
 export async function parseChangedFiles(
-    toParse: { file: string; absPath: string; stats: fs.Stats }[]
+    toParse: PendingFileParse[]
 ): Promise<ParsedFileResult[]> {
     if (toParse.length === 0) return [];
 

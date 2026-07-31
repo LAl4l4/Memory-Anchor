@@ -1,7 +1,7 @@
 import * as path from 'path';
-import { getResolvedDependencyPaths } from './dependencyGraph.js';
-import { FileNode } from './symbolExtractor.js';
-import { escapeRegex } from './utils.js';
+import { getResolvedDependencyPaths } from '../reverse/dependencyGraph.js';
+import type { FileNode } from '../shared/CBHTypes.js';
+import { escapeRegex } from '../shared/utils.js';
 
 /**
  * Generate directory-grouped file skeleton from pre-built dir-to-files mapping.

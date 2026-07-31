@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { updatePartitionedChartIncrementally } from '../../chartBuild/build-chart.js';
+import { updatePartitionedChartIncrementally } from '../../chartBuild/incremental.js';
 import { captureGitChanges, GitChange } from '../../utils/captureGitChanges.js';
 
 async function refreshChart(changes: GitChange[] | null): Promise<void> {

@@ -1,18 +1,12 @@
 import { Worker } from 'node:worker_threads';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { FileNode } from './symbolExtractor.js';
-import { LazyWorkerPool } from './lazyWorkerPool.js';
+import type { FileNode, ParseRequest } from '../shared/CBHTypes.js';
+import { LazyWorkerPool } from '../shared/lazyWorkerPool.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const WORKER_PATH = path.join(__dirname, 'parserWorker.js');
-
-interface ParseRequest {
-    absolutePath: string;
-    relativePath: string;
-    lang: string;
-}
 
 /** Parser-specific facade over the shared lazy worker lifecycle. */
 export class ParserWorkerPool {

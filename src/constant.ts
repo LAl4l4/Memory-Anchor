@@ -1,5 +1,5 @@
 // =============================================================================
-// Ignore Lists (build-chart / scan)
+// Ignore Lists (chart build / scan)
 // =============================================================================
 
 export const IGNORED_DIR_NAMES = new Set([
@@ -196,7 +196,7 @@ export const LANGS = [
 ] as const;
 
 // =============================================================================
-// Tree-sitter Node Type Sets (for symbol extraction in build-chart)
+// Tree-sitter Node Type Sets (for symbol extraction in chart build)
 // =============================================================================
 
 /** Languages that use `export` keyword syntax */

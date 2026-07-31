@@ -2,12 +2,7 @@ import { parentPort, workerData } from 'node:worker_threads';
 import {
     collectGlobalReverseDependencies,
 } from './dependencyGraph.js';
-import type { FileNode } from './symbolExtractor.js';
-
-interface RegistryWorkerData {
-    dependencyPaths: string[];
-    targetSymbolKeys: string[];
-}
+import type { FileNode, RegistryWorkerData } from '../shared/CBHTypes.js';
 
 const { dependencyPaths, targetSymbolKeys } = workerData as RegistryWorkerData;
 const availablePaths = new Set(dependencyPaths);

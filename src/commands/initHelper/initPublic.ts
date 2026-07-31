@@ -3,7 +3,7 @@ import { access, appendFile, mkdir, readFile, writeFile } from 'node:fs/promises
 import path from 'node:path';
 import { createInterface } from 'node:readline';
 import { fileURLToPath } from 'node:url';
-import { buildChartFull, destroyPool } from '../../chartBuild/build-chart.js';
+import { buildChartFull, destroyPool } from '../../chartBuild/buildChart.js';
 import { AGENTS_CONTENT, GITIGNORE_ENTRY, INDEX_FILE_NAME, MANIFEST_DEFAULT_CONTENT } from '../../constant.js';
 import { ensureBallastFile } from '../../chartBuild/init-ballast.js';
 import { scanAvailableParsers } from '../../chartBuild/scan-parsers.js';

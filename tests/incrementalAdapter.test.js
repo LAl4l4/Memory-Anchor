@@ -8,18 +8,18 @@ const buildPartitionedCharts = jest.fn(async () => ({
 }));
 
 jest.unstable_mockModule(
-  '../dist/chartBuild/chartPartitioner/incrementalPartitioner.js',
+  '../dist/chartBuild/partition/incrementalPartitioner.js',
   () => ({ updatePartitionedChartsIncrementally })
 );
 jest.unstable_mockModule(
-  '../dist/chartBuild/chartPartitioner/partitionedChartBuilder.js',
+  '../dist/chartBuild/partition/partitionedChartBuilder.js',
   () => ({ buildPartitionedCharts })
 );
 
 const {
   updateChartIncrementally,
   updatePartitionedChartIncrementally
-} = await import('../dist/chartBuild/build-chart.js');
+} = await import('../dist/chartBuild/incremental.js');
 
 test('the legacy incremental entry points to the partitioned updater', async () => {
   expect(updateChartIncrementally).toBe(updatePartitionedChartIncrementally);

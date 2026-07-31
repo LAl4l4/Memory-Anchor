@@ -7,40 +7,9 @@ import {
     ENUM_DECLARATION_TYPES,
     TYPE_DECLARATION_TYPES
 } from '../../constant.js';
+import type { FileDependencyBinding, FileNode, FileSymbol } from '../shared/CBHTypes.js';
 
-export interface FileSymbol {
-    type: string;
-    name: string;
-    startIndex: number;
-    endIndex: number;
-    startLine: number;
-    endLine: number;
-    /** Present only for exported functions, where it can avoid a source read. */
-    parameters?: string;
-    /** Present only for exported functions with an explicit source annotation. */
-    returnType?: string;
-    /** Deduplicated bare call names made by this symbol, collected in the AST worker. */
-    forwardDependencies: string[];
-    dependedOnBy: string[];
-}
-
-export interface FileDependencyBinding {
-    imported: string;
-    local: string;
-}
-
-export interface FileDependency {
-    source: string;
-    bindings: FileDependencyBinding[];
-    resolvedPath?: string;
-}
-
-export interface FileNode {
-    relativePath: string;
-    language: string;
-    symbols: FileSymbol[];
-    dependencies: FileDependency[];
-}
+export type { FileDependencyBinding, FileNode, FileSymbol } from '../shared/CBHTypes.js';
 
 export function extractSymbols(node: any, fileNode: FileNode) {
     for (const child of node.children) {

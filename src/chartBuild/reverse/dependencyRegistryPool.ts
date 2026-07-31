@@ -1,18 +1,17 @@
 import { Worker } from 'node:worker_threads';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import {
-    createTargetSymbols,
+import { createTargetSymbols } from './dependencyGraph.js';
+import { LazyWorkerPool } from '../shared/lazyWorkerPool.js';
+import type {
+    FileNode,
     GlobalDependencyRegistry,
     GlobalReverseDependent,
-} from './dependencyGraph.js';
-import { LazyWorkerPool } from './lazyWorkerPool.js';
-import type { FileNode } from './symbolExtractor.js';
+    RegistryEntry,
+} from '../shared/CBHTypes.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const WORKER_PATH = path.join(path.dirname(__filename), 'dependencyRegistryWorker.js');
-
-type RegistryEntry = [string, GlobalReverseDependent];
 
 /**
  * Parallelizes the forward-call traversal while the owning thread performs

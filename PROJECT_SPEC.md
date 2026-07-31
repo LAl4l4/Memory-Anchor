@@ -27,8 +27,10 @@ Charts have a directory skeleton followed by architecture symbols. Relationship 
 Example:
 
 ```md
-### /build-chart.ts -> chartBuildHelper/ASTParser.ts; chartBuildHelper/utils.ts
-+ batchParseFiles() [L42-68] <- primeChartParseCache(); parseChangedFiles()
+### /buildChart.ts -> parse/ASTParser.ts; parse/runParse.ts; reverse/runReverseDependency.ts; partition/runPartitioner.ts; render/runRender.ts
++ buildChartFull() [L52-67] <- initPublic.ts
+### /incremental.ts -> buildChart.ts; partition/incrementalPartitioner.ts; shared/utils.ts
++ updatePartitionedChartIncrementally() [L10-21] <- stopPublic.ts; sessionEndPublic.ts
 ```
 
 ## Dependency graph scope and precision
