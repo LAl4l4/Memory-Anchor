@@ -99,6 +99,10 @@ Architecture extraction runs through a lazy `worker_threads` pool:
 
 The default pool size is `CPU count - 1`, with a minimum of two workers, leaving one core available for the main thread.
 
+## Benchmark
+
+A representative `anchor init` run on the Next.js repository parsed 24,602 source files, sized 11,848 directories, and wrote 3,108 chart partitions in **13.33 seconds**. The parse stage took 9.31 seconds and rendering took 2.94 seconds. This is a single-run snapshot rather than a cross-machine guarantee; see [benchmark.md](benchmark.md) for the workload, per-stage timings, and raw CLI output.
+
 ## Session lifecycle
 
 ```text

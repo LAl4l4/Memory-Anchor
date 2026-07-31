@@ -55,6 +55,8 @@ normalization. On the affected workspace, the render phase is expected to
 fall from roughly 68 seconds to a small number of seconds; rerun `anchor init`
 against that workspace to capture the exact post-fix timing.
 
+- Rerun result: roughly 13.3s total, 2.94s in render stage.
+
 ## Verification
 
 ```bash
