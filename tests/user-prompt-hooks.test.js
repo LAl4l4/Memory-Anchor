@@ -27,7 +27,7 @@ function runHook(relativePath, stdin = '') {
 test('user-prompt hooks return a non-blocking tail reminder in each native protocol', async () => {
   expect(await runHook('hooks/claude/user-prompt.js')).toBe(USER_PROMPT_APPENDIX);
 
-  for (const agent of ['codex', 'codebuddy', 'qodercn']) {
+  for (const agent of ['codebuddy', 'qodercn']) {
     expect(JSON.parse(await runHook(`hooks/${agent}/user-prompt.js`))).toEqual({
       hookSpecificOutput: {
         hookEventName: 'UserPromptSubmit',

@@ -134,6 +134,7 @@ export const HOOK_COMMANDS = {
   COPILOT_PROMPT: 'memoryanchor-copilot-prompt',
   CODEX_PRE: 'memoryanchor-codex-pre',
   CODEX_STOP: 'memoryanchor-codex-stop',
+  /** Legacy command retained only so init can remove old prompt-hook entries. */
   CODEX_PROMPT: 'memoryanchor-codex-prompt',
   CODEBUDDY_PRE: 'memoryanchor-codebuddy-pre',
   CODEBUDDY_STOP: 'memoryanchor-codebuddy-stop',

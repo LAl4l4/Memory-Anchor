@@ -140,6 +140,10 @@ All platform wrappers converge on the same public stop and session-end handlers,
 
 OpenCode uses `experimental.chat.system.transform` to append the Memory Anchor payload to the system prompt. Its `session.idle` and `session.deleted` events invoke the stop and session-end side effects through the generated plugin.
 
+Codex registers only `SessionStart` and `Stop`. It does not use the per-turn `UserPromptSubmit` reminder because the GPT-5.6 platform's instruction-following capability is sufficient without reinjecting the same guidance on every turn. Re-running `anchor init-codex` removes Memory Anchor's legacy prompt hook while preserving user-owned prompt hooks.
+
+The other integrations retain per-turn reinforcement for model-routing reasons. Claude Code and OpenCode can be connected to external model APIs whose instruction-following behavior may differ from their default models. QoderCLI CN, CodeBuddy, and GitHub Copilot expose model choices that include models whose instruction-following capability does not yet meet Memory Anchor's reliability threshold. Their prompt-time reminders therefore remain enabled so repository instructions are reinforced regardless of the selected provider or model.
+
 ## Commands
 
 | Command | Description |

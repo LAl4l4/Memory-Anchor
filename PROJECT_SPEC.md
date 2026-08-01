@@ -1,57 +1,228 @@
 # Memory Anchor Project Specification
 
-## Purpose
+## 1. Product purpose
 
-Memory Anchor is a local, file-based memory layer for coding agents. It generates compact architecture charts from a repository, supplies durable project rules and decisions, and refreshes the generated memory after source changes.
+Memory Anchor provides durable, local repository memory for coding agents. It
+turns source code into routed architecture charts, preserves repository-specific
+rules and decisions in reviewable Markdown, and keeps that memory current as
+the working tree changes.
 
-## Primary capabilities
+The product must work without a hosted retrieval service. All generated state
+lives in the target repository and can be inspected, versioned, or regenerated
+with the CLI.
 
-- Build threshold-partitioned `chart.md` files from repository source.
-- Extract architecture symbols with Tree-sitter and a reusable worker-thread parser pool.
-- Generate repository-wide file dependency and chart-local symbol reverse-call relationships.
-- Route agents through `.memoryanchor/index.md`, with shared rules in `AGENTS.md` and durable state in `ballast.md` and `manifest.md`.
-- Configure the shared workflow for Copilot, Claude Code, Codex CLI, CodeBuddy, OpenCode, and QoderCLI CN.
-- Incrementally refresh the owning chart after Git-detected changes, rebuilding chart topology only when directory-size boundaries change.
+## 2. Goals and non-goals
 
-## Chart format
+### Goals
 
-Charts have a directory skeleton followed by architecture symbols. Relationship notation is defined once in the managed `AGENTS.md` block:
+- Give an agent a small, useful starting context for a large repository.
+- Route the agent from a repository index to the chart closest to its task.
+- Extract architecture-level symbols and repository relationships from source
+  with Tree-sitter.
+- Preserve durable rules, known issues, and technical decisions alongside
+  generated charts.
+- Refresh only affected charts after Git-visible source changes whenever the
+  directory topology is still valid.
+- Support Copilot, Claude Code, Codex CLI, CodeBuddy, OpenCode, and QoderCLI
+  CN through each platform's supported configuration and lifecycle hooks.
 
-- `->` means the file references the listed parseable repository files.
-- `<-` means the listed in-chart symbols depend on or call the current symbol; it is never attached to a file heading.
-- `+` marks an exported symbol; `-` marks a default/internal symbol. Languages without explicit exports, such as C, use `-`.
-- Function rows omit `function` and `export`; explicit category labels remain for interfaces, classes, enums, and types.
-- Every symbol includes its `[Lstart-end]` source range. Exported functions retain only explicit parameter/return type annotations; internal functions omit signatures. Source comments are intentionally omitted.
-- A missing arrow means no relationship is represented.
+### Non-goals
 
-Example:
+- Reproduce source files or every implementation detail in Markdown.
+- Replace code review, tests, Git history, or agent-native context management.
+- Resolve package dependencies or imports that cannot be mapped to a repository
+  file.
+- Preserve manual edits to generated chart files.
 
-```md
-### /buildChart.ts -> parse/ASTParser.ts; parse/runParse.ts; reverse/runReverseDependency.ts; partition/runPartitioner.ts; render/runRender.ts
-+ buildChartFull() [L52-67] <- initPublic.ts
-### /incremental.ts -> buildChart.ts; partition/incrementalPartitioner.ts; shared/utils.ts
-+ updatePartitionedChartIncrementally() [L10-21] <- stopPublic.ts; sessionEndPublic.ts
+## 3. Repository artifacts
+
+`anchor init` creates or updates the following shared repository memory:
+
+| Artifact | Responsibility |
+| --- | --- |
+| `.memoryanchor/index.md` | Small routing index that identifies the root chart partitions. |
+| `.memoryanchor/chart/**/chart.md` | Generated architecture charts, partitioned by directory topology. |
+| `.memoryanchor/dirTree.json` | Persisted directory sizes, split states, and virtual chart-tree routes. |
+| `.memoryanchor/ballast.md` | Durable default and repository-specific implementation rules. |
+| `.memoryanchor/manifest.md` | Module status, dependencies, known issues, and key decisions. |
+| `AGENTS.md` | Managed instructions that tell supported agents how to traverse and use the memory. |
+
+Charts are generated artifacts and must not be edited manually. `ballast.md` and
+`manifest.md` are durable project memory and are intentionally maintained over
+time.
+
+## 4. Full initialization
+
+### Input and output
+
+The primary operation is:
+
+```bash
+anchor init
 ```
 
-## Dependency graph scope and precision
+It scans supported source files, compiles a partitioned chart tree, writes the
+routing index, ensures the shared memory documents exist, and configures all
+supported agent integrations. Targeted `init-<agent>` commands configure one
+agent integration, while `init-public` creates only the shared repository
+memory and public instructions.
 
-Tree-sitter supplies import declarations and call sites. Forward and reverse relationships deliberately use different scopes because they answer different questions.
+### Build stages
 
-### Forward dependencies: repository-wide file navigation
+A full chart build has four observable stages:
 
-Every parseable repository file is eligible as a `->` target, regardless of the chart that contains the importing file. Tree-sitter can collect these imports while parsing the repository, so cross-chart forward edges provide useful, low-cost navigation of module coupling. Package and otherwise unresolved imports remain omitted because they do not resolve to a repository file.
+1. **Parse** — Tree-sitter extracts file imports, architecture symbols, and
+   per-symbol call names from every supported file.
+2. **Reverse dependency index** — imports and call names are resolved into a
+   build-wide, symbol-level reverse registry.
+3. **Partition sizing** — aggregate directory character counts establish the
+   physical and virtual chart topology.
+4. **Render** — chart-local file nodes are rendered to `chart.md` files and
+   `.memoryanchor/index.md` is written.
 
-### Reverse dependencies: chart-local symbol impact
+The full build owns a temporary parse cache keyed by absolute path, so each
+source file is parsed once even though parsing, reverse indexing, and rendering
+need its extracted information. The cache contains serializable extracted data,
+not source strings or Tree-sitter trees, and is released at the end of the
+build.
 
-`<-` is resolved only among symbols in the current chart and is attached to the specific referenced symbol, never to a file heading. This preserves the information agents need for safe edits: changing `ensurePublicFile()` identifies its actual callers, rather than implying that every declaration in `initPublic.ts` affects every importing file.
+## 5. Chart topology and routing
 
-File-level reverse edges are intentionally excluded. A heading such as `### /initHelper/initPublic.ts <- initClaude.ts; initCodebuddy.ts; ...` is noisy and imprecise: it cannot identify the referenced declaration or call site, and would cause unnecessary investigation whenever an unrelated symbol in that file changes. Keeping reverse lookup chart-local also bounds the work and output size during incremental chart refreshes.
+Directory size determines whether a directory is split:
 
-A missing `->` means no parseable repository target was resolved. A missing `<-` means no caller was resolved for that symbol within the chart; it does not rule out callers in other charts.
+| State transition | Aggregate source characters |
+| --- | ---: |
+| Split a non-split directory | More than 18,000 |
+| Merge a split directory | Less than 14,000 |
+| Retain current state | 14,000–18,000 |
 
-## Operational constraints
+The separate split and merge thresholds provide hysteresis and prevent topology
+changes from oscillating around a single boundary.
 
-- Full builds share one build-scoped parse cache and destroy the parser pool afterward.
-- Incremental chart updates reparse the affected chart's full scan set so reverse dependency annotations remain current.
-- The worker pool is demand-lazy, bounded by available CPUs, and each worker reuses its parser and loaded languages.
-- Generated charts are output artifacts; `ballast.md` and `manifest.md` capture persistent project knowledge.
+For each branch below a split directory, Memory Anchor selects the first
+non-split directory as a **recursive frontier** and emits one chart covering
+its full subtree. It emits no charts below that frontier. Split ancestors that
+own direct source files receive **shallow charts** for those direct files and
+link to child charts. The index lists the first virtual chart layer; each chart
+lists only its immediate child chart routes.
+
+Agents must read the index first, then follow the closest route through Child
+Charts. Each generated chart identifies its own workspace-relative path so its
+scope is explicit.
+
+## 6. Chart content contract
+
+Each chart contains a directory skeleton followed by extracted architecture
+symbols. The managed `AGENTS.md` documents the exact notation; its essential
+contract is:
+
+- `->` lists parseable repository files imported or referenced by a file.
+- `<-` appears only on a referenced symbol and lists symbols that call or
+  depend on it.
+- `+` marks an exported symbol; `-` marks a default or internal symbol.
+- Every symbol includes a source range formatted as `[Lstart-end]`.
+- Exported functions retain explicit source-declared parameter and return type
+  annotations. Internal functions omit signatures. Classes, interfaces, enums,
+  and types keep their category labels.
+- Source comments, package dependencies, and unresolved imports are omitted.
+
+Forward file relationships resolve across all parseable repository files. Full
+builds also attach project-wide reverse callers to the referenced symbol, even
+when the caller lives in another chart. Incremental edits maintain the owning
+chart's compatible local reverse view until a full or topology rebuild creates
+a fresh global registry.
+
+## 7. Parser and performance requirements
+
+Parsing uses a demand-lazy `worker_threads` pool. A worker owns one Tree-sitter
+parser and caches loaded WASM language modules for reuse. The pool begins only
+when parseable work exists and is capped at one fewer than the available CPU
+count (minimum two workers). Worker creation is further bounded by current
+queue demand.
+
+Full initialization destroys the pool when it finishes. Incremental CLI work
+keeps the pool available for reuse until the session-end flow releases it. A
+worker that exits is removed; queued work can create a replacement only when
+there is outstanding demand. Destroying the pool must await workers that are
+still starting so no thread or handle remains unowned.
+
+The CLI must report elapsed time for each build stage and detailed render
+timings. A representative benchmark is maintained in [benchmark.md](benchmark.md).
+It records one Next.js initialization on a MacBook Air M2: 24,602 source files,
+3,108 chart partitions, and 13.33 seconds total elapsed time. This result is a
+single-machine snapshot, not a performance guarantee.
+
+## 8. Incremental refresh
+
+Supported stop and session-end integrations identify Git-visible changed files
+and call `updatePartitionedChartIncrementally`. The legacy
+`updateChartIncrementally` API remains a compatibility alias.
+
+For ordinary content changes, the updater:
+
+1. Maps the changed file to its recursive frontier or shallow owner chart.
+2. Rebuilds that chart's extracted content.
+3. Propagates the exact character-count delta through physical directory
+   ancestors.
+4. Refreshes the index only if the virtual chart topology changes.
+
+Changes that cross a split or merge threshold rebuild only the affected
+topology boundary and external parents whose Child Chart routes changed. A
+direct-file ownership change or missing/invalid topology safely falls back to a
+full partitioned build. Batches deduplicate physical directories before
+directory-scoped I/O, and charts already rebuilt from disk are not rebuilt
+again for a later file in the same batch.
+
+## 9. Agent integration requirements
+
+At session start, the common context payload must provide, in order:
+
+1. Index routing rules.
+2. The root chart when one exists.
+3. Ballast rules.
+4. Manifest state and decisions.
+
+Platforms that need per-turn reinforcement receive the Memory Anchor chart
+reminder through their supported prompt hook without blocking submission.
+Codex is intentionally excluded from this pre-submission policy: the GPT-5.6
+platform's instruction-following capability is sufficient to retain the
+repository and session-start instructions, so injecting the same reminder on
+every turn adds context without a corresponding reliability benefit. Codex
+therefore registers only `SessionStart` and `Stop`; it also has no session-level
+`SessionEnd` event. OpenCode continues to extend system context through
+`experimental.chat.system.transform`.
+
+Initialization is idempotent: it may repair or replace Memory Anchor-managed
+configuration but must preserve user-owned hook entries and unrelated agent
+configuration.
+
+## 10. Supported languages
+
+Bundled Tree-sitter WASM grammars cover C, C++, CSS, HTML, Go, Java,
+JavaScript, JSON, Python, Ruby, Rust, Scala, Swift, TypeScript, and TSX.
+
+## 11. Acceptance criteria
+
+- `anchor init` creates a valid index, chart tree, directory registry, ballast,
+  manifest, and configured integrations without duplicate managed hooks.
+- Every generated chart follows the content contract and identifies its own
+  path.
+- The index and Child Chart routes reach the nearest valid chart partition.
+- A full build parses each supported file no more than once within its
+  build-scoped cache.
+- Incremental updates refresh the correct owning chart and only rebuild broader
+  topology when size or direct-file ownership changes require it.
+- Full-build and incremental worker-pool lifecycles do not leave active worker
+  threads after their respective cleanup boundary.
+- `npm test` passes, including regression coverage for parsing, topology,
+  generated documents, configuration merging, and worker-pool cleanup.
+
+## 12. Known limitations
+
+- Git-visible paths drive automatic incremental updates; non-visible changes
+  may require a fresh `anchor init`.
+- A changed root-level file under a split root currently falls back to a full
+  rebuild.
+- An oversized leaf directory has no smaller directory partition; file-level
+  partitioning is future work.
+- Generated charts do not preserve manual edits.

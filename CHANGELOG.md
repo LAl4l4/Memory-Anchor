@@ -1,4 +1,6 @@
 ## Update log
+- `2026/08/02`: Exclude Codex from the per-submission reminder hook. GPT-5.6 follows repository and session-start instructions reliably enough that repeated per-turn injection is unnecessary; `init-codex` now removes the legacy Memory Anchor `UserPromptSubmit` command while preserving user-owned prompt hooks.
+
 - `2026/07/08`: [Known Limitation] Manual edits/deletions in chart.md are not resolved by incremental updating, because it relies on registry mtime which doesn't change. This is by design - chart.md is auto-generated and should never be edited manually. Will not occur in normal use.
 
 - `2026/07/14`: Opencode's plugin does not injecting ballast.md and manifest.md successfully, add this

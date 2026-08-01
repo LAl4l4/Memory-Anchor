@@ -18,7 +18,6 @@
     "memoryanchor-claude-stop": "dist/hooks/claude/stop.js",
     "memoryanchor-codex-pre": "dist/hooks/codex/session-start.js",
     "memoryanchor-codex-stop": "dist/hooks/codex/stop.js",
-    "memoryanchor-codex-prompt": "dist/hooks/codex/user-prompt.js",
     "memoryanchor-codebuddy-pre": "dist/hooks/codebuddy/session-start.js",
     "memoryanchor-codebuddy-post": "dist/hooks/codebuddy/session-end.js",
     "memoryanchor-codebuddy-prompt": "dist/hooks/codebuddy/user-prompt.js",

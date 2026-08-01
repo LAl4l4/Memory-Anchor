@@ -61,10 +61,10 @@ test('creates .codex/hooks.json with Stop hook', async () => {
   expect(hooks.hooks.Stop[0].hooks[0].command).toBe(HOOK_COMMANDS.CODEX_STOP);
 });
 
-test('creates .codex/hooks.json with UserPromptSubmit hook', async () => {
+test('does not create a Codex UserPromptSubmit hook', async () => {
   await runInitCodex(tempDir);
   const hooks = JSON.parse(await readFile(path.join(tempDir, '.codex', 'hooks.json'), 'utf8'));
-  expect(hooks.hooks.UserPromptSubmit[0].hooks[0].command).toBe(HOOK_COMMANDS.CODEX_PROMPT);
+  expect(hooks.hooks.UserPromptSubmit).toBeUndefined();
 });
 
 test('does not create an unsupported SessionEnd hook', async () => {
@@ -102,6 +102,35 @@ test('removes only the obsolete Memory Anchor SessionEnd entry', async () => {
   expect(hooks.hooks.SessionEnd).toHaveLength(1);
   expect(hooks.hooks.SessionEnd[0].hooks).toEqual([
     { type: 'command', command: 'my-session-end-hook', timeout: 10 },
+  ]);
+});
+
+test('removes only the obsolete Memory Anchor UserPromptSubmit entry', async () => {
+  const hooksPath = path.join(tempDir, '.codex', 'hooks.json');
+  await mkdir(path.dirname(hooksPath), { recursive: true });
+  await writeFile(
+    hooksPath,
+    JSON.stringify({
+      hooks: {
+        UserPromptSubmit: [
+          {
+            matcher: '',
+            hooks: [
+              { type: 'command', command: HOOK_COMMANDS.CODEX_PROMPT, timeout: 5 },
+              { type: 'command', command: 'my-prompt-hook', timeout: 10 },
+            ],
+          },
+        ],
+      },
+    }, null, 2) + '\n',
+  );
+
+  await runInitCodex(tempDir);
+
+  const hooks = JSON.parse(await readFile(hooksPath, 'utf8'));
+  expect(hooks.hooks.UserPromptSubmit).toHaveLength(1);
+  expect(hooks.hooks.UserPromptSubmit[0].hooks).toEqual([
+    { type: 'command', command: 'my-prompt-hook', timeout: 10 },
   ]);
 });
 
@@ -143,7 +172,7 @@ test('re-running does not duplicate hooks', async () => {
     await readFile(path.join(tempDir, '.codex', 'hooks.json'), 'utf8'),
   );
   expect(hooks.hooks.SessionStart).toHaveLength(1);
-  expect(hooks.hooks.UserPromptSubmit).toHaveLength(1);
+  expect(hooks.hooks.UserPromptSubmit).toBeUndefined();
   expect(hooks.hooks.Stop).toHaveLength(1);
   expect(hooks.hooks.SessionEnd).toBeUndefined();
 });

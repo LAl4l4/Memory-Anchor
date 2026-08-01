@@ -60,11 +60,6 @@ const CODEX_STOP_HOOK: CodexHookEntry = {
   hooks: [{ type: 'command', command: HOOK_COMMANDS.CODEX_STOP, timeout: 10 }],
 };
 
-const CODEX_PROMPT_HOOK: CodexHookEntry = {
-  matcher: '',
-  hooks: [{ type: 'command', command: HOOK_COMMANDS.CODEX_PROMPT, timeout: 5 }],
-};
-
 // =============================================================================
 // Codex Paths
 // =============================================================================
@@ -93,7 +88,6 @@ async function ensureCodexHooks(paths: CodexPaths): Promise<boolean> {
     const config: CodexHooksConfig = {
       hooks: {
         SessionStart: [CODEX_START_HOOK],
-        UserPromptSubmit: [CODEX_PROMPT_HOOK],
         Stop: [CODEX_STOP_HOOK],
       }
     };
@@ -115,8 +109,12 @@ function registerCodexHooks(config: CodexHooksConfig): boolean {
   let updated = false;
 
   updated = ensureCodexHookEntry(config, 'SessionStart', CODEX_START_HOOK) || updated;
-  updated = ensureCodexHookEntry(config, 'UserPromptSubmit', CODEX_PROMPT_HOOK) || updated;
   updated = ensureCodexHookEntry(config, 'Stop', CODEX_STOP_HOOK) || updated;
+  updated = removeCodexHookCommand(
+    config,
+    'UserPromptSubmit',
+    HOOK_COMMANDS.CODEX_PROMPT,
+  ) || updated;
   updated = removeLegacyCodexSessionEndHook(config) || updated;
 
   return updated;
@@ -124,7 +122,7 @@ function registerCodexHooks(config: CodexHooksConfig): boolean {
 
 function ensureCodexHookEntry(
   config: CodexHooksConfig,
-  key: 'SessionStart' | 'UserPromptSubmit' | 'Stop',
+  key: 'SessionStart' | 'Stop',
   entry: CodexHookEntry,
 ): boolean {
   if (config.hooks === undefined) {
@@ -155,26 +153,30 @@ function ensureCodexHookEntry(
 }
 
 /**
- * Codex has no SessionEnd event. Remove only Memory Anchor's obsolete entry
- * from existing configs, preserving any unrelated user configuration.
+ * Remove one Memory Anchor-managed command while retaining unrelated commands
+ * registered for the same event.
  */
-function removeLegacyCodexSessionEndHook(config: CodexHooksConfig): boolean {
-  const sessionEnd = config.hooks?.SessionEnd;
-  if (sessionEnd === undefined) {
+function removeCodexHookCommand(
+  config: CodexHooksConfig,
+  key: 'UserPromptSubmit' | 'SessionEnd',
+  managedCommand: string,
+): boolean {
+  const entries = config.hooks?.[key];
+  if (entries === undefined) {
     return false;
   }
 
-  if (!Array.isArray(sessionEnd)) {
-    throw new Error('Hook list "SessionEnd" must be an array.');
+  if (!Array.isArray(entries)) {
+    throw new Error(`Hook list "${key}" must be an array.`);
   }
 
   let removed = false;
-  const remaining = sessionEnd
+  const remaining = entries
     .map((entry) => {
       const hooks = entry.hooks.filter((command) => {
-        const isLegacyMemoryAnchorHook = command.command === 'memoryanchor-codex-post';
-        removed = removed || isLegacyMemoryAnchorHook;
-        return !isLegacyMemoryAnchorHook;
+        const isManagedHook = command.command === managedCommand;
+        removed = removed || isManagedHook;
+        return !isManagedHook;
       });
       return { ...entry, hooks };
     })
@@ -185,11 +187,19 @@ function removeLegacyCodexSessionEndHook(config: CodexHooksConfig): boolean {
   }
 
   if (remaining.length === 0) {
-    delete config.hooks!.SessionEnd;
+    delete config.hooks![key];
   } else {
-    config.hooks!.SessionEnd = remaining;
+    config.hooks![key] = remaining;
   }
   return true;
+}
+
+/**
+ * Codex has no SessionEnd event. Remove only Memory Anchor's obsolete entry
+ * from existing configs, preserving any unrelated user configuration.
+ */
+function removeLegacyCodexSessionEndHook(config: CodexHooksConfig): boolean {
+  return removeCodexHookCommand(config, 'SessionEnd', 'memoryanchor-codex-post');
 }
 
 // =============================================================================
