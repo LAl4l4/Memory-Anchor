@@ -1,9 +1,26 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { updatePartitionChartContent } from '../render/partitionChartIncrementalUpdater.js';
+import { batchParseFiles } from '../parse/ASTParser.js';
+import { getChartFileNodes, renderChartContent } from '../render/chartContentBuilder.js';
 import {
-    hasDirectProjectFiles,
+    PARTITIONED_CHART_DIRECTORY_NAME,
+    writeChartSet,
+} from '../render/runRender.js';
+import {
+    createGlobalDependencyRegistry,
+    DEPENDENCY_GRAPH_FILE_NAME,
+    loadPersistentDependencyGraph,
+    persistDependencyGraph,
+    updatePersistentDependencyGraph,
+} from '../reverse/persistentDependencyGraph.js';
+import type {
+    FileNode,
+    PersistentDependencyGraph,
+} from '../shared/CBHTypes.js';
+import {
+    isCodeFile,
     isIgnored,
+    listProjectFiles,
     resolveWorkspacePaths,
 } from '../shared/utils.js';
 import {
@@ -11,14 +28,20 @@ import {
     DirectoryCharThresholds,
     DirectoryTreeNode,
     DirectoryTreeRegistryNode,
+    ensureDirectoryTreeNode,
+    findDirectoryTreeNode,
     fromDirectoryTreeRegistry,
+    getDirectDirectoryChars,
+    pruneEmptyDirectoryTreeNodes,
+    rebuildChartTree,
     toDirectoryTreeRegistry,
     validateDirectoryThresholds,
 } from './directoryTree.js';
 import {
-    buildPartitionedCharts,
     captureChartTopology,
+    hasChartTopologyChanged,
     rebuildPartitionBoundary,
+    type ChartTopologySnapshot,
 } from './partitionedChartBuilder.js';
 
 export interface IncrementalPartitionOptions {
@@ -27,7 +50,7 @@ export interface IncrementalPartitionOptions {
 }
 
 function normalizeRelativePath(file: string): string {
-    return file.split(path.sep).join('/').replace(/^\.\//, '');
+    return file.split(/[\\/]/).join('/').replace(/^\.\//, '');
 }
 
 /** Collapse file-level change batches before any directory-scoped I/O. */
@@ -37,37 +60,6 @@ export function getUniqueChangedDirectories(relativeFiles: readonly string[]): s
             path.posix.dirname(normalizeRelativePath(relativeFile))
         )
     )];
-}
-
-/** Whether a prior boundary rebuild already refreshed this file from disk. */
-export function isFileCoveredByRebuiltDirectory(
-    relativeFile: string,
-    rebuiltDirectories: ReadonlySet<string>
-): boolean {
-    let directory = path.posix.dirname(normalizeRelativePath(relativeFile));
-
-    while (true) {
-        if (rebuiltDirectories.has(directory)) return true;
-        if (directory === '.') return false;
-        directory = path.posix.dirname(directory);
-    }
-}
-
-function findDirectoryNode(
-    root: DirectoryTreeNode,
-    directory: string
-): DirectoryTreeNode | null {
-    if (directory === '.') return root;
-
-    let current = root;
-    let currentPath = '';
-    for (const segment of directory.split('/')) {
-        currentPath = currentPath ? `${currentPath}/${segment}` : segment;
-        const child = current.children.find(node => node.directory === currentPath);
-        if (!child) return null;
-        current = child;
-    }
-    return current;
 }
 
 /** Find the threshold-frontier chart or shallow split ancestor owning a file. */
@@ -94,9 +86,9 @@ export function findPartitionForFile(
 }
 
 /**
- * Apply one chart-size delta up the physical directory chain. Every crossing
- * node updates its split state so a later topology rebuild sees consistent
- * descendant and ancestor thresholds. The highest changed node is returned.
+ * Apply one pre-rendered direct-chart delta up the physical directory chain.
+ * Split state changes here, but virtual chart edges are rebuilt only after the
+ * complete change batch has been applied.
  */
 export function applyDirectoryCharsDelta(
     start: DirectoryTreeNode,
@@ -111,10 +103,7 @@ export function applyDirectoryCharsDelta(
         current.thisDirectoryChars = Math.max(0, current.thisDirectoryChars + delta);
 
         if (delta > 0) {
-            if (
-                !current.isSplit &&
-                current.thisDirectoryChars > thresholds.splitAt
-            ) {
+            if (!current.isSplit && current.thisDirectoryChars > thresholds.splitAt) {
                 current.isSplit = true;
                 boundaryChange = current;
             }
@@ -149,99 +138,11 @@ function normalizeChangedFiles(changedFiles: readonly string[]): string[] {
     )];
 }
 
-function hasDirectOwnershipChange(
-    root: DirectoryTreeNode,
-    relativeFiles: readonly string[],
-    projectRoot: string
-): boolean {
-    for (const directory of getUniqueChangedDirectories(relativeFiles)) {
-        const node = findDirectoryNode(root, directory);
-        const sourceDirectory = directory === '.'
-            ? projectRoot
-            : path.join(projectRoot, directory);
-        const hasDirectFilesOnDisk = hasDirectProjectFiles(sourceDirectory);
-        if (
-            (node === null && hasDirectFilesOnDisk) ||
-            (node !== null && node.hasDirectFiles !== hasDirectFilesOnDisk)
-        ) {
-            return true;
-        }
-    }
-    return false;
-}
-
-interface PartitionUpdatePaths {
-    partitionRoot: string;
-    chartPath: string;
-    localFile: string;
-}
-
-function resolvePartitionUpdatePaths(
-    partition: DirectoryTreeNode,
-    relativeFile: string,
-    projectRoot: string
-): PartitionUpdatePaths | null {
-    const partitionRoot = partition.directory === '.'
-        ? projectRoot
-        : path.join(projectRoot, partition.directory);
-    const localFile = normalizeRelativePath(
-        path.relative(partitionRoot, path.join(projectRoot, relativeFile))
-    );
-    if (localFile === '..' || localFile.startsWith('../')) return null;
-
-    const chartDirectory = partition.directory === '.'
-        ? path.join(projectRoot, '.memoryanchor', 'chart')
-        : path.join(projectRoot, '.memoryanchor', 'chart', partition.directory);
-    return {
-        partitionRoot,
-        localFile,
-        chartPath: path.join(chartDirectory, 'chart.md'),
-    };
-}
-
-interface IncrementalFileUpdate {
-    valid: boolean;
-    changed: boolean;
-    boundaryChange: DirectoryTreeNode | null;
-}
-
-async function updateIncrementalFile(
-    root: DirectoryTreeNode,
-    relativeFile: string,
-    projectRoot: string,
-    thresholds: DirectoryCharThresholds
-): Promise<IncrementalFileUpdate> {
-    const partition = findPartitionForFile(root, relativeFile);
-    if (!partition) return { valid: true, changed: false, boundaryChange: null };
-
-    const changedDirectory = findDirectoryNode(root, path.posix.dirname(relativeFile));
-    const paths = resolvePartitionUpdatePaths(partition, relativeFile, projectRoot);
-    if (!changedDirectory || !paths || !fs.existsSync(paths.chartPath)) {
-        return { valid: false, changed: false, boundaryChange: null };
-    }
-
-    const result = await updatePartitionChartContent(
-        paths.chartPath,
-        paths.partitionRoot,
-        [paths.localFile]
-    );
-    if (!result.changed) return { valid: true, changed: false, boundaryChange: null };
-
-    return {
-        valid: true,
-        changed: true,
-        boundaryChange: applyDirectoryCharsDelta(
-            changedDirectory,
-            result.currentChars - result.previousChars,
-            thresholds
-        ),
-    };
-}
-
 interface IncrementalWorkspace {
     projectRoot: string;
     registryPath: string;
     indexPath: string;
+    dependencyGraphPath: string;
     thresholds: DirectoryCharThresholds;
 }
 
@@ -258,58 +159,400 @@ function resolveIncrementalWorkspace(
         thresholds,
         registryPath: path.join(anchorDirectory, 'dirTree.json'),
         indexPath: path.join(anchorDirectory, 'index.md'),
+        dependencyGraphPath: path.join(anchorDirectory, DEPENDENCY_GRAPH_FILE_NAME),
     };
 }
 
 function loadDirectoryTree(workspace: IncrementalWorkspace): DirectoryTreeNode | null {
-    if (
-        !fs.existsSync(workspace.registryPath) ||
-        !fs.existsSync(workspace.indexPath)
-    ) {
+    if (!fs.existsSync(workspace.registryPath) || !fs.existsSync(workspace.indexPath)) {
         return null;
     }
-    const registry = JSON.parse(
-        fs.readFileSync(workspace.registryPath, 'utf-8')
-    ) as DirectoryTreeRegistryNode;
-    return fromDirectoryTreeRegistry(registry);
+    try {
+        const registry = JSON.parse(
+            fs.readFileSync(workspace.registryPath, 'utf-8')
+        ) as DirectoryTreeRegistryNode;
+        return fromDirectoryTreeRegistry(registry);
+    } catch {
+        return null;
+    }
 }
 
-async function updateIncrementalFileBatch(
-    root: DirectoryTreeNode,
-    files: readonly string[],
-    workspace: IncrementalWorkspace
-): Promise<boolean> {
-    const previousTopology = captureChartTopology(root);
-    let registryChanged = false;
-    for (const relativeFile of files) {
-        const update = await updateIncrementalFile(
-            root,
-            relativeFile,
-            workspace.projectRoot,
-            workspace.thresholds
-        );
-        if (!update.valid) return false;
-        if (!update.changed) continue;
-
-        registryChanged = true;
-        if (update.boundaryChange) {
-            await rebuildPartitionBoundary(root, update.boundaryChange, {
-                projectRoot: workspace.projectRoot,
-                previousTopology,
-            });
-            persistDirectoryTree(workspace.registryPath, root);
-            return true;
-        }
+function listDirectProjectFiles(projectRoot: string, directory: string): string[] {
+    const sourceDirectory = directory === '.'
+        ? projectRoot
+        : path.join(projectRoot, directory);
+    try {
+        if (!fs.statSync(sourceDirectory).isDirectory()) return [];
+    } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT') return [];
+        throw error;
     }
 
-    if (registryChanged) persistDirectoryTree(workspace.registryPath, root);
-    return true;
+    return [...listProjectFiles(sourceDirectory, false).values()]
+        .flat()
+        .map(file => directory === '.'
+            ? normalizeRelativePath(file)
+            : path.posix.join(directory, normalizeRelativePath(file))
+        )
+        .sort((left, right) => left.localeCompare(right));
+}
+
+interface IncrementalParseBatch {
+    directFilesByDirectory: Map<string, string[]>;
+    parseCache: Map<string, FileNode>;
+    changedNodes: FileNode[];
+}
+
+async function parseRelativeFiles(
+    relativeFiles: Iterable<string>,
+    projectRoot: string,
+    parseCache: Map<string, FileNode>
+): Promise<void> {
+    const filesToParse = [...new Set(relativeFiles)]
+        .filter(relativeFile => !parseCache.has(path.resolve(projectRoot, relativeFile)))
+        .sort((left, right) => left.localeCompare(right));
+    if (filesToParse.length === 0) return;
+
+    const parsedFiles = await batchParseFiles(filesToParse.map(relativePath => ({
+        absolutePath: path.join(projectRoot, relativePath),
+        relativePath,
+    })));
+    parsedFiles.forEach((fileNode, index) => {
+        parseCache.set(path.resolve(projectRoot, filesToParse[index]), fileNode);
+    });
 }
 
 /**
- * Update virtual charts and the directory registry in O(depth × changed) tree
- * work. Ownership changes rebuild immediately; false requests caller fallback
- * only when the base registry/index or an expected chart is missing.
+ * Incremental parse stage. It parses changed files plus one direct-file view
+ * per changed physical directory, allowing the following pre-render stage to
+ * measure the exact same direct chart unit used by full partition sizing.
+ */
+async function parseIncrementalBatch(
+    relativeFiles: readonly string[],
+    projectRoot: string
+): Promise<IncrementalParseBatch> {
+    const directFilesByDirectory = new Map<string, string[]>();
+    const parsePaths = new Set<string>();
+
+    for (const directory of getUniqueChangedDirectories(relativeFiles)) {
+        const files = listDirectProjectFiles(projectRoot, directory);
+        directFilesByDirectory.set(directory, files);
+        files.forEach(file => parsePaths.add(file));
+    }
+
+    // A changed file normally appears in its direct listing. Keep this extra
+    // check for races such as a just-created symlink or a directory rename.
+    for (const relativeFile of relativeFiles) {
+        const absolutePath = path.join(projectRoot, relativeFile);
+        try {
+            if (fs.statSync(absolutePath).isFile()) parsePaths.add(relativeFile);
+        } catch (error) {
+            if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+        }
+    }
+
+    const parseCache = new Map<string, FileNode>();
+    await parseRelativeFiles(parsePaths, projectRoot, parseCache);
+
+    const changedNodes = relativeFiles.flatMap(relativeFile => {
+        const node = parseCache.get(path.resolve(projectRoot, relativeFile));
+        return node ? [node] : [];
+    });
+    return { directFilesByDirectory, parseCache, changedNodes };
+}
+
+/**
+ * Add direct physical directories whose graph annotations changed after the
+ * initial changed-file parse. Their confirmed sizes must participate in the
+ * same topology update as the files that triggered the graph change.
+ */
+async function addPreRenderDirectories(
+    batch: IncrementalParseBatch,
+    directories: Iterable<string>,
+    projectRoot: string
+): Promise<void> {
+    const parsePaths = new Set<string>();
+    for (const directory of directories) {
+        if (batch.directFilesByDirectory.has(directory)) continue;
+        const files = listDirectProjectFiles(projectRoot, directory);
+        batch.directFilesByDirectory.set(directory, files);
+        files.forEach(file => parsePaths.add(file));
+    }
+    await parseRelativeFiles(parsePaths, projectRoot, batch.parseCache);
+}
+
+function updateDependencyPaths(
+    graph: PersistentDependencyGraph,
+    relativeFiles: readonly string[],
+    projectRoot: string
+): ReadonlySet<string> {
+    const dependencyPaths = new Set(graph.files);
+    for (const relativeFile of relativeFiles) {
+        const absolutePath = path.join(projectRoot, relativeFile);
+        try {
+            if (fs.statSync(absolutePath).isFile() && isCodeFile(relativeFile)) {
+                dependencyPaths.add(relativeFile);
+            } else {
+                dependencyPaths.delete(relativeFile);
+            }
+        } catch (error) {
+            if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+                dependencyPaths.delete(relativeFile);
+                continue;
+            }
+            throw error;
+        }
+    }
+    return dependencyPaths;
+}
+
+interface DirectDirectoryPreview {
+    directory: string;
+    files: string[];
+    chars: number;
+}
+
+interface TopologyPreviewUpdate {
+    changed: boolean;
+    /** Direct physical directories whose confirmed chart unit changed. */
+    changedDirectories: string[];
+}
+
+/** Pre-render stage: measure direct chart content without changing output files. */
+function preRenderDirectories(
+    batch: IncrementalParseBatch,
+    projectRoot: string,
+    dependencyPaths: ReadonlySet<string>,
+    dependencyGraph: PersistentDependencyGraph
+): DirectDirectoryPreview[] {
+    const registry = createGlobalDependencyRegistry(dependencyGraph);
+    const previews: DirectDirectoryPreview[] = [];
+
+    for (const [directory, files] of batch.directFilesByDirectory) {
+        if (files.length === 0) {
+            previews.push({ directory, files, chars: 0 });
+            continue;
+        }
+        const directFiles = new Map<string, string[]>([[directory, files]]);
+        const fileNodes = getChartFileNodes(directFiles, projectRoot, batch.parseCache);
+        const content = renderChartContent(
+            directFiles,
+            fileNodes,
+            'PROJECT CHART',
+            dependencyPaths,
+            registry,
+            '.'
+        );
+        previews.push({ directory, files, chars: content.length });
+    }
+    return previews;
+}
+
+/** Apply the confirmed direct-chart sizes, then rebuild virtual ownership once. */
+function updateTopologyFromPreviews(
+    root: DirectoryTreeNode,
+    previews: readonly DirectDirectoryPreview[],
+    thresholds: DirectoryCharThresholds
+): TopologyPreviewUpdate {
+    let changed = false;
+    const changedDirectories = new Set<string>();
+    for (const preview of previews) {
+        let node = findDirectoryTreeNode(root, preview.directory);
+        if (!node && preview.files.length === 0) continue;
+        node ??= ensureDirectoryTreeNode(root, preview.directory);
+
+        const previousDirectChars = getDirectDirectoryChars(node);
+        const hasDirectFiles = preview.files.length > 0;
+        const delta = preview.chars - previousDirectChars;
+        if (delta !== 0 || node.hasDirectFiles !== hasDirectFiles) {
+            changed = true;
+            changedDirectories.add(preview.directory);
+        }
+
+        node.hasDirectFiles = hasDirectFiles;
+        if (delta !== 0) {
+            const splitBoundary = applyDirectoryCharsDelta(node, delta, thresholds);
+            if (splitBoundary) changedDirectories.add(splitBoundary.directory);
+        }
+    }
+
+    if (changed) {
+        pruneEmptyDirectoryTreeNodes(root);
+        rebuildChartTree(root);
+    }
+    return {
+        changed,
+        changedDirectories: [...changedDirectories],
+    };
+}
+
+function ownerDirectoriesForFiles(
+    root: DirectoryTreeNode,
+    relativeFiles: readonly string[]
+): Set<string> {
+    const directories = new Set<string>();
+    for (const relativeFile of relativeFiles) {
+        const partition = findPartitionForFile(root, relativeFile);
+        if (partition) directories.add(partition.directory);
+    }
+    return directories;
+}
+
+function dirtyTargetOwnerDirectories(
+    root: DirectoryTreeNode,
+    dirtyTargetKeys: readonly string[],
+    dependencyGraph: PersistentDependencyGraph
+): Set<string> {
+    const directories = new Set<string>();
+    for (const targetKey of dirtyTargetKeys) {
+        if (dependencyGraph.targetSymbolOffsets[targetKey] === undefined) continue;
+        const targetPath = targetKeyPath(targetKey);
+        if (!targetPath) continue;
+        const partition = findPartitionForFile(root, targetPath);
+        if (partition) directories.add(partition.directory);
+    }
+    return directories;
+}
+
+/** Find unchanged importer charts whose resolved `->` file edge may change. */
+function dirtyFileImporterOwnerDirectories(
+    root: DirectoryTreeNode,
+    importerPaths: readonly string[]
+): Set<string> {
+    const directories = new Set<string>();
+    for (const importerPath of importerPaths) {
+        const partition = findPartitionForFile(root, importerPath);
+        if (partition) directories.add(partition.directory);
+    }
+    return directories;
+}
+
+function targetKeyPath(targetKey: string): string | null {
+    const delimiter = targetKey.indexOf('\0');
+    return delimiter < 0 ? null : targetKey.slice(0, delimiter);
+}
+
+/**
+ * Direct directories that need re-sizing after graph reconciliation. A
+ * reverse-caller annotation changes the target's direct chart content; a
+ * resolved/unresolved file edge changes the importer's direct chart content.
+ */
+function getPreRenderDirectories(
+    relativeFiles: readonly string[],
+    dirtyTargetKeys: readonly string[],
+    dirtyFileImporterPaths: readonly string[],
+    dependencyGraph: PersistentDependencyGraph
+): string[] {
+    const directories = new Set(getUniqueChangedDirectories(relativeFiles));
+    for (const targetKey of dirtyTargetKeys) {
+        if (dependencyGraph.targetSymbolOffsets[targetKey] === undefined) continue;
+        const targetPath = targetKeyPath(targetKey);
+        if (targetPath) directories.add(path.posix.dirname(targetPath));
+    }
+    for (const importerPath of dirtyFileImporterPaths) {
+        directories.add(path.posix.dirname(normalizeRelativePath(importerPath)));
+    }
+    return [...directories].sort((left, right) => left.localeCompare(right));
+}
+
+function commonDirectory(directories: Iterable<string>): string {
+    const entries = [...new Set(directories)];
+    if (entries.length === 0) return '.';
+    const parts = entries.map(directory =>
+        directory === '.' ? [] : directory.split('/').filter(Boolean)
+    );
+    const shared: string[] = [];
+    for (let index = 0; ; index += 1) {
+        const segment = parts[0][index];
+        if (!segment || !parts.every(entry => entry[index] === segment)) break;
+        shared.push(segment);
+    }
+    return shared.length === 0 ? '.' : shared.join('/');
+}
+
+function getTopologyBoundary(
+    previousRoot: DirectoryTreeNode,
+    root: DirectoryTreeNode,
+    relativeFiles: readonly string[],
+    changedDirectories: readonly string[] = []
+): string {
+    const affectedDirectories = new Set([
+        ...getUniqueChangedDirectories(relativeFiles),
+        ...changedDirectories,
+    ]);
+    ownerDirectoriesForFiles(previousRoot, relativeFiles).forEach(directory =>
+        affectedDirectories.add(directory)
+    );
+    ownerDirectoriesForFiles(root, relativeFiles).forEach(directory =>
+        affectedDirectories.add(directory)
+    );
+    return commonDirectory(affectedDirectories);
+}
+
+function toDependencyFiles(
+    projectRoot: string,
+    dependencyPaths: ReadonlySet<string>
+): string[] {
+    return [...dependencyPaths].map(relativePath => path.join(projectRoot, relativePath));
+}
+
+async function renderFinalCharts(
+    root: DirectoryTreeNode,
+    previousRoot: DirectoryTreeNode,
+    previousTopology: ChartTopologySnapshot,
+    nextTopology: ChartTopologySnapshot,
+    topologyChanged: boolean,
+    relativeFiles: readonly string[],
+    changedPreviewDirectories: readonly string[],
+    renderDirectories: readonly string[],
+    workspace: IncrementalWorkspace,
+    dependencyPaths: ReadonlySet<string>,
+    dependencyGraph: PersistentDependencyGraph
+): Promise<void> {
+    const dependencyFiles = toDependencyFiles(workspace.projectRoot, dependencyPaths);
+    const globalDependencyRegistry = createGlobalDependencyRegistry(dependencyGraph);
+    if (topologyChanged) {
+        await rebuildPartitionBoundary(
+            root,
+            getTopologyBoundary(
+                previousRoot,
+                root,
+                relativeFiles,
+                changedPreviewDirectories
+            ),
+            {
+                projectRoot: workspace.projectRoot,
+                previousTopology,
+                additionalDirectories: renderDirectories,
+                dependencyFiles,
+                globalDependencyRegistry,
+            }
+        );
+        return;
+    }
+
+    if (renderDirectories.length === 0) return;
+    await writeChartSet(
+        renderDirectories,
+        workspace.projectRoot,
+        path.join(workspace.projectRoot, '.memoryanchor', PARTITIONED_CHART_DIRECTORY_NAME),
+        {
+            shallowDirectories: nextTopology.shallowDirectories,
+            chartChildren: nextTopology.chartChildren,
+            rootDirectories: nextTopology.rootDirectories,
+            dependencyFiles,
+            globalDependencyRegistry,
+        }
+    );
+}
+
+/**
+ * Incremental pipeline:
+ *   parse changed/direct files → reconcile graph → pre-render direct sizes
+ *   → update topology → reparse and render affected charts.
+ *
+ * Returning false intentionally asks the public adapter to perform a full
+ * build when durable state is missing or invalid.
  */
 export async function updatePartitionedChartsIncrementally(
     changedFiles: string[],
@@ -318,17 +561,87 @@ export async function updatePartitionedChartsIncrementally(
     const workspace = resolveIncrementalWorkspace(options);
     const root = loadDirectoryTree(workspace);
     if (!root) return false;
-    const files = normalizeChangedFiles(changedFiles);
 
-    // Adding the first direct file or deleting the last one changes the virtual
-    // chart tree (and possibly its root layer). Rebuild once from disk before
-    // touching any individual chart so parent/child links stay atomic.
-    if (hasDirectOwnershipChange(root, files, workspace.projectRoot)) {
-        await buildPartitionedCharts({
-            projectRoot: workspace.projectRoot,
-            thresholds: workspace.thresholds,
-        });
-        return true;
+    const files = normalizeChangedFiles(changedFiles);
+    if (files.length === 0) return true;
+
+    const dependencyGraph = loadPersistentDependencyGraph(workspace.dependencyGraphPath);
+    if (!dependencyGraph) return false;
+
+    const previousRoot = fromDirectoryTreeRegistry(toDirectoryTreeRegistry(root));
+    const previousTopology = captureChartTopology(root);
+
+    const batch = await parseIncrementalBatch(files, workspace.projectRoot);
+    const dependencyPaths = updateDependencyPaths(
+        dependencyGraph,
+        files,
+        workspace.projectRoot
+    );
+    const graphUpdate = updatePersistentDependencyGraph(
+        dependencyGraph,
+        batch.changedNodes,
+        files,
+        dependencyPaths
+    );
+    await addPreRenderDirectories(
+        batch,
+        getPreRenderDirectories(
+            files,
+            graphUpdate.dirtyTargetKeys,
+            graphUpdate.dirtyFileImporterPaths,
+            dependencyGraph
+        ),
+        workspace.projectRoot
+    );
+
+    const previews = preRenderDirectories(
+        batch,
+        workspace.projectRoot,
+        dependencyPaths,
+        dependencyGraph
+    );
+    const topologyUpdate = updateTopologyFromPreviews(
+        root,
+        previews,
+        workspace.thresholds
+    );
+    const nextTopology = topologyUpdate.changed
+        ? captureChartTopology(root)
+        : previousTopology;
+    const topologyChanged = topologyUpdate.changed && hasChartTopologyChanged(
+        previousTopology,
+        nextTopology
+    );
+
+    const requestedDirectories = new Set<string>([
+        ...ownerDirectoriesForFiles(previousRoot, files),
+        ...ownerDirectoriesForFiles(root, files),
+        ...dirtyTargetOwnerDirectories(root, graphUpdate.dirtyTargetKeys, dependencyGraph),
+        ...dirtyFileImporterOwnerDirectories(root, graphUpdate.dirtyFileImporterPaths),
+    ]);
+    const renderDirectories = nextTopology.directories.filter(directory =>
+        requestedDirectories.has(directory)
+    );
+
+    await renderFinalCharts(
+        root,
+        previousRoot,
+        previousTopology,
+        nextTopology,
+        topologyChanged,
+        files,
+        topologyUpdate.changedDirectories,
+        renderDirectories,
+        workspace,
+        dependencyPaths,
+        dependencyGraph
+    );
+
+    if (graphUpdate.changed) {
+        persistDependencyGraph(workspace.dependencyGraphPath, dependencyGraph);
     }
-    return updateIncrementalFileBatch(root, files, workspace);
+    if (topologyUpdate.changed) {
+        persistDirectoryTree(workspace.registryPath, root);
+    }
+    return true;
 }

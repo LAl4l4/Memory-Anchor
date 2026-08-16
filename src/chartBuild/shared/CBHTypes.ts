@@ -66,6 +66,37 @@ export interface GlobalDependencyRegistry {
     targetSymbolOffsets: ReadonlyMap<string, number>;
 }
 
+/**
+ * Serializable project-wide dependency state retained between incremental
+ * refreshes. Forward edges are keyed by caller instance; reverse edges are
+ * their exact inverse and are used only to render the target chart.
+ */
+export interface PersistentDependencyGraph {
+    version: 2;
+    /** Every parseable project file, relative to the workspace root. */
+    files: string[];
+    /** caller path + NUL + start offset -> target symbol keys. */
+    forwardDependencies: Record<string, string[]>;
+    /** target path + NUL + symbol name -> caller instance keys. */
+    reverseDependencies: Record<string, string[]>;
+    /** Display data for caller instances that have at least one forward edge. */
+    callerSymbols: Record<string, GlobalReverseDependent>;
+    /** First declaration offsets preserve duplicate-name target semantics. */
+    targetSymbolOffsets: Record<string, number>;
+    /** Importer file -> every relative file path its imports could resolve to. */
+    fileForwardDependencies: Record<string, string[]>;
+    /** Candidate target path -> importer files whose rendered `->` may change. */
+    fileReverseDependencies: Record<string, string[]>;
+}
+
+export interface PersistentDependencyGraphUpdate {
+    changed: boolean;
+    /** Target symbol keys whose rendered reverse-caller list changed. */
+    dirtyTargetKeys: string[];
+    /** Importer paths whose rendered forward file edge may have changed. */
+    dirtyFileImporterPaths: string[];
+}
+
 export interface PendingTask<Request, Result> {
     request: Request;
     resolve: (result: Result) => void;
@@ -121,7 +152,6 @@ export type RegistryEntry = [string, GlobalReverseDependent];
 
 export interface RegistryWorkerData {
     dependencyPaths: string[];
-    targetSymbolKeys: string[];
 }
 
 export interface PendingFileParse {
@@ -145,6 +175,8 @@ export interface PartitionChartUpdateResult {
     changed: boolean;
     previousChars: number;
     currentChars: number;
+    graphChanged?: boolean;
+    dirtyTargetKeys?: string[];
 }
 
 export interface WorkspacePaths {

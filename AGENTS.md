@@ -9,6 +9,8 @@ it will destroy when you exit the cli, ensuring highest reuse amount.
 
 Initialization will destroy the pool after it finished.
 
+More Information is in PROJECT_SPEC.md
+
 
 ## Memory Anchor Rules
 Memory Anchor is initialized in this repository. Follow these rules to ensure it works effectively.

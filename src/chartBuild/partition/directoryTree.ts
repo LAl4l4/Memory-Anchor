@@ -67,6 +67,73 @@ function normalizeDirectory(directory: string): string {
     return directory.split('\\').join('/');
 }
 
+/** Locate a physical directory node by its workspace-relative path. */
+export function findDirectoryTreeNode(
+    root: DirectoryTreeNode,
+    directory: string
+): DirectoryTreeNode | null {
+    const normalized = normalizeDirectory(directory);
+    if (normalized === '.') return root;
+
+    let current = root;
+    let currentPath = '';
+    for (const segment of normalized.split('/').filter(Boolean)) {
+        currentPath = currentPath ? `${currentPath}/${segment}` : segment;
+        const child = current.children.find(node => node.directory === currentPath);
+        if (!child) return null;
+        current = child;
+    }
+    return current;
+}
+
+/**
+ * Materialize a physical directory path without changing chart ownership.
+ * Incremental updates use this when a newly created file introduces a branch
+ * that did not exist when the persisted registry was written.
+ */
+export function ensureDirectoryTreeNode(
+    root: DirectoryTreeNode,
+    directory: string
+): DirectoryTreeNode {
+    const normalized = normalizeDirectory(directory);
+    if (normalized === '.') return root;
+
+    let current = root;
+    let currentPath = '';
+    for (const segment of normalized.split('/').filter(Boolean)) {
+        currentPath = currentPath ? `${currentPath}/${segment}` : segment;
+        let child = current.children.find(node => node.directory === currentPath);
+        if (!child) {
+            child = createNode(currentPath, current);
+            current.children.push(child);
+            current.children.sort((left, right) => left.directory.localeCompare(right.directory));
+        }
+        current = child;
+    }
+    return current;
+}
+
+/** Return the direct contribution stored in an aggregate directory total. */
+export function getDirectDirectoryChars(node: DirectoryTreeNode): number {
+    const childChars = node.children.reduce(
+        (total, child) => total + child.thisDirectoryChars,
+        0
+    );
+    return Math.max(0, node.thisDirectoryChars - childChars);
+}
+
+/**
+ * Remove physical branches that no longer own files or descendants. Virtual
+ * chart edges are rebuilt separately after the physical tree is finalized.
+ */
+export function pruneEmptyDirectoryTreeNodes(root: DirectoryTreeNode): void {
+    const prune = (node: DirectoryTreeNode): boolean => {
+        node.children = node.children.filter(child => !prune(child));
+        return node.parent !== null && !node.hasDirectFiles && node.children.length === 0;
+    };
+    prune(root);
+}
+
 /** Build a complete directory tree, including ancestors that have no direct files. */
 export function createDirectoryTree(directories: Iterable<string>): DirectoryTreeNode {
     const root = createNode('.', null);

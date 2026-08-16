@@ -35,6 +35,14 @@ interface SystemTransformOutput {
   system: string[];
 }
 
+interface RuntimeEvent {
+  type: string;
+}
+
+interface EventOutput {
+  event: RuntimeEvent;
+}
+
 // This file is copied as a standalone plugin, so it cannot import the CLI's
 // HOOK_COMMANDS constant. Keep the public bin name in sync with it.
 const HOOK_BIN = 'memoryanchor-opencode';
@@ -121,17 +129,16 @@ export const MemoryAnchorPlugin = async ({ $ }: PluginInput) => ({
     }
   },
 
-  'session.idle': async (): Promise<void> => {
+  // Runtime events are delivered through the generic `event` hook. The
+  // lifecycle event names are values on the event payload, not hook keys.
+  event: async ({ event }: EventOutput): Promise<void> => {
     try {
-      await $`${HOOK_BIN}-stop`.quiet();
-    } catch {
-      // Hooks must never break the agent loop.
-    }
-  },
-
-  'session.deleted': async (): Promise<void> => {
-    try {
-      await $`${HOOK_BIN}-post`.quiet();
+      if (event.type === 'session.idle') {
+        await $`${HOOK_BIN}-stop`.quiet();
+      }
+      if (event.type === 'session.deleted') {
+        await $`${HOOK_BIN}-post`.quiet();
+      }
     } catch {
       // Hooks must never break the agent loop.
     }

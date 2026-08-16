@@ -1,6 +1,11 @@
 import * as path from 'node:path';
 import { runParse } from './parse/runParse.js';
 import { runReverseDependency } from './reverse/runReverseDependency.js';
+import {
+    createPersistentDependencyGraph,
+    DEPENDENCY_GRAPH_FILE_NAME,
+    persistDependencyGraph,
+} from './reverse/persistentDependencyGraph.js';
 import { partition } from './partition/runPartitioner.js';
 import { PARTITIONED_CHART_INDEX_NAME, runRender } from './render/runRender.js';
 import { destroyPool } from './parse/ASTParser.js';
@@ -59,6 +64,21 @@ export async function buildChart(
         globalDependencyRegistry,
         ...topology,
     });
+
+    // Keep the incremental graph beside the chart registry only after every
+    // chart has rendered successfully. Its forward edges are reconstructed
+    // from the same build-wide registry used for this render.
+    persistDependencyGraph(
+        path.join(parsed.projectRoot, '.memoryanchor', DEPENDENCY_GRAPH_FILE_NAME),
+        createPersistentDependencyGraph(
+            parsed.dependencyFiles.map(file => ({
+                ...parsed.parseCache.get(file)!,
+                relativePath: path.relative(parsed.projectRoot, file).split(path.sep).join('/'),
+            })),
+            parsed.dependencyPaths,
+            globalDependencyRegistry
+        )
+    );
     logStageEnd(4, 'render', renderStartedAt);
 
     const indexPath = path.join(

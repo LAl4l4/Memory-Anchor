@@ -1,8 +1,9 @@
 import { afterAll, beforeAll, beforeEach, expect, test } from '@jest/globals';
+import { spawn } from 'node:child_process';
 import { copyFile, mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -51,6 +52,40 @@ function getNodeBlock(chartContent, relPath) {
   );
   const match = chartContent.match(matcher);
   return match ? match[1] : null;
+}
+
+function runChildNode(args, timeoutMs = 10_000) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, args, {
+      cwd: repoRoot,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    let stdout = '';
+    let stderr = '';
+    let settled = false;
+    const timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      child.kill('SIGKILL');
+      reject(new Error(`Child process timed out after ${timeoutMs}ms`));
+    }, timeoutMs);
+
+    child.stdout.on('data', chunk => { stdout += chunk; });
+    child.stderr.on('data', chunk => { stderr += chunk; });
+    child.once('error', error => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      reject(error);
+    });
+    child.once('close', (code, signal) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      if (code === 0) resolve({ stdout, stderr });
+      else reject(new Error(`Child process failed (code=${code}, signal=${signal}): ${stderr}`));
+    });
+  });
 }
 
 async function cleanupAnchor() {
@@ -446,6 +481,32 @@ test('ParserWorkerPool queues the full batch while lazily bounding workers', asy
   } finally {
     await localPool.destroy();
   }
+});
+
+test('parser workers ignore an inherited --input-type flag', async () => {
+  const parserPath = pathToFileURL(
+    path.join(repoRoot, 'dist', 'chartBuild', 'parse', 'ASTParser.js'),
+  ).href;
+  const samplePath = path.join(tempDir, 'tests', 'test-src', 'sample.ts');
+  const childScript = [
+    `import { batchParseFiles, destroyPool } from ${JSON.stringify(parserPath)};`,
+    `const files = Array.from({ length: 32 }, (_, index) => ({ absolutePath: ${JSON.stringify(samplePath)}, relativePath: \`tests/test-src/sample-\${index}.ts\` }));`,
+    'let exitCode = 0;',
+    'try {',
+    '  const parsed = await batchParseFiles(files);',
+    '  if (parsed.length !== files.length) exitCode = 1;',
+    '} catch (error) {',
+    '  console.error(error);',
+    '  exitCode = 1;',
+    '} finally {',
+    '  await destroyPool();',
+    '}',
+    'process.exitCode = exitCode;',
+  ].join('\n');
+
+  await expect(runChildNode(['--input-type=module', '-e', childScript])).resolves.toEqual(
+    expect.objectContaining({ stderr: '' }),
+  );
 });
 
 test('chart parse cache reuses symbols without reading the file twice', async () => {

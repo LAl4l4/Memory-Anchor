@@ -10,7 +10,6 @@ import {
     writePartitionIndex,
 } from '../render/runRender.js';
 import type { CreatePartitionedChartsOptions } from '../render/runRender.js';
-import type { ChartParseCache } from '../shared/CBHTypes.js';
 import { listParseableProjectFiles, resolveWorkspacePaths } from '../shared/utils.js';
 import { DirectoryTreeNode, rebuildChartTree } from './directoryTree.js';
 import {
@@ -38,6 +37,8 @@ export interface ChartTopologySnapshot {
 
 export interface RebuildPartitionBoundaryOptions extends CreatePartitionedChartsOptions {
     previousTopology?: ChartTopologySnapshot;
+    /** Existing owners whose source or reverse-call content changed in this batch. */
+    additionalDirectories?: readonly string[];
 }
 
 export type PartitionedChartsBuildResult = BuildChartResult;
@@ -64,6 +65,34 @@ function sameChartChildren(
         previousChildren.every((child, index) => child === nextChildren[index]);
 }
 
+function sameStringList(left: readonly string[], right: readonly string[]): boolean {
+    return left.length === right.length && left.every((entry, index) => entry === right[index]);
+}
+
+/** Whether a physical-tree mutation changes chart ownership or routing. */
+export function hasChartTopologyChanged(
+    previous: ChartTopologySnapshot,
+    next: ChartTopologySnapshot
+): boolean {
+    if (!sameStringList(previous.directories, next.directories) ||
+        !sameStringList(previous.rootDirectories, next.rootDirectories) ||
+        previous.shallowDirectories.size !== next.shallowDirectories.size) {
+        return true;
+    }
+    for (const directory of previous.shallowDirectories) {
+        if (!next.shallowDirectories.has(directory)) return true;
+    }
+
+    const directories = new Set([
+        ...previous.chartChildren.keys(),
+        ...next.chartChildren.keys(),
+    ]);
+    for (const directory of directories) {
+        if (!sameChartChildren(directory, previous, next)) return true;
+    }
+    return false;
+}
+
 function getBoundaryRebuildDirectories(
     boundaryDirectory: string,
     previous: ChartTopologySnapshot,
@@ -88,31 +117,33 @@ function resetBoundaryOutput(outputRoot: string, boundaryDirectory: string): voi
 
 function getTopologyChartOptions(
     topology: ChartTopologySnapshot,
-    parseCache?: ChartParseCache
+    options: CreatePartitionedChartsOptions = {}
 ): CreatePartitionedChartsOptions {
     return {
-        parseCache,
+        parseCache: options.parseCache,
         shallowDirectories: topology.shallowDirectories,
         chartChildren: topology.chartChildren,
         rootDirectories: topology.rootDirectories,
+        dependencyFiles: options.dependencyFiles,
+        globalDependencyRegistry: options.globalDependencyRegistry,
     };
 }
 
 function rebuildCompleteTopology(
     topology: ChartTopologySnapshot,
     projectRoot: string,
-    parseCache?: ChartParseCache
+    options: CreatePartitionedChartsOptions = {}
 ): Promise<string[]> {
     return createPartitionedCharts(topology.directories, {
         projectRoot,
-        ...getTopologyChartOptions(topology, parseCache),
+        ...getTopologyChartOptions(topology, options),
     });
 }
 
 /** Compatibility entry: rebuild the virtual chart set after a topology change. */
 export async function rebuildPartitionBoundary(
     root: DirectoryTreeNode,
-    boundary: DirectoryTreeNode,
+    boundary: DirectoryTreeNode | string,
     options: RebuildPartitionBoundaryOptions = {}
 ): Promise<string[]> {
     const workspace = resolveWorkspacePaths();
@@ -124,7 +155,7 @@ export async function rebuildPartitionBoundary(
     // Compatibility callers that did not capture the pre-mutation topology
     // cannot safely identify stale owners, so retain the atomic full rebuild.
     if (!previousTopology) {
-        return rebuildCompleteTopology(nextTopology, projectRoot, options.parseCache);
+        return rebuildCompleteTopology(nextTopology, projectRoot, options);
     }
 
     const outputRoot = path.join(
@@ -132,20 +163,33 @@ export async function rebuildPartitionBoundary(
         '.memoryanchor',
         PARTITIONED_CHART_DIRECTORY_NAME
     );
-    const rebuildDirectories = getBoundaryRebuildDirectories(
-        boundary.directory,
+    const boundaryDirectory = typeof boundary === 'string'
+        ? boundary
+        : boundary.directory;
+    const topologyDirectories = getBoundaryRebuildDirectories(
+        boundaryDirectory,
         previousTopology,
         nextTopology
     );
+    const requestedDirectories = new Set([
+        ...topologyDirectories,
+        ...(options.additionalDirectories ?? []),
+    ]);
+    const rebuildDirectories = nextTopology.directories.filter(directory =>
+        requestedDirectories.has(directory)
+    );
     const parseCache = options.parseCache ?? new Map();
-    resetBoundaryOutput(outputRoot, boundary.directory);
+    resetBoundaryOutput(outputRoot, boundaryDirectory);
     const chartPaths = await writeChartSet(
         rebuildDirectories,
         projectRoot,
         outputRoot,
         {
-            ...getTopologyChartOptions(nextTopology, parseCache),
-            dependencyFiles: listParseableProjectFiles(projectRoot),
+            ...getTopologyChartOptions(nextTopology, {
+                ...options,
+                parseCache,
+                dependencyFiles: options.dependencyFiles ?? listParseableProjectFiles(projectRoot),
+            }),
         }
     );
 

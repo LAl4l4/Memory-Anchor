@@ -4,6 +4,56 @@ This document records a representative `anchor init` run against the
 [Next.js](https://github.com/vercel/next.js) repository. It is a single-run
 snapshot, not a cross-machine comparison or a performance guarantee.
 
+## Latest incremental benchmark (2026/08/17)
+
+The benchmark ran against an isolated copy of
+`../MAtest/nextjs/next.js`, using the persisted chart registry and the complete
+v2 dependency graph produced by the current full-build pipeline. The target
+working tree was not modified.
+
+### Full-build baseline
+
+| Item | Result |
+| --- | ---: |
+| Source files parsed | 24,603 |
+| Directories sized | 11,848 |
+| Chart partitions written | 3,108 |
+| File nodes rendered | 28,222 |
+| **Total initialization time** | **13.21 s** |
+
+| Phase | Time |
+| --- | ---: |
+| Parse | 8.41 s |
+| Project-wide reverse dependency index | 374 ms |
+| Partition sizing | 546 ms |
+| Render charts and index | 3.84 s |
+
+### Incremental updates
+
+The first round in each process includes lazy parser-pool startup. The reported
+steady-state value is the median of repeated calls in one process, so parser
+workers and loaded languages are reused.
+
+| Scenario | Direct file nodes parsed | Charts rendered | Rounds | Median | Compared with full build |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| One changed file (`server/web/exports/index.ts`) | 1 | 1 | 5 | 494 ms | 26.8× faster |
+| Ten-file directory (`server/route-matcher-providers`) | 10 | 1 | 3 | 488 ms | 27.1× faster |
+| Fifty-five-file directory (`server/next-server.ts` owner) | 55 | 1 | 3 | 601 ms | 22.0× faster |
+| Cross-chart caller change (temporary isolated fixture) | 71 | 2 | 1 | 1.30 s | 10.1× faster |
+
+The final chart render itself remained in the millisecond range. Most of the
+incremental wall time is fixed work around direct-directory enumeration,
+incremental parsing, dependency-graph reconciliation, and chart preparation.
+
+The benchmark commands must be run from an `.mjs` file (or another file-based
+entry point). Running the parent with `node --input-type=module -e ...` causes
+Node to inherit an invalid `--input-type` flag in file-based workers; the
+worker-pool fix and regression test are recorded in the changelog below.
+
+## Historical full-build snapshot
+
+The original snapshot below is retained for comparison with the latest run.
+
 ## Environment and workload
 
 | Item | Result |

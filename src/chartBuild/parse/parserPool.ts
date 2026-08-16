@@ -3,6 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { FileNode, ParseRequest } from '../shared/CBHTypes.js';
 import { LazyWorkerPool } from '../shared/lazyWorkerPool.js';
+import { getWorkerExecArgv } from '../shared/workerExecArgv.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -11,7 +12,9 @@ const WORKER_PATH = path.join(__dirname, 'parserWorker.js');
 /** Parser-specific facade over the shared lazy worker lifecycle. */
 export class ParserWorkerPool {
     private readonly pool = new LazyWorkerPool<ParseRequest, FileNode>({
-        createWorker: () => new Worker(WORKER_PATH),
+        createWorker: () => new Worker(WORKER_PATH, {
+            execArgv: getWorkerExecArgv(),
+        }),
         getResult: message => message.fileNode as FileNode,
         getError: message => new Error(`Parse failed for ${message.file}: ${message.error}`),
     });

@@ -4,16 +4,15 @@ import {
 } from './dependencyGraph.js';
 import type { FileNode, RegistryWorkerData } from '../shared/CBHTypes.js';
 
-const { dependencyPaths, targetSymbolKeys } = workerData as RegistryWorkerData;
+const { dependencyPaths } = workerData as RegistryWorkerData;
 const availablePaths = new Set(dependencyPaths);
-const availableTargets = new Set(targetSymbolKeys);
 
 parentPort!.postMessage({ type: 'ready' });
 
 parentPort!.on('message', (fileNodes: FileNode[]) => {
     try {
         parentPort!.postMessage({
-            entries: collectGlobalReverseDependencies(fileNodes, availablePaths, availableTargets),
+            entries: collectGlobalReverseDependencies(fileNodes, availablePaths),
         });
     } catch (error) {
         parentPort!.postMessage({

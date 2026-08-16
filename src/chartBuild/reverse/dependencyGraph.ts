@@ -23,14 +23,19 @@ function normalizePath(value: string): string {
     return value.split(path.sep).join('/').replace(/^\.\//, '');
 }
 
-function resolveDependencyPath(
+/**
+ * Enumerate every repository-relative file a relative import could resolve
+ * to. Keeping this separate from lookup lets the persisted incremental graph
+ * remember unresolved imports too: creating one of these paths later can
+ * refresh its unchanged importers without a repository-wide scan.
+ */
+export function getDependencyPathCandidates(
     fromFile: string,
-    source: string,
-    dependencyPaths: DependencyPathLookup
-): string | undefined {
+    source: string
+): string[] {
     // Package imports remain unresolved; relative imports can target any
     // parseable repository file, including files outside this chart.
-    if (!source.startsWith('.')) return undefined;
+    if (!source.startsWith('.')) return [];
 
     const base = normalizePath(path.posix.normalize(path.posix.join(path.posix.dirname(fromFile), source)));
     const candidates = new Set<string>([base]);
@@ -45,13 +50,47 @@ function resolveDependencyPath(
         candidates.add(`${base}/index${candidateExtension}`);
     }
 
-    for (const candidate of candidates) {
+    return [...candidates];
+}
+
+function resolveDependencyPath(
+    fromFile: string,
+    source: string,
+    dependencyPaths: DependencyPathLookup
+): string | undefined {
+    for (const candidate of getDependencyPathCandidates(fromFile, source)) {
         if (dependencyPaths.has(candidate)) {
             return candidate;
         }
     }
 
     return undefined;
+}
+
+/**
+ * Return candidate target paths keyed by importing source file. Candidates
+ * intentionally include unresolved relative imports so file creation and
+ * deletion can find the few charts whose `->` edges may change.
+ */
+export function collectFileDependencyCandidates(
+    fileNodes: readonly FileNode[]
+): Map<string, string[]> {
+    const candidatesByFile = new Map<string, string[]>();
+    for (const fileNode of fileNodes) {
+        const sourcePath = normalizePath(fileNode.relativePath);
+        const candidates = new Set<string>();
+        for (const dependency of fileNode.dependencies) {
+            for (const candidate of getDependencyPathCandidates(sourcePath, dependency.source)) {
+                candidates.add(candidate);
+            }
+        }
+        if (candidates.size > 0) {
+            candidatesByFile.set(sourcePath, [...candidates].sort((left, right) =>
+                left.localeCompare(right)
+            ));
+        }
+    }
+    return candidatesByFile;
 }
 
 /** Resolve forward file imports without performing reverse-edge inversion. */
@@ -151,8 +190,7 @@ export function createTargetSymbols(fileNodes: readonly FileNode[]): Map<string,
  */
 export function collectGlobalReverseDependencies(
     fileNodes: readonly FileNode[],
-    dependencyPaths: DependencyPathLookup,
-    targetSymbolKeys: ReadonlySet<string>
+    dependencyPaths: DependencyPathLookup
 ): [string, GlobalReverseDependent][] {
     const entries: [string, GlobalReverseDependent][] = [];
 
@@ -169,7 +207,11 @@ export function collectGlobalReverseDependencies(
 
             for (const binding of dependency.bindings) {
                 const targetKey = symbolKey(resolvedPath, binding.imported);
-                if (targetSymbolKeys.has(targetKey) && !importedSymbolByLocalName.has(binding.local)) {
+                // Retain calls to a resolvable file even when that target
+                // symbol is not present yet. The renderer still checks the
+                // target declaration map, while the persisted graph can make
+                // a later target addition visible without scanning callers.
+                if (!importedSymbolByLocalName.has(binding.local)) {
                     importedSymbolByLocalName.set(binding.local, targetKey);
                 }
             }

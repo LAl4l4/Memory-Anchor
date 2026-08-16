@@ -3,6 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createTargetSymbols } from './dependencyGraph.js';
 import { LazyWorkerPool } from '../shared/lazyWorkerPool.js';
+import { getWorkerExecArgv } from '../shared/workerExecArgv.js';
 import type {
     FileNode,
     GlobalDependencyRegistry,
@@ -26,7 +27,7 @@ export async function buildGlobalDependencyRegistry(
         return { reverseDependencies: new Map(), targetSymbolOffsets: new Map() };
     }
 
-    // A registry task must amortize worker startup and the immutable target-map
+    // A registry task must amortize worker startup and its immutable path-set
     // clone. Small workspaces still get the same parallel pipeline, with one
     // lazy worker; large workspaces scale up to the shared CPU cap.
     const activeWorkerCount = Math.min(
@@ -34,12 +35,11 @@ export async function buildGlobalDependencyRegistry(
         Math.max(1, Math.ceil(fileNodes.length / 32))
     );
     const targetSymbols = createTargetSymbols(fileNodes);
-    const targetSymbolKeys = new Set(targetSymbols.keys());
     const pool = new LazyWorkerPool<FileNode[], RegistryEntry[]>({
         createWorker: () => new Worker(WORKER_PATH, {
+            execArgv: getWorkerExecArgv(),
             workerData: {
                 dependencyPaths: [...dependencyPaths],
-                targetSymbolKeys: [...targetSymbolKeys],
             },
         }),
         getResult: message => message.entries as RegistryEntry[],

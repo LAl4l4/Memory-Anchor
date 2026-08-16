@@ -43,6 +43,7 @@ with the CLI.
 | `.memoryanchor/index.md` | Small routing index that identifies the root chart partitions. |
 | `.memoryanchor/chart/**/chart.md` | Generated architecture charts, partitioned by directory topology. |
 | `.memoryanchor/dirTree.json` | Persisted directory sizes, split states, and virtual chart-tree routes. |
+| `.memoryanchor/dependencyGraph.json` | Persisted file-import candidate and function-level forward/reverse dependency edges for incremental chart refreshes. |
 | `.memoryanchor/ballast.md` | Durable default and repository-specific implementation rules. |
 | `.memoryanchor/manifest.md` | Module status, dependencies, known issues, and key decisions. |
 | `AGENTS.md` | Managed instructions that tell supported agents how to traverse and use the memory. |
@@ -73,8 +74,10 @@ A full chart build has four observable stages:
 
 1. **Parse** — Tree-sitter extracts file imports, architecture symbols, and
    per-symbol call names from every supported file.
-2. **Reverse dependency index** — imports and call names are resolved into a
-   build-wide, symbol-level reverse registry.
+2. **Dependency index** — imports and call names are resolved into a
+   build-wide, symbol-level reverse registry, then persisted with paired
+   function edges and unresolved file-import candidates in
+   `.memoryanchor/dependencyGraph.json` after rendering succeeds.
 3. **Partition sizing** — aggregate directory character counts establish the
    physical and virtual chart topology.
 4. **Render** — chart-local file nodes are rendered to `chart.md` files and
@@ -128,9 +131,10 @@ contract is:
 
 Forward file relationships resolve across all parseable repository files. Full
 builds also attach project-wide reverse callers to the referenced symbol, even
-when the caller lives in another chart. Incremental edits maintain the owning
-chart's compatible local reverse view until a full or topology rebuild creates
-a fresh global registry.
+when the caller lives in another chart. The persisted graph retains each
+caller's forward target keys and the exact inverse reverse lists; resolvable
+imports whose target symbol does not yet exist are retained as dormant forward
+candidates so a later target addition is visible without scanning all callers.
 
 ## 7. Parser and performance requirements
 
@@ -158,20 +162,36 @@ Supported stop and session-end integrations identify Git-visible changed files
 and call `updatePartitionedChartIncrementally`. The legacy
 `updateChartIncrementally` API remains a compatibility alias.
 
-For ordinary content changes, the updater:
+Each deduplicated change batch follows one ordered pipeline:
 
-1. Maps the changed file to its recursive frontier or shallow owner chart.
-2. Rebuilds that chart's extracted content.
-3. Propagates the exact character-count delta through physical directory
-   ancestors.
-4. Refreshes the index only if the virtual chart topology changes.
+1. **Incremental parse** — parse the changed files and one direct-file view
+   for each changed physical directory.
+2. **Dependency graph** — reconcile changed callers and importers through
+   their persisted forward edges, update target declarations, and collect
+   reverse-caller-dirty targets plus importers whose `->` path changed.
+3. **Pre-render sizing** — render each changed directory's direct chart in
+   memory to confirm the exact character delta used by full-build sizing.
+4. **Topology** — propagate those deltas through physical ancestors, add or
+   prune direct-file directory nodes, and rebuild virtual ownership/routes.
+5. **Reparse and render** — reparse each changed owner, dirty target, dirty
+   importer, and topology-boundary chart from disk, then render it using the
+   updated global dependency registry.
+6. **Persist** — commit the dependency graph and directory registry after the
+   final chart render succeeds; refresh the index only when routing changes.
+
+Incremental graph maintenance never performs a repository-wide traversal of
+reverse edges. A changed or removed caller supplies every reverse mutation
+through its own forward edge list; a changed target is rebuilt in its own
+Git-visible chart update. Relative imports retain candidate target paths, so
+creating or deleting a code file refreshes only its unchanged importers.
+Missing or invalid graph state safely falls back to a full partitioned build.
 
 Changes that cross a split or merge threshold rebuild only the affected
-topology boundary and external parents whose Child Chart routes changed. A
-direct-file ownership change or missing/invalid topology safely falls back to a
-full partitioned build. Batches deduplicate physical directories before
-directory-scoped I/O, and charts already rebuilt from disk are not rebuilt
-again for a later file in the same batch.
+topology boundary and external parents whose Child Chart routes changed.
+Direct-file additions and removals update the persisted physical tree locally;
+only missing or invalid topology/dependency state safely falls back to a full
+partitioned build. Batches deduplicate physical directories before
+directory-scoped I/O and final chart owners before reparsing.
 
 ## 9. Agent integration requirements
 
@@ -212,6 +232,9 @@ JavaScript, JSON, Python, Ruby, Rust, Scala, Swift, TypeScript, and TSX.
   build-scoped cache.
 - Incremental updates refresh the correct owning chart and only rebuild broader
   topology when size or direct-file ownership changes require it.
+- Initialization persists paired function edges and relative file-import
+  candidates; incremental caller additions/removals, target changes, and
+  target-file creation/deletion rerender the affected target or importer charts.
 - Full-build and incremental worker-pool lifecycles do not leave active worker
   threads after their respective cleanup boundary.
 - `npm test` passes, including regression coverage for parsing, topology,
@@ -221,8 +244,6 @@ JavaScript, JSON, Python, Ruby, Rust, Scala, Swift, TypeScript, and TSX.
 
 - Git-visible paths drive automatic incremental updates; non-visible changes
   may require a fresh `anchor init`.
-- A changed root-level file under a split root currently falls back to a full
-  rebuild.
 - An oversized leaf directory has no smaller directory partition; file-level
   partitioning is future work.
 - Generated charts do not preserve manual edits.
