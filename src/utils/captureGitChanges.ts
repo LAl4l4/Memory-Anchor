@@ -7,7 +7,10 @@ interface GitChange {
 
 function captureGitChanges(): GitChange[] | null {
     try {
-        const gitStatus = execSync('git status --porcelain', { encoding: 'utf-8' }).trim();
+        const gitStatus = execSync(
+            'git status --porcelain --untracked-files=all',
+            { encoding: 'utf-8' }
+        ).trim();
         if (!gitStatus) return null;
 
         return gitStatus.split('\n').map((line): GitChange => {

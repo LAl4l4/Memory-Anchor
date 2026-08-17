@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 
-import { ANCHOR_DIR_NAME, BALLAST_DEFAULT_TITLE, BALLAST_FILE_NAME, BALLAST_SPECIFIC_TITLE, CHART_FILE_NAME, MANIFEST_FILE_NAME } from '../dist/constant.js';
+import { ANCHOR_DIR_NAME, BALLAST_DEFAULT_TITLE, BALLAST_FILE_NAME, BALLAST_SPECIFIC_TITLE, CHART_FILE_NAME, MANIFEST_FILE_NAME } from '../../dist/constant.js';
 
 const originalCwd = process.cwd();
 
@@ -25,7 +25,7 @@ afterEach(async () => {
 });
 
 test('loadMemoryCore returns fallback strings when anchor files are absent', async () => {
-  const { loadMemoryCore } = await import('../dist/hooks/public/sessionStartPublic.js')
+  const { loadMemoryCore } = await import('../../dist/hooks/public/sessionStartPublic.js')
   const result = loadMemoryCore();
 
   expect(result).toContain('[MEMORY ANCHOR: CONTEXT INJECTED]');
@@ -55,7 +55,7 @@ ${BALLAST_SPECIFIC_TITLE}
   await writeFile(path.join(anchorPath, BALLAST_FILE_NAME), ballastContent);
   await writeFile(path.join(anchorPath, MANIFEST_FILE_NAME), manifestContent);
 
-  const { loadMemoryCore } = await import('../dist/hooks/public/sessionStartPublic.js')
+  const { loadMemoryCore } = await import('../../dist/hooks/public/sessionStartPublic.js')
   const result = loadMemoryCore();
 
   expect(result).toContain('[MEMORY ANCHOR: CONTEXT INJECTED]');
@@ -80,7 +80,7 @@ root-chart-marker`;
   await writeFile(path.join(anchorPath, CHART_FILE_NAME), indexContent);
   await writeFile(path.join(chartDirectory, 'chart.md'), rootChartContent);
 
-  const { loadMemoryCore } = await import('../dist/hooks/public/sessionStartPublic.js')
+  const { loadMemoryCore } = await import('../../dist/hooks/public/sessionStartPublic.js')
   const result = loadMemoryCore();
 
   expect(result).toContain('[INDEX ROUTING RULES — ALWAYS INJECTED]');
@@ -95,7 +95,7 @@ test('loadMemoryCore injects MEMORY PRUNING task block when ballast contains [ST
   await writeFile(path.join(anchorPath, BALLAST_FILE_NAME), ballastContent);
   await writeFile(path.join(anchorPath, MANIFEST_FILE_NAME), '## Module Status');
 
-  const { loadMemoryCore } = await import('../dist/hooks/public/sessionStartPublic.js')
+  const { loadMemoryCore } = await import('../../dist/hooks/public/sessionStartPublic.js')
   const result = loadMemoryCore();
 
   expect(result).toContain('[TRIGGERED MISSION: MEMORY PRUNING]');
@@ -109,7 +109,7 @@ test('loadMemoryCore does NOT inject MEMORY PRUNING when ballast has no [STALE] 
   await writeFile(path.join(anchorPath, BALLAST_FILE_NAME), ballastContent);
   await writeFile(path.join(anchorPath, MANIFEST_FILE_NAME), '## Module Status');
 
-  const { loadMemoryCore } = await import('../dist/hooks/public/sessionStartPublic.js')
+  const { loadMemoryCore } = await import('../../dist/hooks/public/sessionStartPublic.js')
   const result = loadMemoryCore();
 
   expect(result).not.toContain('[TRIGGERED MISSION: MEMORY PRUNING]');
@@ -121,7 +121,7 @@ test('loadMemoryCore reads ballast from file but manifest falls back when manife
 
   await writeFile(path.join(anchorPath, BALLAST_FILE_NAME), ballastContent);
 
-  const { loadMemoryCore } = await import('../dist/hooks/public/sessionStartPublic.js')
+  const { loadMemoryCore } = await import('../../dist/hooks/public/sessionStartPublic.js')
   const result = loadMemoryCore();
 
   expect(result).toContain(ballastContent);
@@ -133,7 +133,7 @@ test('loadMemoryCore reads manifest from file but ballast falls back when ballas
 
   await writeFile(path.join(anchorPath, MANIFEST_FILE_NAME), manifestContent);
 
-  const { loadMemoryCore } = await import('../dist/hooks/public/sessionStartPublic.js')
+  const { loadMemoryCore } = await import('../../dist/hooks/public/sessionStartPublic.js')
   const result = loadMemoryCore();
 
   expect(result).toContain('No active coding constraints or lessons-learned enforced.');
@@ -141,7 +141,7 @@ test('loadMemoryCore reads manifest from file but ballast falls back when ballas
 });
 
 test('loadMemoryCore result is wrapped in MEMORY ANCHOR delimiter markers', async () => {
-  const { loadMemoryCore } = await import('../dist/hooks/public/sessionStartPublic.js')
+  const { loadMemoryCore } = await import('../../dist/hooks/public/sessionStartPublic.js')
   const result = loadMemoryCore();
 
   expect(result.startsWith('\n==================================================')).toBe(true);
@@ -155,7 +155,7 @@ test('loadMemoryCore trims whitespace from file content', async () => {
   await writeFile(path.join(anchorPath, BALLAST_FILE_NAME), ballastContent);
   await writeFile(path.join(anchorPath, MANIFEST_FILE_NAME), manifestContent);
 
-  const { loadMemoryCore } = await import('../dist/hooks/public/sessionStartPublic.js')
+  const { loadMemoryCore } = await import('../../dist/hooks/public/sessionStartPublic.js')
   const result = loadMemoryCore();
 
   expect(result).toContain('- [ ] Trim me');

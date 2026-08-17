@@ -92,6 +92,7 @@ Memory Anchor is initialized in this repository. Follow these rules to ensure it
 - ./.memoryanchor/chart/.../chart.md: Directory-level architecture map. Read the root chart at the start of every task for project-wide context, then use index.md and Child Charts to find the chart closest to the task.
 - ./.memoryanchor/manifest.md: Current project state — Module Status (functionality/status/known_issues/notes) and Key Decisions (architectural choices and rationale).
 - ./.memoryanchor/ballast.md: Persistent repo-specific rules/guardrails, one per line.
+- ./.memoryanchor/prompt-hooks.json: Optional UserPrompt hook selection; missing or empty means disabled.
 
 ### Chart Relationship Notation
 - '+' marks an exported symbol; '-' marks the default/internal symbol. Function rows omit the words 'function'; '+' functions include only source-declared parameter/return types, while '-' functions omit signatures.
@@ -134,7 +135,7 @@ export const HOOK_COMMANDS = {
   COPILOT_PROMPT: 'memoryanchor-copilot-prompt',
   CODEX_PRE: 'memoryanchor-codex-pre',
   CODEX_STOP: 'memoryanchor-codex-stop',
-  /** Legacy command retained only so init can remove old prompt-hook entries. */
+  /** Used when the workspace enables the Codex UserPromptSubmit hook; also removes old entries. */
   CODEX_PROMPT: 'memoryanchor-codex-prompt',
   CODEBUDDY_PRE: 'memoryanchor-codebuddy-pre',
   CODEBUDDY_STOP: 'memoryanchor-codebuddy-stop',
@@ -146,6 +147,24 @@ export const HOOK_COMMANDS = {
   QODERCN_PROMPT: 'memoryanchor-qodercn-prompt',
   OPENCODE: 'memoryanchor-opencode',
 } as const;
+
+// =============================================================================
+// Optional user-prompt hook configuration
+// =============================================================================
+
+export const PROMPT_HOOK_AGENTS = [
+  'claude',
+  'codex',
+  'codebuddy',
+  'qodercn',
+  'copilot',
+  'opencode',
+] as const;
+
+export type PromptHookAgent = typeof PROMPT_HOOK_AGENTS[number];
+
+export const PROMPT_HOOK_CONFIG_FILE_NAME = 'prompt-hooks.json';
+export const PROMPT_HOOK_CONFIG_DEFAULT_CONTENT = '{\n  "enabled": []\n}\n';
 
 // =============================================================================
 // Hook Event Names

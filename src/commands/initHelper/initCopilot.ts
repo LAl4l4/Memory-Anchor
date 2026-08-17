@@ -13,6 +13,7 @@ import {
   writeJsonFile,
   fileContainsLine,
 } from './initPublic.js';
+import { isPromptHookEnabled, removeFlatPromptHook } from './promptHookConfig.js';
 
 // =============================================================================
 // Copilot-Specific Types
@@ -92,14 +93,16 @@ function getCopilotPaths(cwd: string): CopilotPaths {
 // Hooks Config (Copilot format: .github/hooks/memory-anchor.json)
 // =============================================================================
 
-async function ensureHookConfig(paths: CopilotPaths): Promise<boolean> {
+async function ensureHookConfig(paths: CopilotPaths, promptHookEnabled: boolean): Promise<boolean> {
   const exists = await fileExists(paths.hookPath);
   if (!exists) {
     const config: CopilotHooksConfig = {
       version: 1,
       hooks: {
         sessionStart: [COPILOT_REQUIRED_HOOKS.sessionStart],
-        userPromptTransformed: [COPILOT_REQUIRED_HOOKS.userPromptTransformed],
+        ...(promptHookEnabled
+          ? { userPromptTransformed: [COPILOT_REQUIRED_HOOKS.userPromptTransformed] }
+          : {}),
         agentStop: [COPILOT_REQUIRED_HOOKS.agentStop],
         sessionEnd: [COPILOT_REQUIRED_HOOKS.sessionEnd],
       },
@@ -109,7 +112,7 @@ async function ensureHookConfig(paths: CopilotPaths): Promise<boolean> {
   }
 
   const config = await readJsonFile<CopilotHooksConfig>(paths.hookPath);
-  const updated = registerHooks(config);
+  const updated = registerHooks(config, promptHookEnabled);
 
   if (updated) {
     await writeJsonFile(paths.hookPath, config);
@@ -118,7 +121,7 @@ async function ensureHookConfig(paths: CopilotPaths): Promise<boolean> {
   return updated;
 }
 
-function registerHooks(config: CopilotHooksConfig): boolean {
+function registerHooks(config: CopilotHooksConfig, promptHookEnabled: boolean): boolean {
   let updated = false;
 
   if (config.version == null) {
@@ -134,12 +137,17 @@ function registerHooks(config: CopilotHooksConfig): boolean {
   updated =
     ensureHookEntry(config.hooks, 'sessionStart', COPILOT_REQUIRED_HOOKS.sessionStart) ||
     updated;
-  updated =
-    ensureHookEntry(
-      config.hooks,
-      'userPromptTransformed',
-      COPILOT_REQUIRED_HOOKS.userPromptTransformed,
-    ) || updated;
+  updated = promptHookEnabled
+    ? ensureHookEntry(
+        config.hooks,
+        'userPromptTransformed',
+        COPILOT_REQUIRED_HOOKS.userPromptTransformed,
+      ) || updated
+    : removeFlatPromptHook(
+        config.hooks,
+        'userPromptTransformed',
+        HOOK_COMMANDS.COPILOT_PROMPT,
+      ) || updated;
   updated =
     ensureHookEntry(config.hooks, 'agentStop', COPILOT_REQUIRED_HOOKS.agentStop) ||
     updated;
@@ -213,7 +221,10 @@ export async function copilotSetup(cwd: string): Promise<CopilotSetupResult> {
   const paths = getCopilotPaths(cwd);
   await mkdir(paths.hooksDir, { recursive: true });
 
-  const hooksUpdated = await ensureHookConfig(paths);
+  const hooksUpdated = await ensureHookConfig(
+    paths,
+    await isPromptHookEnabled(cwd, 'copilot'),
+  );
   const instructionsUpdated = await ensureCopilotInstructions(paths);
 
   return { hooksUpdated, instructionsUpdated };

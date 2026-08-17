@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 import { updatePartitionedChartsIncrementally } from
-  '../dist/chartBuild/partition/incrementalPartitioner.js';
+  '../../dist/chartBuild/partition/incrementalPartitioner.js';
 
 let tempDir = '';
 

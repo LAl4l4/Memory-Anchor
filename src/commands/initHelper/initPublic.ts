@@ -7,6 +7,7 @@ import { buildChartFull, destroyPool } from '../../chartBuild/buildChart.js';
 import { AGENTS_CONTENT, GITIGNORE_ENTRY, INDEX_FILE_NAME, MANIFEST_DEFAULT_CONTENT } from '../../constant.js';
 import { ensureBallastFile } from '../../chartBuild/init-ballast.js';
 import { scanAvailableParsers } from '../../chartBuild/scan-parsers.js';
+import { ensurePromptHookConfig } from './promptHookConfig.js';
 
 // =============================================================================
 // Types
@@ -162,8 +163,9 @@ export async function ensureAnchorFiles(memoryAnchorDir: string): Promise<boolea
     path.join(memoryAnchorDir, 'manifest.md'),
     MANIFEST_DEFAULT_CONTENT
   );
+  const promptHookConfigCreated = await ensurePromptHookConfig(memoryAnchorDir);
 
-  return chartCreated || ballastCreated || manifestCreated;
+  return chartCreated || ballastCreated || manifestCreated || promptHookConfigCreated;
 }
 
 export async function ensureAgentsFile(agentsPath: string): Promise<boolean> {

@@ -5,11 +5,11 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { HOOK_COMMANDS, AGENTS_ANCHOR_LINE } from '../dist/constant.js';
+import { HOOK_COMMANDS, AGENTS_ANCHOR_LINE } from '../../dist/constant.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const repoRoot = path.resolve(__dirname, '..');
+const repoRoot = path.resolve(__dirname, '../..');
 const cliPath = path.join(repoRoot, 'dist', 'cli.js');
 const originalCwd = process.cwd();
 
@@ -62,7 +62,18 @@ test('creates .github/hooks/memory-anchor.json with agentStop hook', async () =>
   expect(hooks.hooks.agentStop[0].powershell).toBe(HOOK_COMMANDS.COPILOT_STOP);
 });
 
-test('creates .github/hooks/memory-anchor.json with userPromptTransformed hook', async () => {
+test('does not create a userPromptTransformed hook by default', async () => {
+  await runInitCopilot(tempDir);
+  const hooks = JSON.parse(await readFile(path.join(tempDir, '.github', 'hooks', 'memory-anchor.json'), 'utf8'));
+  expect(hooks.hooks.userPromptTransformed).toBeUndefined();
+});
+
+test('creates userPromptTransformed hook when Copilot is enabled', async () => {
+  await mkdir(path.join(tempDir, '.memoryanchor'), { recursive: true });
+  await writeFile(
+    path.join(tempDir, '.memoryanchor', 'prompt-hooks.json'),
+    JSON.stringify({ enabled: ['copilot'] }) + '\n',
+  );
   await runInitCopilot(tempDir);
   const hooks = JSON.parse(await readFile(path.join(tempDir, '.github', 'hooks', 'memory-anchor.json'), 'utf8'));
   expect(hooks.hooks.userPromptTransformed[0].bash).toBe(HOOK_COMMANDS.COPILOT_PROMPT);
@@ -119,7 +130,7 @@ test('re-running does not duplicate hooks', async () => {
     await readFile(path.join(tempDir, '.github', 'hooks', 'memory-anchor.json'), 'utf8'),
   );
   expect(hooks.hooks.sessionStart).toHaveLength(1);
-  expect(hooks.hooks.userPromptTransformed).toHaveLength(1);
+  expect(hooks.hooks.userPromptTransformed).toBeUndefined();
   expect(hooks.hooks.agentStop).toHaveLength(1);
   expect(hooks.hooks.sessionEnd).toHaveLength(1);
 });

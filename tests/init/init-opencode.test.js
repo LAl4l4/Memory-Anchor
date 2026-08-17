@@ -5,11 +5,11 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { HOOK_COMMANDS, OPENCODE_SCHEMA_URL, REQUIRED_INSTRUCTION_ENTRIES } from '../dist/constant.js';
+import { HOOK_COMMANDS, OPENCODE_SCHEMA_URL, REQUIRED_INSTRUCTION_ENTRIES } from '../../dist/constant.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const repoRoot = path.resolve(__dirname, '..');
+const repoRoot = path.resolve(__dirname, '../..');
 const cliPath = path.join(repoRoot, 'dist', 'cli.js');
 const originalCwd = process.cwd();
 
@@ -82,7 +82,12 @@ test('copies the TypeScript-compiled plugin verbatim', async () => {
 });
 
 test('appends the reminder to an existing OpenCode text part without creating an invalid ID', async () => {
-  const { MemoryAnchorPlugin } = await import('../dist/hooks/opencode/memory-anchor-plugin.js');
+  await mkdir(path.join(tempDir, '.memoryanchor'), { recursive: true });
+  await writeFile(
+    path.join(tempDir, '.memoryanchor', 'prompt-hooks.json'),
+    JSON.stringify({ enabled: ['opencode'] }) + '\n',
+  );
+  const { MemoryAnchorPlugin } = await import('../../dist/hooks/opencode/memory-anchor-plugin.js');
   const hooks = await MemoryAnchorPlugin({
     $: () => ({ quiet: async () => undefined }),
   });
@@ -101,6 +106,23 @@ test('appends the reminder to an existing OpenCode text part without creating an
   expect(output.parts[1].text).toBe(
     'Inspect this.\n\n[IMPORTANT!] Must read ./.memoryanchor/chart/.../chart.md before any works and glob/grep.',
   );
+});
+
+test('does not append the OpenCode reminder when the hook is disabled', async () => {
+  const { MemoryAnchorPlugin } = await import('../../dist/hooks/opencode/memory-anchor-plugin.js');
+  const hooks = await MemoryAnchorPlugin({
+    $: () => ({ quiet: async () => undefined }),
+  });
+  const output = {
+    message: { id: 'msg_disabled', sessionID: 'ses_disabled' },
+    parts: [
+      { id: 'prt_text_disabled', messageID: 'msg_disabled', sessionID: 'ses_disabled', type: 'text', text: 'Inspect this.' },
+    ],
+  };
+
+  await hooks['chat.message']({}, output);
+
+  expect(output.parts[0].text).toBe('Inspect this.');
 });
 
 test('creates opencode.json with schema and instructions', async () => {

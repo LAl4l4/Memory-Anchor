@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const repoRoot = path.resolve(__dirname, '..');
+const repoRoot = path.resolve(__dirname, '../..');
 const pluginSourcePath = path.join(
   repoRoot,
   'dist',
@@ -289,6 +289,10 @@ runtimeTest(
     await writeFile(path.join(chartDir, 'chart.md'), '# test root chart\n');
     await writeFile(path.join(anchorDir, 'ballast.md'), '# test ballast\n');
     await writeFile(path.join(anchorDir, 'manifest.md'), '# test manifest\n');
+    await writeFile(
+      path.join(anchorDir, 'prompt-hooks.json'),
+      JSON.stringify({ enabled: ['opencode'] }) + '\n',
+    );
     await writeFile(
       path.join(tempDir, 'opencode.json'),
       `${JSON.stringify(

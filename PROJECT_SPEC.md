@@ -202,15 +202,16 @@ At session start, the common context payload must provide, in order:
 3. Ballast rules.
 4. Manifest state and decisions.
 
-Platforms that need per-turn reinforcement receive the Memory Anchor chart
-reminder through their supported prompt hook without blocking submission.
-Codex is intentionally excluded from this pre-submission policy: the GPT-5.6
-platform's instruction-following capability is sufficient to retain the
-repository and session-start instructions, so injecting the same reminder on
-every turn adds context without a corresponding reliability benefit. Codex
-therefore registers only `SessionStart` and `Stop`; it also has no session-level
-`SessionEnd` event. OpenCode continues to extend system context through
-`experimental.chat.system.transform`.
+Per-turn reinforcement is opt-in and controlled by
+`.memoryanchor/prompt-hooks.json`. The file stores an `enabled` array of agent
+IDs (`claude`, `codex`, `codebuddy`, `qodercn`, `copilot`, and `opencode`);
+missing or empty configuration disables every UserPrompt hook. The
+`anchor prompt-hook` command manages this selection, enabling the named
+agents exactly or all agents when no names are supplied. Codex is supported
+by the same opt-in policy and still has no session-level `SessionEnd` event.
+OpenCode continues to extend system context through
+`experimental.chat.system.transform`; its optional prompt reminder reads the
+selection at runtime.
 
 Initialization is idempotent: it may repair or replace Memory Anchor-managed
 configuration but must preserve user-owned hook entries and unrelated agent

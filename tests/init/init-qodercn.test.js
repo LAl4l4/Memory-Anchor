@@ -5,11 +5,11 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { HOOK_COMMANDS } from '../dist/constant.js';
+import { HOOK_COMMANDS } from '../../dist/constant.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const repoRoot = path.resolve(__dirname, '..');
+const repoRoot = path.resolve(__dirname, '../..');
 const cliPath = path.join(repoRoot, 'dist', 'cli.js');
 const originalCwd = process.cwd();
 
@@ -62,7 +62,18 @@ test('creates .qoder/settings.json with Stop hook', async () => {
   expect(settings.hooks.Stop[0].hooks[0].timeout).toBe(10);
 });
 
-test('creates .qoder/settings.json with UserPromptSubmit hook', async () => {
+test('does not create a UserPromptSubmit hook by default', async () => {
+  await runInitQodercn(tempDir);
+  const settings = JSON.parse(await readFile(path.join(tempDir, '.qoder', 'settings.json'), 'utf8'));
+  expect(settings.hooks.UserPromptSubmit).toBeUndefined();
+});
+
+test('creates UserPromptSubmit hook when QoderCLI CN is enabled', async () => {
+  await mkdir(path.join(tempDir, '.memoryanchor'), { recursive: true });
+  await writeFile(
+    path.join(tempDir, '.memoryanchor', 'prompt-hooks.json'),
+    JSON.stringify({ enabled: ['qodercn'] }) + '\n',
+  );
   await runInitQodercn(tempDir);
   const settings = JSON.parse(await readFile(path.join(tempDir, '.qoder', 'settings.json'), 'utf8'));
   expect(settings.hooks.UserPromptSubmit[0].hooks[0].command).toBe(HOOK_COMMANDS.QODERCN_PROMPT);
@@ -125,7 +136,7 @@ test('re-running does not duplicate hooks', async () => {
     await readFile(path.join(tempDir, '.qoder', 'settings.json'), 'utf8'),
   );
   expect(settings.hooks.SessionStart).toHaveLength(1);
-  expect(settings.hooks.UserPromptSubmit).toHaveLength(1);
+  expect(settings.hooks.UserPromptSubmit).toBeUndefined();
   expect(settings.hooks.Stop).toHaveLength(1);
   expect(settings.hooks.SessionEnd).toHaveLength(1);
 });

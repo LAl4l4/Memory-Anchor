@@ -54,6 +54,7 @@ const INDEX_PATH = path.join(ANCHOR_DIR, 'index.md');
 const ROOT_CHART_PATH = path.join(ANCHOR_DIR, 'chart', 'chart.md');
 const BALLAST_PATH = path.join(ANCHOR_DIR, 'ballast.md');
 const MANIFEST_PATH = path.join(ANCHOR_DIR, 'manifest.md');
+const PROMPT_HOOK_CONFIG_PATH = path.join(ANCHOR_DIR, 'prompt-hooks.json');
 
 function readFileSafe(filePath: string, fallback: string): string {
   try {
@@ -99,6 +100,17 @@ function buildMemoryCore(): string {
   ].join('\n');
 }
 
+function isPromptHookEnabled(): boolean {
+  try {
+    const config = JSON.parse(readFileSafe(PROMPT_HOOK_CONFIG_PATH, '{}')) as {
+      enabled?: unknown;
+    };
+    return Array.isArray(config.enabled) && config.enabled.includes('opencode');
+  } catch {
+    return false;
+  }
+}
+
 function isTextPartWithText(part: MessagePart): part is MessagePart & { text: string } {
   return part.type === 'text' && typeof part.text === 'string';
 }
@@ -120,6 +132,7 @@ export const MemoryAnchorPlugin = async ({ $ }: PluginInput) => ({
   // new part: plugin hooks cannot access the internal PartID allocator.
   'chat.message': async (_input: unknown, output: ChatMessageOutput): Promise<void> => {
     try {
+      if (!isPromptHookEnabled()) return;
       const textPart = [...output.parts].reverse().find(isTextPartWithText);
       if (!textPart || textPart.text.includes(USER_PROMPT_APPENDIX)) return;
 

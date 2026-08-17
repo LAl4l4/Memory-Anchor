@@ -11,6 +11,7 @@ import {
   readJsonFile,
   writeJsonFile,
 } from './initPublic.js';
+import { isPromptHookEnabled } from './promptHookConfig.js';
 
 // =============================================================================
 // Codex-Specific Types
@@ -60,6 +61,11 @@ const CODEX_STOP_HOOK: CodexHookEntry = {
   hooks: [{ type: 'command', command: HOOK_COMMANDS.CODEX_STOP, timeout: 10 }],
 };
 
+const CODEX_PROMPT_HOOK: CodexHookEntry = {
+  matcher: '',
+  hooks: [{ type: 'command', command: HOOK_COMMANDS.CODEX_PROMPT, timeout: 5 }],
+};
+
 // =============================================================================
 // Codex Paths
 // =============================================================================
@@ -79,7 +85,7 @@ function getCodexPaths(cwd: string): CodexPaths {
 // Codex Hooks (.codex/hooks.json)
 // =============================================================================
 
-async function ensureCodexHooks(paths: CodexPaths): Promise<boolean> {
+async function ensureCodexHooks(paths: CodexPaths, promptHookEnabled: boolean): Promise<boolean> {
   // Ensure .codex/ directory exists
   await mkdir(paths.codexDir, { recursive: true });
 
@@ -88,6 +94,7 @@ async function ensureCodexHooks(paths: CodexPaths): Promise<boolean> {
     const config: CodexHooksConfig = {
       hooks: {
         SessionStart: [CODEX_START_HOOK],
+        ...(promptHookEnabled ? { UserPromptSubmit: [CODEX_PROMPT_HOOK] } : {}),
         Stop: [CODEX_STOP_HOOK],
       }
     };
@@ -96,7 +103,7 @@ async function ensureCodexHooks(paths: CodexPaths): Promise<boolean> {
   }
 
   const config = await readJsonFile<CodexHooksConfig>(paths.hooksConfigPath);
-  const updated = registerCodexHooks(config);
+  const updated = registerCodexHooks(config, promptHookEnabled);
 
   if (updated) {
     await writeJsonFile(paths.hooksConfigPath, config);
@@ -105,16 +112,14 @@ async function ensureCodexHooks(paths: CodexPaths): Promise<boolean> {
   return updated;
 }
 
-function registerCodexHooks(config: CodexHooksConfig): boolean {
+function registerCodexHooks(config: CodexHooksConfig, promptHookEnabled: boolean): boolean {
   let updated = false;
 
   updated = ensureCodexHookEntry(config, 'SessionStart', CODEX_START_HOOK) || updated;
+  updated = promptHookEnabled
+    ? ensureCodexHookEntry(config, 'UserPromptSubmit', CODEX_PROMPT_HOOK) || updated
+    : removeCodexHookCommand(config, 'UserPromptSubmit', HOOK_COMMANDS.CODEX_PROMPT) || updated;
   updated = ensureCodexHookEntry(config, 'Stop', CODEX_STOP_HOOK) || updated;
-  updated = removeCodexHookCommand(
-    config,
-    'UserPromptSubmit',
-    HOOK_COMMANDS.CODEX_PROMPT,
-  ) || updated;
   updated = removeLegacyCodexSessionEndHook(config) || updated;
 
   return updated;
@@ -122,7 +127,7 @@ function registerCodexHooks(config: CodexHooksConfig): boolean {
 
 function ensureCodexHookEntry(
   config: CodexHooksConfig,
-  key: 'SessionStart' | 'Stop',
+  key: 'SessionStart' | 'UserPromptSubmit' | 'Stop',
   entry: CodexHookEntry,
 ): boolean {
   if (config.hooks === undefined) {
@@ -209,7 +214,10 @@ function removeLegacyCodexSessionEndHook(config: CodexHooksConfig): boolean {
 export async function codexSetup(cwd: string): Promise<CodexSetupResult> {
   const paths = getCodexPaths(cwd);
 
-  const hooksUpdated = await ensureCodexHooks(paths);
+  const hooksUpdated = await ensureCodexHooks(
+    paths,
+    await isPromptHookEnabled(cwd, 'codex'),
+  );
 
   return { hooksUpdated };
 }

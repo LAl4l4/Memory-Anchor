@@ -11,7 +11,7 @@ import {
   BALLAST_DEFAULT_TITLE,
   BALLAST_FILE_NAME,
   BALLAST_SPECIFIC_TITLE,
-} from '../dist/constant.js';
+} from '../../dist/constant.js';
 
 
 const originalCwd = process.cwd();
@@ -52,7 +52,7 @@ beforeEach(async () => {
     updateManifest,
     cleanBallastRules,
     sanitizeBallast,
-  } = await import('../dist/hooks/public/sessionEndPublic.js'));
+  } = await import('../../dist/hooks/public/sessionEndPublic.js'));
 });
 
 afterEach(async () => {
@@ -300,18 +300,18 @@ test('runSessionEnd orchestrates full pipeline when git changes exist', async ()
   await writeFile(path.join(tempDir, 'src', 'foo.ts'), 'export const foo = 2;');
 
   jest.resetModules();
-  jest.unstable_mockModule('../dist/chartBuild/buildChart.js', () => ({
+  jest.unstable_mockModule('../../dist/chartBuild/buildChart.js', () => ({
     destroyPool: jest.fn(async () => {}),
   }));
-  jest.unstable_mockModule('../dist/chartBuild/incremental.js', () => ({
+  jest.unstable_mockModule('../../dist/chartBuild/incremental.js', () => ({
     updatePartitionedChartIncrementally: jest.fn(async () => {}),
   }));
 
   jest.spyOn(process, 'exit').mockImplementation(() => {});
 
-  const sessionEndModule = await import('../dist/hooks/public/sessionEndPublic.js');
-  const buildChart = await import('../dist/chartBuild/buildChart.js');
-  const incremental = await import('../dist/chartBuild/incremental.js');
+  const sessionEndModule = await import('../../dist/hooks/public/sessionEndPublic.js');
+  const buildChart = await import('../../dist/chartBuild/buildChart.js');
+  const incremental = await import('../../dist/chartBuild/incremental.js');
 
   await sessionEndModule.runSessionEnd();
 
@@ -338,18 +338,18 @@ test('runSessionEnd skips chart update when no git changes (clean repo)', async 
   execSync('git add .gitignore && git commit -m "ignore"', {cwd: tempDir})
 
   jest.resetModules();
-  jest.unstable_mockModule('../dist/chartBuild/buildChart.js', () => ({
+  jest.unstable_mockModule('../../dist/chartBuild/buildChart.js', () => ({
     destroyPool: jest.fn(async () => {}),
   }));
-  jest.unstable_mockModule('../dist/chartBuild/incremental.js', () => ({
+  jest.unstable_mockModule('../../dist/chartBuild/incremental.js', () => ({
     updatePartitionedChartIncrementally: jest.fn(async () => {}),
   }));
 
   jest.spyOn(process, 'exit').mockImplementation(() => {});
 
-  const sessionEndModule = await import('../dist/hooks/public/sessionEndPublic.js');
-  const buildChart = await import('../dist/chartBuild/buildChart.js');
-  const incremental = await import('../dist/chartBuild/incremental.js');
+  const sessionEndModule = await import('../../dist/hooks/public/sessionEndPublic.js');
+  const buildChart = await import('../../dist/chartBuild/buildChart.js');
+  const incremental = await import('../../dist/chartBuild/incremental.js');
 
   await sessionEndModule.runSessionEnd();
 
@@ -365,18 +365,18 @@ test('runSessionEnd skips chart update when no git repo exists', async () => {
   await writeFile(ballastPath, SAMPLE_BALLAST);
 
   jest.resetModules();
-  jest.unstable_mockModule('../dist/chartBuild/buildChart.js', () => ({
+  jest.unstable_mockModule('../../dist/chartBuild/buildChart.js', () => ({
     destroyPool: jest.fn(async () => {}),
   }));
-  jest.unstable_mockModule('../dist/chartBuild/incremental.js', () => ({
+  jest.unstable_mockModule('../../dist/chartBuild/incremental.js', () => ({
     updatePartitionedChartIncrementally: jest.fn(async () => {}),
   }));
 
   jest.spyOn(process, 'exit').mockImplementation(() => {});
 
-  const sessionEndModule = await import('../dist/hooks/public/sessionEndPublic.js');
-  const buildChart = await import('../dist/chartBuild/buildChart.js');
-  const incremental = await import('../dist/chartBuild/incremental.js');
+  const sessionEndModule = await import('../../dist/hooks/public/sessionEndPublic.js');
+  const buildChart = await import('../../dist/chartBuild/buildChart.js');
+  const incremental = await import('../../dist/chartBuild/incremental.js');
 
   await sessionEndModule.runSessionEnd();
 

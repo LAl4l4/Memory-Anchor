@@ -17,6 +17,10 @@ export const DEPENDENCY_GRAPH_FILE_NAME = 'dependencyGraph.json';
 
 const GRAPH_VERSION = 2 as const;
 
+// =============================================================================
+// Shared graph helpers
+// =============================================================================
+
 function normalizePath(value: string): string {
     return value.split(path.sep).join('/').replace(/^\.\//, '');
 }
@@ -175,6 +179,10 @@ function addFileImporter(
     }
 }
 
+// =============================================================================
+// Full-build graph creation
+// =============================================================================
+
 /**
  * Build the durable forward and reverse maps from the full-build registry.
  * The registry deliberately retains candidates for imports whose matching
@@ -263,22 +271,120 @@ export function persistDependencyGraph(
     fs.renameSync(temporaryPath, graphPath);
 }
 
-/**
- * Reconcile changed source files through their persisted symbol and file
- * forward edges. Neither reverse map is scanned globally; the returned dirty
- * paths identify exactly the reverse-caller and forward-import charts whose
- * rendered dependency annotations can have changed.
- */
-export function updatePersistentDependencyGraph(
+// =============================================================================
+// Incremental graph reconciliation
+// =============================================================================
+
+interface CallerEntry {
+    caller: GlobalReverseDependent;
+    targetKeys: string[];
+}
+
+interface IncrementalGraphState {
+    changedPaths: string[];
+    currentNodesByPath: Map<string, FileNode>;
+    oldCallerIds: string[];
+    oldFileImporterPaths: string[];
+    newCallers: Map<string, CallerEntry>;
+    currentFileEntries: Map<string, string[]>;
+    nextFiles: string[];
+    dirtyFileImporterPaths: string[];
+    affectedTargetKeys: Set<string>;
+    targetOffsetKeys: Set<string>;
+}
+
+interface IncrementalGraphSnapshots {
+    targetBefore: Map<string, string>;
+    callerBefore: Map<string, string>;
+    fileImporterBefore: Map<string, string>;
+    targetOffsetBefore: Map<string, string>;
+}
+
+function collectChangedPaths(
+    changedNodes: readonly FileNode[],
+    changedFiles: readonly string[]
+): string[] {
+    return uniqueSorted([
+        ...changedFiles.map(normalizePath),
+        ...changedNodes.map(node => normalizePath(node.relativePath)),
+    ]);
+}
+
+function collectNewCallers(
+    entries: readonly [string, GlobalReverseDependent][]
+): Map<string, CallerEntry> {
+    const callers = new Map<string, CallerEntry>();
+    for (const [targetKey, caller] of entries) {
+        const id = callerKey(caller);
+        const entry = callers.get(id) ?? { caller, targetKeys: [] };
+        entry.targetKeys.push(targetKey);
+        callers.set(id, entry);
+    }
+    return callers;
+}
+
+function collectChangedTargetKeys(
+    graph: PersistentDependencyGraph,
+    changedPaths: readonly string[],
+    currentNodesByPath: ReadonlyMap<string, FileNode>
+): Set<string> {
+    const targetKeys = new Set<string>();
+    for (const targetKey of Object.keys(graph.targetSymbolOffsets)) {
+        if (changedPaths.some(filePath => pathKeyMatches(targetKey, filePath))) {
+            targetKeys.add(targetKey);
+        }
+    }
+    for (const [filePath, node] of currentNodesByPath) {
+        for (const symbol of node.symbols) {
+            targetKeys.add(symbolKey(filePath, symbol.name));
+        }
+    }
+    return targetKeys;
+}
+
+function collectAffectedTargetKeys(
+    graph: PersistentDependencyGraph,
+    oldCallerIds: readonly string[],
+    newCallers: ReadonlyMap<string, CallerEntry>,
+    targetOffsetKeys: ReadonlySet<string>
+): Set<string> {
+    const targetKeys = new Set<string>(targetOffsetKeys);
+    for (const callerId of oldCallerIds) {
+        for (const targetKey of graph.forwardDependencies[callerId] ?? []) {
+            targetKeys.add(targetKey);
+        }
+    }
+    for (const { targetKeys: callerTargets } of newCallers.values()) {
+        for (const targetKey of callerTargets) targetKeys.add(targetKey);
+    }
+    return targetKeys;
+}
+
+function collectDirtyFileImporterPaths(
+    graph: PersistentDependencyGraph,
+    nextFiles: readonly string[],
+    dependencyPaths: ReadonlySet<string>
+): string[] {
+    const previousFileSet = new Set(graph.files);
+    const nextFileSet = new Set(nextFiles);
+    const changedDependencyPaths = uniqueSorted([
+        ...previousFileSet,
+        ...nextFileSet,
+    ].filter(filePath => previousFileSet.has(filePath) !== nextFileSet.has(filePath)));
+    return uniqueSorted(
+        changedDependencyPaths.flatMap(targetPath =>
+            graph.fileReverseDependencies[targetPath] ?? []
+        ).filter(importerPath => dependencyPaths.has(importerPath))
+    );
+}
+
+function collectIncrementalGraphState(
     graph: PersistentDependencyGraph,
     changedNodes: readonly FileNode[],
     changedFiles: readonly string[],
     dependencyPaths: ReadonlySet<string>
-): PersistentDependencyGraphUpdate {
-    const changedPaths = uniqueSorted([
-        ...changedFiles.map(normalizePath),
-        ...changedNodes.map(node => normalizePath(node.relativePath)),
-    ]);
+): IncrementalGraphState {
+    const changedPaths = collectChangedPaths(changedNodes, changedFiles);
     const currentNodesByPath = new Map(changedNodes.map(node => [
         normalizePath(node.relativePath), node,
     ]));
@@ -292,116 +398,183 @@ export function updatePersistentDependencyGraph(
         changedNodes,
         dependencyPaths
     );
-    const newCallers = new Map<string, {
-        caller: GlobalReverseDependent;
-        targetKeys: string[];
-    }>();
-    for (const [targetKey, caller] of currentEntries) {
-        const id = callerKey(caller);
-        const entry = newCallers.get(id) ?? { caller, targetKeys: [] };
-        entry.targetKeys.push(targetKey);
-        newCallers.set(id, entry);
-    }
+    const newCallers = collectNewCallers(currentEntries);
     const currentFileEntries = collectFileDependencyCandidates(changedNodes);
     const nextFiles = uniqueSorted(dependencyPaths);
-    const previousFileSet = new Set(graph.files);
-    const nextFileSet = new Set(nextFiles);
-    const changedDependencyPaths = uniqueSorted([
-        ...previousFileSet,
-        ...nextFileSet,
-    ].filter(filePath => previousFileSet.has(filePath) !== nextFileSet.has(filePath)));
-    const dirtyFileImporterPaths = uniqueSorted(
-        changedDependencyPaths.flatMap(targetPath =>
-            graph.fileReverseDependencies[targetPath] ?? []
-        ).filter(importerPath => dependencyPaths.has(importerPath))
+    const targetOffsetKeys = collectChangedTargetKeys(
+        graph,
+        changedPaths,
+        currentNodesByPath
     );
 
-    const affectedTargetKeys = new Set<string>();
-    for (const callerId of oldCallerIds) {
-        for (const targetKey of graph.forwardDependencies[callerId] ?? []) {
-            affectedTargetKeys.add(targetKey);
-        }
-    }
-    for (const { targetKeys } of newCallers.values()) {
-        for (const targetKey of targetKeys) affectedTargetKeys.add(targetKey);
-    }
+    return {
+        changedPaths,
+        currentNodesByPath,
+        oldCallerIds,
+        oldFileImporterPaths,
+        newCallers,
+        currentFileEntries,
+        nextFiles,
+        dirtyFileImporterPaths: collectDirtyFileImporterPaths(
+            graph,
+            nextFiles,
+            dependencyPaths
+        ),
+        affectedTargetKeys: collectAffectedTargetKeys(
+            graph,
+            oldCallerIds,
+            newCallers,
+            targetOffsetKeys
+        ),
+        targetOffsetKeys,
+    };
+}
 
-    // A target declaration can appear after callers were already persisted.
-    // Include both removed and newly parsed declarations in the dirty set so
-    // an unchanged reverse list still rerenders when its target becomes
-    // renderable (or ceases to be renderable).
-    const targetOffsetKeys = new Set<string>();
-    for (const targetKey of Object.keys(graph.targetSymbolOffsets)) {
-        if (changedPaths.some(filePath => pathKeyMatches(targetKey, filePath))) {
-            targetOffsetKeys.add(targetKey);
-        }
-    }
-    for (const [filePath, node] of currentNodesByPath) {
-        for (const symbol of node.symbols) {
-            targetOffsetKeys.add(symbolKey(filePath, symbol.name));
-        }
-    }
-    for (const targetKey of targetOffsetKeys) affectedTargetKeys.add(targetKey);
+function captureIncrementalGraphSnapshots(
+    graph: PersistentDependencyGraph,
+    state: IncrementalGraphState
+): IncrementalGraphSnapshots {
+    const callerIds = [...state.oldCallerIds, ...state.newCallers.keys()];
+    const importerPaths = [
+        ...state.oldFileImporterPaths,
+        ...state.currentFileEntries.keys(),
+    ];
+    return {
+        targetBefore: new Map([...state.affectedTargetKeys].map(targetKey => [
+            targetKey,
+            targetSignature(graph, targetKey),
+        ])),
+        callerBefore: new Map(callerIds.map(callerId => [
+            callerId,
+            callerSignature(graph, callerId),
+        ])),
+        fileImporterBefore: new Map(importerPaths.map(importerPath => [
+            importerPath,
+            fileImporterSignature(graph, importerPath),
+        ])),
+        targetOffsetBefore: new Map([...state.targetOffsetKeys].map(targetKey => [
+            targetKey,
+            targetOffsetSignature(graph, targetKey),
+        ])),
+    };
+}
 
-    const targetBefore = new Map([...affectedTargetKeys].map(targetKey => [
-        targetKey,
-        targetSignature(graph, targetKey),
-    ]));
-    const callerBefore = new Map<string, string>();
-    for (const callerId of [...oldCallerIds, ...newCallers.keys()]) {
-        callerBefore.set(callerId, callerSignature(graph, callerId));
-    }
-    const fileImporterBefore = new Map<string, string>();
-    for (const importerPath of [...oldFileImporterPaths, ...currentFileEntries.keys()]) {
-        fileImporterBefore.set(importerPath, fileImporterSignature(graph, importerPath));
-    }
-    const targetOffsetBefore = new Map([...targetOffsetKeys].map(targetKey => [
-        targetKey,
-        targetOffsetSignature(graph, targetKey),
-    ]));
+function removeChangedCallers(
+    graph: PersistentDependencyGraph,
+    callerIds: readonly string[]
+): void {
+    for (const callerId of callerIds) removeCaller(graph, callerId);
+}
 
-    for (const callerId of oldCallerIds) removeCaller(graph, callerId);
-    for (const targetKey of targetOffsetKeys) delete graph.targetSymbolOffsets[targetKey];
-    for (const [filePath, node] of currentNodesByPath) {
+function replaceChangedTargetOffsets(
+    graph: PersistentDependencyGraph,
+    state: IncrementalGraphState,
+    snapshots: IncrementalGraphSnapshots
+): void {
+    for (const targetKey of state.targetOffsetKeys) {
+        delete graph.targetSymbolOffsets[targetKey];
+    }
+    for (const [filePath, node] of state.currentNodesByPath) {
         for (const symbol of node.symbols) {
             const targetKey = symbolKey(filePath, symbol.name);
-            targetOffsetKeys.add(targetKey);
-            if (!targetOffsetBefore.has(targetKey)) targetOffsetBefore.set(targetKey, '');
+            state.targetOffsetKeys.add(targetKey);
+            if (!snapshots.targetOffsetBefore.has(targetKey)) {
+                snapshots.targetOffsetBefore.set(targetKey, '');
+            }
             if (graph.targetSymbolOffsets[targetKey] === undefined) {
                 graph.targetSymbolOffsets[targetKey] = symbol.startIndex;
             }
         }
     }
+}
+
+function replaceChangedCallers(
+    graph: PersistentDependencyGraph,
+    newCallers: ReadonlyMap<string, CallerEntry>
+): void {
     for (const [callerId, { caller, targetKeys }] of newCallers) {
         addCaller(graph, callerId, caller, targetKeys);
     }
-    for (const importerPath of oldFileImporterPaths) {
+}
+
+function replaceChangedFileImporters(
+    graph: PersistentDependencyGraph,
+    oldImporterPaths: readonly string[],
+    currentFileEntries: ReadonlyMap<string, string[]>
+): void {
+    for (const importerPath of oldImporterPaths) {
         removeFileImporter(graph, importerPath);
     }
     for (const [importerPath, targetPaths] of currentFileEntries) {
         addFileImporter(graph, importerPath, targetPaths);
     }
+}
 
-    const filesChanged = JSON.stringify(graph.files) !== JSON.stringify(nextFiles);
-    graph.files = nextFiles;
+function hasIncrementalGraphChanged(
+    graph: PersistentDependencyGraph,
+    snapshots: IncrementalGraphSnapshots
+): boolean {
+    for (const [callerId, signature] of snapshots.callerBefore) {
+        if (callerSignature(graph, callerId) !== signature) return true;
+    }
+    for (const [importerPath, signature] of snapshots.fileImporterBefore) {
+        if (fileImporterSignature(graph, importerPath) !== signature) return true;
+    }
+    for (const [targetKey, signature] of snapshots.targetOffsetBefore) {
+        if (targetOffsetSignature(graph, targetKey) !== signature) return true;
+    }
+    return false;
+}
 
-    const graphChanged = filesChanged ||
-        [...callerBefore].some(([callerId, signature]) =>
-            callerSignature(graph, callerId) !== signature
-        ) ||
-        [...fileImporterBefore].some(([importerPath, signature]) =>
-            fileImporterSignature(graph, importerPath) !== signature
-        ) ||
-        [...targetOffsetBefore].some(([targetKey, signature]) =>
-            targetOffsetSignature(graph, targetKey) !== signature
-        );
-    const dirtyTargetKeys = [...affectedTargetKeys].filter(targetKey => {
-        if (targetBefore.get(targetKey) !== targetSignature(graph, targetKey)) {
+function collectDirtyTargetKeys(
+    graph: PersistentDependencyGraph,
+    snapshots: IncrementalGraphSnapshots
+): string[] {
+    return [...snapshots.targetBefore.keys()].filter(targetKey => {
+        if (snapshots.targetBefore.get(targetKey) !== targetSignature(graph, targetKey)) {
             return true;
         }
-        return targetOffsetBefore.has(targetKey) &&
-            targetOffsetBefore.get(targetKey) !== targetOffsetSignature(graph, targetKey) &&
+        return snapshots.targetOffsetBefore.has(targetKey) &&
+            snapshots.targetOffsetBefore.get(targetKey) !== targetOffsetSignature(graph, targetKey) &&
             (graph.reverseDependencies[targetKey]?.length ?? 0) > 0;
     });
-    return { changed: graphChanged, dirtyTargetKeys, dirtyFileImporterPaths };
+}
+
+/**
+ * Reconcile changed source files through their persisted symbol and file
+ * forward edges. Neither reverse map is scanned globally; the returned dirty
+ * paths identify exactly the reverse-caller and forward-import charts whose
+ * rendered dependency annotations can have changed.
+ */
+export function updatePersistentDependencyGraph(
+    graph: PersistentDependencyGraph,
+    changedNodes: readonly FileNode[],
+    changedFiles: readonly string[],
+    dependencyPaths: ReadonlySet<string>
+): PersistentDependencyGraphUpdate {
+    const state = collectIncrementalGraphState(
+        graph,
+        changedNodes,
+        changedFiles,
+        dependencyPaths
+    );
+    const snapshots = captureIncrementalGraphSnapshots(graph, state);
+
+    removeChangedCallers(graph, state.oldCallerIds);
+    replaceChangedTargetOffsets(graph, state, snapshots);
+    replaceChangedCallers(graph, state.newCallers);
+    replaceChangedFileImporters(
+        graph,
+        state.oldFileImporterPaths,
+        state.currentFileEntries
+    );
+
+    const filesChanged = JSON.stringify(graph.files) !== JSON.stringify(state.nextFiles);
+    graph.files = state.nextFiles;
+
+    return {
+        changed: filesChanged || hasIncrementalGraphChanged(graph, snapshots),
+        dirtyTargetKeys: collectDirtyTargetKeys(graph, snapshots),
+        dirtyFileImporterPaths: state.dirtyFileImporterPaths,
+    };
 }

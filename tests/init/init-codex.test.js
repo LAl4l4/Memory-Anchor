@@ -5,11 +5,11 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { HOOK_COMMANDS } from '../dist/constant.js';
+import { HOOK_COMMANDS } from '../../dist/constant.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const repoRoot = path.resolve(__dirname, '..');
+const repoRoot = path.resolve(__dirname, '../..');
 const cliPath = path.join(repoRoot, 'dist', 'cli.js');
 const originalCwd = process.cwd();
 
@@ -65,6 +65,17 @@ test('does not create a Codex UserPromptSubmit hook', async () => {
   await runInitCodex(tempDir);
   const hooks = JSON.parse(await readFile(path.join(tempDir, '.codex', 'hooks.json'), 'utf8'));
   expect(hooks.hooks.UserPromptSubmit).toBeUndefined();
+});
+
+test('creates a Codex UserPromptSubmit hook when Codex is enabled', async () => {
+  await mkdir(path.join(tempDir, '.memoryanchor'), { recursive: true });
+  await writeFile(
+    path.join(tempDir, '.memoryanchor', 'prompt-hooks.json'),
+    JSON.stringify({ enabled: ['codex'] }) + '\n',
+  );
+  await runInitCodex(tempDir);
+  const hooks = JSON.parse(await readFile(path.join(tempDir, '.codex', 'hooks.json'), 'utf8'));
+  expect(hooks.hooks.UserPromptSubmit[0].hooks[0].command).toBe(HOOK_COMMANDS.CODEX_PROMPT);
 });
 
 test('does not create an unsupported SessionEnd hook', async () => {

@@ -227,9 +227,7 @@ export const HOOK_PROTOCOLS = {
     contextMdPath: null,
     eventNames: {
       pre: 'SessionStart' as CodexEventName,
-      // GPT-5.6 follows repository and platform instructions reliably enough
-      // that Memory Anchor does not need to reinforce them on every turn.
-      prompt: null,
+      prompt: 'UserPromptSubmit' as CodexEventName,
       stop: 'Stop' as CodexEventName,
       post: null,
     },

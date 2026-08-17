@@ -1,15 +1,15 @@
 import { afterEach, beforeEach, expect, test } from '@jest/globals';
 import { execFile } from 'node:child_process';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { HOOK_COMMANDS, AGENTS_ANCHOR_LINE } from '../dist/constant.js';
+import { HOOK_COMMANDS, AGENTS_ANCHOR_LINE } from '../../dist/constant.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const repoRoot = path.resolve(__dirname, '..');
+const repoRoot = path.resolve(__dirname, '../..');
 const cliPath = path.join(repoRoot, 'dist', 'cli.js');
 const originalCwd = process.cwd();
 
@@ -59,7 +59,18 @@ test('creates .claude/settings.json with Stop hook', async () => {
   expect(settings.hooks.Stop[0].hooks[0].command).toBe(HOOK_COMMANDS.CLAUDE_STOP);
 });
 
-test('creates .claude/settings.json with UserPromptSubmit hook', async () => {
+test('does not create a UserPromptSubmit hook by default', async () => {
+  await runInitClaude(tempDir);
+  const settings = JSON.parse(await readFile(path.join(tempDir, '.claude', 'settings.json'), 'utf8'));
+  expect(settings.hooks.UserPromptSubmit).toBeUndefined();
+});
+
+test('creates UserPromptSubmit hook when Claude is enabled', async () => {
+  await mkdir(path.join(tempDir, '.memoryanchor'), { recursive: true });
+  await writeFile(
+    path.join(tempDir, '.memoryanchor', 'prompt-hooks.json'),
+    JSON.stringify({ enabled: ['claude'] }) + '\n',
+  );
   await runInitClaude(tempDir);
   const settings = JSON.parse(await readFile(path.join(tempDir, '.claude', 'settings.json'), 'utf8'));
   expect(settings.hooks.UserPromptSubmit[0].hooks[0].command).toBe(HOOK_COMMANDS.CLAUDE_PROMPT);
@@ -102,7 +113,7 @@ test('re-running does not duplicate hooks', async () => {
     await readFile(path.join(tempDir, '.claude', 'settings.json'), 'utf8'),
   );
   expect(settings.hooks.SessionStart).toHaveLength(1);
-  expect(settings.hooks.UserPromptSubmit).toHaveLength(1);
+  expect(settings.hooks.UserPromptSubmit).toBeUndefined();
   expect(settings.hooks.Stop).toHaveLength(1);
   expect(settings.hooks.SessionEnd).toHaveLength(1);
 });

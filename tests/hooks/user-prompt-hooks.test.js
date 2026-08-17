@@ -3,10 +3,10 @@ import { spawn } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { USER_PROMPT_APPENDIX } from '../dist/hooks/public/userPromptAppend.js';
+import { USER_PROMPT_APPENDIX } from '../../dist/hooks/public/userPromptAppend.js';
 
 const __filename = fileURLToPath(import.meta.url);
-const repoRoot = path.resolve(path.dirname(__filename), '..');
+const repoRoot = path.resolve(path.dirname(__filename), '../..');
 
 function runHook(relativePath, stdin = '') {
   return new Promise((resolve, reject) => {
@@ -35,6 +35,8 @@ test('user-prompt hooks return a non-blocking tail reminder in each native proto
       },
     });
   }
+
+  expect(await runHook('hooks/codex/user-prompt.js')).toBe(USER_PROMPT_APPENDIX);
 });
 
 test('Copilot appends the reminder to the end of the transformed prompt exactly once', async () => {

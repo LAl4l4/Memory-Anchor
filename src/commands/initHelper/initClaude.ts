@@ -12,6 +12,7 @@ import {
   writeJsonFile,
   fileContainsLine,
 } from './initPublic.js';
+import { isPromptHookEnabled, removeNestedPromptHook } from './promptHookConfig.js';
 
 // =============================================================================
 // Claude-Specific Types
@@ -91,7 +92,10 @@ function getClaudePaths(cwd: string): ClaudePaths {
 // Claude Hooks (.claude/settings.json)
 // =============================================================================
 
-async function ensureClaudeSettings(paths: ClaudePaths): Promise<boolean> {
+async function ensureClaudeSettings(
+  paths: ClaudePaths,
+  promptHookEnabled: boolean,
+): Promise<boolean> {
   // Ensure .claude/ directory exists
   await mkdir(path.dirname(paths.claudeSettingsPath), { recursive: true });
 
@@ -100,7 +104,7 @@ async function ensureClaudeSettings(paths: ClaudePaths): Promise<boolean> {
     const config: ClaudeHooksConfig = {
       hooks: {
         SessionStart: [CLAUDE_START_HOOK],
-        UserPromptSubmit: [CLAUDE_PROMPT_HOOK],
+        ...(promptHookEnabled ? { UserPromptSubmit: [CLAUDE_PROMPT_HOOK] } : {}),
         Stop: [CLAUDE_STOP_HOOK],
         SessionEnd: [CLAUDE_END_HOOK],
       },
@@ -110,7 +114,7 @@ async function ensureClaudeSettings(paths: ClaudePaths): Promise<boolean> {
   }
 
   const config = await readJsonFile<ClaudeHooksConfig>(paths.claudeSettingsPath);
-  const updated = registerClaudeHooks(config);
+  const updated = registerClaudeHooks(config, promptHookEnabled);
 
   if (updated) {
     await writeJsonFile(paths.claudeSettingsPath, config);
@@ -119,7 +123,7 @@ async function ensureClaudeSettings(paths: ClaudePaths): Promise<boolean> {
   return updated;
 }
 
-function registerClaudeHooks(config: ClaudeHooksConfig): boolean {
+function registerClaudeHooks(config: ClaudeHooksConfig, promptHookEnabled: boolean): boolean {
   let updated = false;
 
   if (!config.hooks) {
@@ -127,10 +131,12 @@ function registerClaudeHooks(config: ClaudeHooksConfig): boolean {
     updated = true;
   }
 
-    updated = ensureClaudeHookEntry(config.hooks, 'SessionStart', CLAUDE_START_HOOK) || updated;
-    updated = ensureClaudeHookEntry(config.hooks, 'UserPromptSubmit', CLAUDE_PROMPT_HOOK) || updated;
-    updated = ensureClaudeHookEntry(config.hooks, 'Stop', CLAUDE_STOP_HOOK) || updated;
-    updated = ensureClaudeHookEntry(config.hooks, 'SessionEnd', CLAUDE_END_HOOK) || updated;
+  updated = ensureClaudeHookEntry(config.hooks, 'SessionStart', CLAUDE_START_HOOK) || updated;
+  updated = promptHookEnabled
+    ? ensureClaudeHookEntry(config.hooks, 'UserPromptSubmit', CLAUDE_PROMPT_HOOK) || updated
+    : removeNestedPromptHook(config.hooks, 'UserPromptSubmit', HOOK_COMMANDS.CLAUDE_PROMPT) || updated;
+  updated = ensureClaudeHookEntry(config.hooks, 'Stop', CLAUDE_STOP_HOOK) || updated;
+  updated = ensureClaudeHookEntry(config.hooks, 'SessionEnd', CLAUDE_END_HOOK) || updated;
 
   return updated;
 }
@@ -192,7 +198,10 @@ async function ensureClaudeMd(paths: ClaudePaths): Promise<boolean> {
 export async function claudeSetup(cwd: string): Promise<ClaudeSetupResult> {
   const paths = getClaudePaths(cwd);
 
-  const settingsUpdated = await ensureClaudeSettings(paths);
+  const settingsUpdated = await ensureClaudeSettings(
+    paths,
+    await isPromptHookEnabled(cwd, 'claude'),
+  );
   const claudeMdUpdated = await ensureClaudeMd(paths);
 
   return { settingsUpdated, claudeMdUpdated };

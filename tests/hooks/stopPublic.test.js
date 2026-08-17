@@ -30,14 +30,14 @@ test('runStop do nothing when no git changes (clean repo)', async () => {
   initGitRepo();
 
   // Mock the incremental module before importing stopPublic so its imports are mocked
-  jest.unstable_mockModule('../dist/chartBuild/incremental.js', () => ({
+  jest.unstable_mockModule('../../dist/chartBuild/incremental.js', () => ({
     updatePartitionedChartIncrementally: jest.fn(async () => {}),
   }));
 
   jest.spyOn(process, 'exit').mockImplementation(() => {});
 
-  const stopModule = await import('../dist/hooks/public/stopPublic.js');
-  const incremental = await import('../dist/chartBuild/incremental.js');
+  const stopModule = await import('../../dist/hooks/public/stopPublic.js');
+  const incremental = await import('../../dist/chartBuild/incremental.js');
 
   await stopModule.runStop();
 
@@ -56,14 +56,14 @@ test('runStop calls the partitioned incremental updater when there are git chang
   execSync('git commit -m "initial"');
   await writeFile(path.join(tempDir, 'a.ts'), 'export const a = 2;');
 
-  jest.unstable_mockModule('../dist/chartBuild/incremental.js', () => ({
+  jest.unstable_mockModule('../../dist/chartBuild/incremental.js', () => ({
     updatePartitionedChartIncrementally: jest.fn(async () => {}),
   }));
 
   jest.spyOn(process, 'exit').mockImplementation(() => {});
 
-  const stopModule = await import('../dist/hooks/public/stopPublic.js');
-  const incremental = await import('../dist/chartBuild/incremental.js');
+  const stopModule = await import('../../dist/hooks/public/stopPublic.js');
+  const incremental = await import('../../dist/chartBuild/incremental.js');
 
   await stopModule.runStop();
 
@@ -76,14 +76,14 @@ test('runStop calls the partitioned incremental updater when there are git chang
 });
 
 test('runStop do nothing when no git repo exists (captureGitChanges returns null)', async () => {
-  jest.unstable_mockModule('../dist/chartBuild/incremental.js', () => ({
+  jest.unstable_mockModule('../../dist/chartBuild/incremental.js', () => ({
     updatePartitionedChartIncrementally: jest.fn(async () => {}),
   }));
 
   jest.spyOn(process, 'exit').mockImplementation(() => {});
 
-  const stopModule = await import('../dist/hooks/public/stopPublic.js');
-  const incremental = await import('../dist/chartBuild/incremental.js');
+  const stopModule = await import('../../dist/hooks/public/stopPublic.js');
+  const incremental = await import('../../dist/chartBuild/incremental.js');
 
   await stopModule.runStop();
 

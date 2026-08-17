@@ -11,6 +11,7 @@ import {
   readJsonFile,
   writeJsonFile,
 } from './initPublic.js';
+import { isPromptHookEnabled, removeNestedPromptHook } from './promptHookConfig.js';
 
 // =============================================================================
 // QoderCN-Specific Types
@@ -90,7 +91,7 @@ function getQodercnPaths(cwd: string): QodercnPaths {
 // QoderCN Hooks (.qoder/settings.json)
 // =============================================================================
 
-async function ensureQodercnSettings(paths: QodercnPaths): Promise<boolean> {
+async function ensureQodercnSettings(paths: QodercnPaths, promptHookEnabled: boolean): Promise<boolean> {
   await mkdir(paths.qoderDir, { recursive: true });
 
   const exists = await fileExists(paths.settingsPath);
@@ -98,7 +99,7 @@ async function ensureQodercnSettings(paths: QodercnPaths): Promise<boolean> {
     const config: QodercnHooksConfig = {
       hooks: {
         SessionStart: [QODERCN_START_HOOK],
-        UserPromptSubmit: [QODERCN_PROMPT_HOOK],
+        ...(promptHookEnabled ? { UserPromptSubmit: [QODERCN_PROMPT_HOOK] } : {}),
         Stop: [QODERCN_STOP_HOOK],
         SessionEnd: [QODERCN_END_HOOK],
       },
@@ -108,7 +109,7 @@ async function ensureQodercnSettings(paths: QodercnPaths): Promise<boolean> {
   }
 
   const config = await readJsonFile<QodercnHooksConfig>(paths.settingsPath);
-  const updated = registerQodercnHooks(config);
+  const updated = registerQodercnHooks(config, promptHookEnabled);
 
   if (updated) {
     await writeJsonFile(paths.settingsPath, config);
@@ -117,7 +118,7 @@ async function ensureQodercnSettings(paths: QodercnPaths): Promise<boolean> {
   return updated;
 }
 
-function registerQodercnHooks(config: QodercnHooksConfig): boolean {
+function registerQodercnHooks(config: QodercnHooksConfig, promptHookEnabled: boolean): boolean {
   let updated = false;
 
   if (!config.hooks) {
@@ -126,7 +127,9 @@ function registerQodercnHooks(config: QodercnHooksConfig): boolean {
   }
 
   updated = ensureQodercnHookEntry(config.hooks, 'SessionStart', QODERCN_START_HOOK) || updated;
-  updated = ensureQodercnHookEntry(config.hooks, 'UserPromptSubmit', QODERCN_PROMPT_HOOK) || updated;
+  updated = promptHookEnabled
+    ? ensureQodercnHookEntry(config.hooks, 'UserPromptSubmit', QODERCN_PROMPT_HOOK) || updated
+    : removeNestedPromptHook(config.hooks, 'UserPromptSubmit', HOOK_COMMANDS.QODERCN_PROMPT) || updated;
   updated = ensureQodercnHookEntry(config.hooks, 'Stop', QODERCN_STOP_HOOK) || updated;
   updated = ensureQodercnHookEntry(config.hooks, 'SessionEnd', QODERCN_END_HOOK) || updated;
 
@@ -169,7 +172,10 @@ function ensureQodercnHookEntry(
 export async function qodercnSetup(cwd: string): Promise<QodercnSetupResult> {
   const paths = getQodercnPaths(cwd);
 
-  const settingsUpdated = await ensureQodercnSettings(paths);
+  const settingsUpdated = await ensureQodercnSettings(
+    paths,
+    await isPromptHookEnabled(cwd, 'qodercn'),
+  );
 
   return { settingsUpdated };
 }

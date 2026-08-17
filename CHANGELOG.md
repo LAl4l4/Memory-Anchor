@@ -1,9 +1,14 @@
 ## Update log
 
 - `2026/08/17`:
+    - [Fixed] Stop/session-end incremental updates now expand untracked directories to file paths with `git status --porcelain --untracked-files=all`. New child files therefore enter topology creation instead of being treated as parent-directory changes, so shallow split charts receive their new child chart and route. Regression coverage now includes several new child directories in one batch, hook-level file expansion, and full-vs-incremental artifact comparisons.
+    - find that post and stop hook will not trigger in all agent, need further check.
+    - Make UserPrompt reminders opt-in through `anchor prompt-hook [agents...]`, with no agent list enabling all six supported integrations and `--off` disabling selected reminders. Codex now has a supported opt-in `UserPromptSubmit` wrapper.
     - Benchmark the current incremental pipeline on Next.js: a 24,603-file full build takes 13.21 s; steady-state incremental updates take 488–601 ms for one affected chart and 1.30 s when a caller change refreshes two charts.
     - Strip inherited `--input-type` flags from parser, reverse-dependency, and chart worker `execArgv` values. Node accepts that flag only for eval/print/stdin, so file-based workers otherwise exit with `ERR_INPUT_TYPE_NOT_ALLOWED` and can trigger repeated pool recovery attempts. Add a child-process regression test for `node --input-type=module -e ...`.
     - Persist a versioned `.memoryanchor/dependencyGraph.json` after full initialization with function-level forward edges, inverse reverse edges, caller metadata, target declaration offsets, and parseable file paths. Incremental chart rebuilds reconcile the rebuilt chart's forward edges only, mark changed target/importer charts dirty, and rerender them without a repository-wide reverse-edge scan. Missing or invalid graph state falls back to a full partitioned build.
+    - Refactor `updatePersistentDependencyGraph` into focused state collection, snapshot, reconciliation, and dirty-result helpers. Add explicit full-build and incremental-reconciliation separators in `persistentDependencyGraph.ts`; the full Jest suite remains green with 22 suites and 177 tests.
+    - Split oversized chart tests into focused suites for directory-tree structure, dependency graphs, partition rendering, incremental updates, chart rendering, parser pools, and incremental builds. Share fixture/setup helpers and move full-vs-incremental artifact checks into the dedicated `tests/behavior-consistency/` partition, separate from function-level correctness tests.
 
 - `2026/08/02`:
     - Exclude Codex from the per-submission reminder hook. GPT-5.6 follows repository and session-start instructions reliably enough that repeated per-turn injection is unnecessary; `init-codex` now removes the legacy Memory Anchor `UserPromptSubmit` command while preserving user-owned prompt hooks.
@@ -15,13 +20,13 @@
     - Add time clock to show performance.
     - Fix a severe Stage 4 partition-render performance regression on large repositories. Full rendering now runs on the main heap, reusing the project-wide reverse dependency registry and parsed file-node cache instead of structured-cloning them into render workers per chart.
     - Build the repository dependency-path Set once and adapt it to each chart with a constant-cost path-prefix lookup. This removes the repeated full-repository `path.relative` conversion previously performed for every partition chart.
-    - Deep-copy the mutable nested fields of chart-local FileNodes before rendering, preserving build-cache isolation without worker structured cloning. See [Render Performance Regression Fix](./RENDER_PERFORMANCE_FIX.md).
+    - Deep-copy the mutable nested fields of chart-local FileNodes before rendering, preserving build-cache isolation without worker structured cloning. See [Render Performance Regression Fix](./optimization-fixes/RENDER_PERFORMANCE_FIX.md).
 
 - `2026/07/26`:
     - Enrich generated chart nodes from the existing single Tree-sitter traversal: charts now show repository-wide file dependencies (`->`), chart-local imported-symbol reverse callers (`<-`), export/internal visibility (`+` / `-`), source line ranges, and source-declared types for exported functions. The relationship legend is injected once through generated `AGENTS.md`; source comment summaries and unresolved external package dependencies are deliberately omitted.
     - Resolve file-heading `->` edges against every parseable repository file, including cross-chart targets, because they serve as low-cost module-coupling navigation. Keep `<-` edges chart-local and attach them only to the referenced function or symbol: file-level reverse edges blur which declaration is used, create misleading impact sets for multi-symbol files, and add unnecessary work and output during incremental refreshes.
     - Raise partition hysteresis thresholds to `{ splitAt: 18000, mergeAt: 14000 }`, reducing chart fragmentation while retaining a 4,000-character merge buffer.
-    - Replace repeated symbol/call scans in function-level dependency inversion with worker-attributed forward edges and collision-safe, hash-indexed reverse writes. See [Dependency Graph Optimization](./DEPENDENCY_GRAPH_OPTIMIZATION.md).
+    - Replace repeated symbol/call scans in function-level dependency inversion with worker-attributed forward edges and collision-safe, hash-indexed reverse writes. See [Dependency Graph Optimization](./optimization-fixes/DEPENDENCY_GRAPH_OPTIMIZATION.md).
     - Add a project-wide reverse-call registry for full builds. Its target indexing, import/call inversion, caller de-duplication, and chart annotation are linear in symbols plus resolved call edges; deterministic file/directory ordering remains the intentional `O(F log F)` part of chart generation.
 
 - `2026/07/24`:

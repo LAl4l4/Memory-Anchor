@@ -28,6 +28,7 @@ Memory Anchor keeps its generated state under `.memoryanchor/`:
 | `.memoryanchor/dirTree.json` | Internal directory topology, aggregate character counts, and split state used by incremental updates. |
 | `.memoryanchor/ballast.md` | Durable default and repository-specific rules. |
 | `.memoryanchor/manifest.md` | Module status, known issues, dependencies, and architectural decisions. |
+| `.memoryanchor/prompt-hooks.json` | Optional UserPrompt hook selection; absent or empty means disabled. |
 | `AGENTS.md` | Workflow instructions telling agents how to use the index, charts, ballast, and manifest. |
 
 Charts are generated output and should not be edited manually. Ballast and manifest are intentionally readable project memory.
@@ -140,9 +141,7 @@ All platform wrappers converge on the same public stop and session-end handlers,
 
 OpenCode uses `experimental.chat.system.transform` to append the Memory Anchor payload to the system prompt. Its `session.idle` and `session.deleted` events invoke the stop and session-end side effects through the generated plugin.
 
-Codex registers only `SessionStart` and `Stop`. It does not use the per-turn `UserPromptSubmit` reminder because the GPT-5.6 platform's instruction-following capability is sufficient without reinjecting the same guidance on every turn. Re-running `anchor init-codex` removes Memory Anchor's legacy prompt hook while preserving user-owned prompt hooks.
-
-The other integrations retain per-turn reinforcement for model-routing reasons. Claude Code and OpenCode can be connected to external model APIs whose instruction-following behavior may differ from their default models. QoderCLI CN, CodeBuddy, and GitHub Copilot expose model choices that include models whose instruction-following capability does not yet meet Memory Anchor's reliability threshold. Their prompt-time reminders therefore remain enabled so repository instructions are reinforced regardless of the selected provider or model.
+UserPrompt reminders are disabled by default for every integration, including Codex. Use `anchor prompt-hook <agent...>` to enable exactly the listed agents, or `anchor prompt-hook` with no agent list to enable all supported integrations. Use `anchor prompt-hook --off [agent...]` to disable selected reminders, or all reminders when no agent is supplied. The selection is persisted in `.memoryanchor/prompt-hooks.json`, and rerunning any init command reconciles only Memory Anchor's managed prompt entries while preserving user-owned hooks.
 
 ## Commands
 
@@ -156,6 +155,7 @@ The other integrations retain per-turn reinforcement for model-routing reasons. 
 | `anchor init-codebuddy` | Initialize the CodeBuddy integration. |
 | `anchor init-opencode` | Initialize the OpenCode plugin and configuration. |
 | `anchor init-qodercn` | Initialize the QoderCLI CN integration. |
+| `anchor prompt-hook [agents...]` | Enable or disable optional UserPrompt reminders (`--off` disables). |
 | `anchor status` | Show the version, workspace, and core Memory Anchor file status. |
 | `anchor version` | Print the installed version. |
 | `anchor help` | Show CLI help. |

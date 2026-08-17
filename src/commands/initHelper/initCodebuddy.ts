@@ -12,6 +12,7 @@ import {
   writeJsonFile,
   fileContainsLine,
 } from './initPublic.js';
+import { isPromptHookEnabled, removeNestedPromptHook } from './promptHookConfig.js';
 
 // =============================================================================
 // CodeBuddy-Specific Types
@@ -91,7 +92,7 @@ function getCodebuddyPaths(cwd: string): CodebuddyPaths {
 // CodeBuddy Hooks (.codebuddy/settings.json)
 // =============================================================================
 
-async function ensureCodebuddySettings(paths: CodebuddyPaths): Promise<boolean> {
+async function ensureCodebuddySettings(paths: CodebuddyPaths, promptHookEnabled: boolean): Promise<boolean> {
   await mkdir(paths.codebuddyDir, { recursive: true });
 
   const exists = await fileExists(paths.settingsPath);
@@ -99,7 +100,7 @@ async function ensureCodebuddySettings(paths: CodebuddyPaths): Promise<boolean> 
     const config: CodebuddyHooksConfig = {
       hooks: {
         SessionStart: [CODEBUDDY_START_HOOK],
-        UserPromptSubmit: [CODEBUDDY_PROMPT_HOOK],
+        ...(promptHookEnabled ? { UserPromptSubmit: [CODEBUDDY_PROMPT_HOOK] } : {}),
         Stop: [CODEBUDDY_STOP_HOOK],
         SessionEnd: [CODEBUDDY_END_HOOK],
       },
@@ -109,7 +110,7 @@ async function ensureCodebuddySettings(paths: CodebuddyPaths): Promise<boolean> 
   }
 
   const config = await readJsonFile<CodebuddyHooksConfig>(paths.settingsPath);
-  const updated = registerCodebuddyHooks(config);
+  const updated = registerCodebuddyHooks(config, promptHookEnabled);
 
   if (updated) {
     await writeJsonFile(paths.settingsPath, config);
@@ -118,7 +119,7 @@ async function ensureCodebuddySettings(paths: CodebuddyPaths): Promise<boolean> 
   return updated;
 }
 
-function registerCodebuddyHooks(config: CodebuddyHooksConfig): boolean {
+function registerCodebuddyHooks(config: CodebuddyHooksConfig, promptHookEnabled: boolean): boolean {
   let updated = false;
 
   if (!config.hooks) {
@@ -127,7 +128,9 @@ function registerCodebuddyHooks(config: CodebuddyHooksConfig): boolean {
   }
 
   updated = ensureCodebuddyHookEntry(config.hooks, 'SessionStart', CODEBUDDY_START_HOOK) || updated;
-  updated = ensureCodebuddyHookEntry(config.hooks, 'UserPromptSubmit', CODEBUDDY_PROMPT_HOOK) || updated;
+  updated = promptHookEnabled
+    ? ensureCodebuddyHookEntry(config.hooks, 'UserPromptSubmit', CODEBUDDY_PROMPT_HOOK) || updated
+    : removeNestedPromptHook(config.hooks, 'UserPromptSubmit', HOOK_COMMANDS.CODEBUDDY_PROMPT) || updated;
   updated = ensureCodebuddyHookEntry(config.hooks, 'Stop', CODEBUDDY_STOP_HOOK) || updated;
   updated = ensureCodebuddyHookEntry(config.hooks, 'SessionEnd', CODEBUDDY_END_HOOK) || updated;
 
@@ -190,7 +193,10 @@ async function ensureCodebuddyMd(paths: CodebuddyPaths): Promise<boolean> {
 export async function codebuddySetup(cwd: string): Promise<CodebuddySetupResult> {
   const paths = getCodebuddyPaths(cwd);
 
-  const settingsUpdated = await ensureCodebuddySettings(paths);
+  const settingsUpdated = await ensureCodebuddySettings(
+    paths,
+    await isPromptHookEnabled(cwd, 'codebuddy'),
+  );
   const codebuddyMdUpdated = await ensureCodebuddyMd(paths);
 
   return { settingsUpdated, codebuddyMdUpdated };
