@@ -1,5 +1,8 @@
 ## Update log
 
+- `2026/08/18`:
+    - Add Hermes Agent hook adaptation. Hermes registers shell hooks in the global `$HERMES_HOME/config.yaml` (`yaml` round-trip editing preserves comments and user entries), so the integration extends `hookProtocol.ts` with the `snake-case` event style, `stdout-json-context` injection, and `yaml-hook-array` config shape. Context flows through `pre_llm_call` as `{"context": ...}` (appended to the user message, keeping the system-prompt cache intact), the stop handler binds to `on_session_end` and the session-end handler to `on_session_finalize`, and every Hermes hook is a silent no-op outside Memory Anchor workspaces because the global registration fires in all projects. `anchor prompt-hook` toggles the optional `pre_llm_call` prompt reminder and honors `HERMES_HOME`; init refuses to edit an invalid existing config.
+
 - `2026/08/17`:
     - [Fixed] Stop/session-end incremental updates now expand untracked directories to file paths with `git status --porcelain --untracked-files=all`. New child files therefore enter topology creation instead of being treated as parent-directory changes, so shallow split charts receive their new child chart and route. Regression coverage now includes several new child directories in one batch, hook-level file expansion, and full-vs-incremental artifact comparisons.
     - find that post and stop hook will not trigger in all agent, need further check.

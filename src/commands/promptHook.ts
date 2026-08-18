@@ -9,6 +9,7 @@ import { copilotSetup } from './initHelper/initCopilot.js';
 import { initPublic, fileExists } from './initHelper/initPublic.js';
 import { opencodeSetup } from './initHelper/initOpencode.js';
 import { qodercnSetup } from './initHelper/initQodercn.js';
+import { hasHermesHooks, hermesSetup } from './initHelper/initHermes.js';
 import {
   allPromptHookAgents,
   ensurePromptHookConfig,
@@ -17,13 +18,16 @@ import {
   writePromptHookAgents,
 } from './initHelper/promptHookConfig.js';
 
-const PROMPT_HOOK_FILES: Record<PromptHookAgent, string> = {
+const PROMPT_HOOK_FILES: Record<PromptHookAgent, string | null> = {
   claude: '.claude/settings.json',
   codex: '.codex/hooks.json',
   codebuddy: '.codebuddy/settings.json',
   qodercn: '.qoder/settings.json',
   copilot: '.github/hooks/memory-anchor.json',
   opencode: '.opencode/plugins/memory-anchor.js',
+  // Hermes hooks live in the global $HERMES_HOME/config.yaml; existence is
+  // resolved through hasHermesHooks() instead of a cwd-relative path.
+  hermes: null,
 };
 
 interface PromptHookOptions {
@@ -51,11 +55,16 @@ async function reconcilePlatformHooks(cwd: string, enabled: Set<PromptHookAgent>
     qodercn: qodercnSetup,
     copilot: copilotSetup,
     opencode: opencodeSetup,
+    hermes: hermesSetup,
   } satisfies Record<PromptHookAgent, (workspace: string) => Promise<unknown>>;
 
   await Promise.all(
     allPromptHookAgents().map(async (agent) => {
-      const targetExists = await fileExists(path.join(cwd, PROMPT_HOOK_FILES[agent]));
+      const targetPath = PROMPT_HOOK_FILES[agent];
+      const targetExists =
+        targetPath === null
+          ? await hasHermesHooks()
+          : await fileExists(path.join(cwd, targetPath));
       if (enabled.has(agent) || targetExists) {
         await setup[agent](cwd);
       }

@@ -204,14 +204,24 @@ At session start, the common context payload must provide, in order:
 
 Per-turn reinforcement is opt-in and controlled by
 `.memoryanchor/prompt-hooks.json`. The file stores an `enabled` array of agent
-IDs (`claude`, `codex`, `codebuddy`, `qodercn`, `copilot`, and `opencode`);
-missing or empty configuration disables every UserPrompt hook. The
+IDs (`claude`, `codex`, `codebuddy`, `qodercn`, `copilot`, `opencode`, and
+`hermes`); missing or empty configuration disables every UserPrompt hook. The
 `anchor prompt-hook` command manages this selection, enabling the named
 agents exactly or all agents when no names are supplied. Codex is supported
 by the same opt-in policy and still has no session-level `SessionEnd` event.
 OpenCode continues to extend system context through
 `experimental.chat.system.transform`; its optional prompt reminder reads the
 selection at runtime.
+
+Hermes Agent has no project-scoped hook config: shell hooks are registered in
+the global `$HERMES_HOME/config.yaml` (default `~/.hermes/config.yaml`), so
+they fire in every project the agent runs in and must no-op outside a Memory
+Anchor workspace. Context injection uses `pre_llm_call` with a `{"context":
+...}` JSON reply that Hermes appends to the user message, preserving the
+system-prompt cache; the stop handler binds to `on_session_end` and the
+session-end handler to `on_session_finalize`. Edits to the YAML config are
+round-trip safe, preserving comments and user-owned hook entries, and an
+invalid existing config aborts initialization instead of being overwritten.
 
 Initialization is idempotent: it may repair or replace Memory Anchor-managed
 configuration but must preserve user-owned hook entries and unrelated agent

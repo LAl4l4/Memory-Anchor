@@ -146,6 +146,10 @@ export const HOOK_COMMANDS = {
   QODERCN_POST: 'memoryanchor-qodercn-post',
   QODERCN_PROMPT: 'memoryanchor-qodercn-prompt',
   OPENCODE: 'memoryanchor-opencode',
+  HERMES_PRE: 'memoryanchor-hermes-pre',
+  HERMES_PROMPT: 'memoryanchor-hermes-prompt',
+  HERMES_STOP: 'memoryanchor-hermes-stop',
+  HERMES_POST: 'memoryanchor-hermes-post',
 } as const;
 
 // =============================================================================
@@ -159,6 +163,7 @@ export const PROMPT_HOOK_AGENTS = [
   'qodercn',
   'copilot',
   'opencode',
+  'hermes',
 ] as const;
 
 export type PromptHookAgent = typeof PROMPT_HOOK_AGENTS[number];

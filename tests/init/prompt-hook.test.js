@@ -6,6 +6,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { HOOK_COMMANDS, PROMPT_HOOK_AGENTS } from '../../dist/constant.js';
+import { parseDocument } from 'yaml';
 
 const __filename = fileURLToPath(import.meta.url);
 const repoRoot = path.resolve(path.dirname(__filename), '../..');
@@ -16,13 +17,18 @@ let tempDir = '';
 
 function runPromptHook(cwd, args = []) {
   return new Promise((resolve, reject) => {
-    execFile(process.execPath, [cliPath, 'prompt-hook', ...args], { cwd }, (error, stdout, stderr) => {
-      if (error) {
-        reject(new Error(`${error.message}\nstdout=${stdout}\nstderr=${stderr}`));
-        return;
-      }
-      resolve(stdout);
-    });
+    execFile(
+      process.execPath,
+      [cliPath, 'prompt-hook', ...args],
+      { cwd, env: { ...process.env, HERMES_HOME: path.join(cwd, 'hermes-home') } },
+      (error, stdout, stderr) => {
+        if (error) {
+          reject(new Error(`${error.message}\nstdout=${stdout}\nstderr=${stderr}`));
+          return;
+        }
+        resolve(stdout);
+      },
+    );
   });
 }
 
@@ -66,6 +72,15 @@ test('selects exact agents and enables all agents when no selection is supplied'
     .toBe(HOOK_COMMANDS.COPILOT_PROMPT);
   expect(await readFile(path.join(tempDir, '.opencode', 'plugins', 'memory-anchor.js'), 'utf8'))
     .toContain("config.enabled.includes('opencode')");
+
+  const hermesConfig = parseDocument(
+    await readFile(path.join(tempDir, 'hermes-home', 'config.yaml'), 'utf8'),
+  );
+  const preLlmCall = hermesConfig.getIn(['hooks', 'pre_llm_call']).items.map((item) => item.toJSON());
+  expect(preLlmCall).toEqual([
+    { command: HOOK_COMMANDS.HERMES_PRE, timeout: 5 },
+    { command: HOOK_COMMANDS.HERMES_PROMPT, timeout: 5 },
+  ]);
 });
 
 test('--off removes only the selected prompt hook', async () => {
@@ -77,4 +92,19 @@ test('--off removes only the selected prompt hook', async () => {
   );
   expect((await readJson('.codex', 'hooks.json')).hooks.UserPromptSubmit).toBeUndefined();
   expect((await readJson('.claude', 'settings.json')).hooks.UserPromptSubmit).toBeDefined();
+});
+
+test('--off removes the Hermes prompt entry from the global config', async () => {
+  await runPromptHook(tempDir);
+  await runPromptHook(tempDir, ['--off', 'hermes']);
+
+  expect((await readJson('.memoryanchor', 'prompt-hooks.json')).enabled).toEqual(
+    PROMPT_HOOK_AGENTS.filter((agent) => agent !== 'hermes'),
+  );
+
+  const hermesConfig = parseDocument(
+    await readFile(path.join(tempDir, 'hermes-home', 'config.yaml'), 'utf8'),
+  );
+  const preLlmCall = hermesConfig.getIn(['hooks', 'pre_llm_call']).items.map((item) => item.toJSON());
+  expect(preLlmCall).toEqual([{ command: HOOK_COMMANDS.HERMES_PRE, timeout: 5 }]);
 });

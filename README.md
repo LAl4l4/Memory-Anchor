@@ -136,10 +136,13 @@ Session ends
 | CodeBuddy | `anchor init-codebuddy` | `.codebuddy/settings.json` and `CODEBUDDY.md` |
 | OpenCode | `anchor init-opencode` | `.opencode/plugins/memory-anchor.js` and `opencode.json` |
 | QoderCLI CN | `anchor init-qodercn` | `.qoder/settings.json` |
+| Hermes Agent | `anchor init-hermes` | `$HERMES_HOME/config.yaml` (default `~/.hermes/config.yaml`) |
 
 All platform wrappers converge on the same public stop and session-end handlers, so they share Git capture, partitioned incremental updates, fallback behavior, and parser-pool lifecycle.
 
 OpenCode uses `experimental.chat.system.transform` to append the Memory Anchor payload to the system prompt. Its `session.idle` and `session.deleted` events invoke the stop and session-end side effects through the generated plugin.
+
+Hermes registers shell hooks in the user's global `$HERMES_HOME/config.yaml`, so they fire in every project Hermes runs in; outside a Memory Anchor workspace each hook is a silent no-op. Context is delivered through `pre_llm_call` as `{"context": ...}`, which Hermes appends to the user message (never the system prompt, preserving the prompt cache). `on_session_end` runs the stop handler per turn and `on_session_finalize` runs the session-end handler at CLI teardown. Hermes asks for one-time consent per hook on first run; non-interactive runs need `hooks_auto_accept: true` or `HERMES_ACCEPT_HOOKS=1`.
 
 UserPrompt reminders are disabled by default for every integration, including Codex. Use `anchor prompt-hook <agent...>` to enable exactly the listed agents, or `anchor prompt-hook` with no agent list to enable all supported integrations. Use `anchor prompt-hook --off [agent...]` to disable selected reminders, or all reminders when no agent is supplied. The selection is persisted in `.memoryanchor/prompt-hooks.json`, and rerunning any init command reconciles only Memory Anchor's managed prompt entries while preserving user-owned hooks.
 
@@ -155,6 +158,7 @@ UserPrompt reminders are disabled by default for every integration, including Co
 | `anchor init-codebuddy` | Initialize the CodeBuddy integration. |
 | `anchor init-opencode` | Initialize the OpenCode plugin and configuration. |
 | `anchor init-qodercn` | Initialize the QoderCLI CN integration. |
+| `anchor init-hermes` | Initialize the Hermes Agent hooks in `$HERMES_HOME/config.yaml`. |
 | `anchor prompt-hook [agents...]` | Enable or disable optional UserPrompt reminders (`--off` disables). |
 | `anchor status` | Show the version, workspace, and core Memory Anchor file status. |
 | `anchor version` | Print the installed version. |

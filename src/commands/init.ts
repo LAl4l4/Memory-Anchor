@@ -11,6 +11,7 @@
  *   `init-codebuddy` — CodeBuddy Code-only setup
  *   `init-opencode`  — OpenCode-only setup
  *   `init-qodercn`   — QoderCLI CN-only setup
+ *   `init-hermes`    — Hermes Agent-only setup
  */
 
 import { CAC } from 'cac';
@@ -28,10 +29,12 @@ import { opencodeSetup } from './initHelper/initOpencode.js';
 import { initOpencodeCommand } from './initHelper/initOpencode.js';
 import { qodercnSetup } from './initHelper/initQodercn.js';
 import { initQodercnCommand } from './initHelper/initQodercn.js';
+import { hermesSetup } from './initHelper/initHermes.js';
+import { initHermesCommand } from './initHelper/initHermes.js';
 
 export function initCommand(cli: CAC, context: CommandContext): void {
-  // Combined init — runs public + Copilot + Claude + Codex CLI + CodeBuddy + OpenCode + QoderCLI CN
-  cli.command('init', 'Initialize Memory Anchor (Copilot + Claude + Codex CLI + CodeBuddy + OpenCode + QoderCLI CN)').action(async () => {
+  // Combined init — runs public + Copilot + Claude + Codex CLI + CodeBuddy + OpenCode + QoderCLI CN + Hermes
+  cli.command('init', 'Initialize Memory Anchor (Copilot + Claude + Codex CLI + CodeBuddy + OpenCode + QoderCLI CN + Hermes)').action(async () => {
     const cwd = process.cwd();
 
     const common = await initPublic(cwd);
@@ -41,6 +44,7 @@ export function initCommand(cli: CAC, context: CommandContext): void {
     const codebuddy = await codebuddySetup(cwd);
     const opencode = await opencodeSetup(cwd);
     const qodercn = await qodercnSetup(cwd);
+    const hermes = await hermesSetup(cwd);
 
     const anythingUpdated =
       common.gitignoreUpdated ||
@@ -55,12 +59,13 @@ export function initCommand(cli: CAC, context: CommandContext): void {
       codebuddy.codebuddyMdUpdated ||
       opencode.pluginWritten ||
       opencode.configUpdated ||
-      qodercn.settingsUpdated;
+      qodercn.settingsUpdated ||
+      hermes.configUpdated;
 
     if (anythingUpdated) {
-      context.logger.info('Memory anchor initialized for Copilot, Claude, Codex CLI, CodeBuddy, OpenCode, and QoderCLI CN');
+      context.logger.info('Memory anchor initialized for Copilot, Claude, Codex CLI, CodeBuddy, OpenCode, QoderCLI CN, and Hermes');
     } else {
-      context.logger.info('Memory anchor already exists for Copilot, Claude, Codex CLI, CodeBuddy, OpenCode, and QoderCLI CN');
+      context.logger.info('Memory anchor already exists for Copilot, Claude, Codex CLI, CodeBuddy, OpenCode, QoderCLI CN, and Hermes');
     }
   });
 
@@ -83,4 +88,5 @@ export function initCommand(cli: CAC, context: CommandContext): void {
   initCodebuddyCommand(cli, context);
   initOpencodeCommand(cli, context);
   initQodercnCommand(cli, context);
+  initHermesCommand(cli, context);
 }

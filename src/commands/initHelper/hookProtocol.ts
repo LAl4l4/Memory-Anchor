@@ -38,6 +38,11 @@ export type EventNameStyle =
   /** camelCase events: `sessionStart`, `agentStop`, `sessionEnd`. */
   | 'camel-case'
   /**
+   * snake_case events: `on_session_start`, `pre_llm_call`.
+   * Used by: hermes.
+   */
+  | 'snake-case'
+  /**
    * Dotted events, including experimental hooks:
    * `session.created`, `session.idle`, `experimental.chat.system.transform`.
    */
@@ -61,6 +66,13 @@ export type InjectionMechanism =
    * Used by: copilot.
    */
   | 'stdout-json-protocol'
+  /**
+   * Subprocess stdout must be a single JSON object with a `context` key
+   * (or a plain non-empty string); Hermes appends it to the current turn's
+   * user message to preserve the system-prompt cache.
+   * Used by: hermes (`pre_llm_call`).
+   */
+  | 'stdout-json-context'
   /**
    * No subprocess — the plugin reads .memoryanchor files directly inside
    * the agent's runtime and mutates an `output` object provided by the
@@ -102,7 +114,13 @@ export type HookConfigShape =
    * `experimental.*`). No on-disk hook entries; everything is in code.
    * Used by: opencode.
    */
-  | 'plugin-module';
+  | 'plugin-module'
+  /**
+   * YAML `hooks:` block in the user's Hermes config mapping snake_case
+   * event names to arrays of `{ matcher?, command, timeout? }` entries.
+   * Used by: hermes.
+   */
+  | 'yaml-hook-array';
 
 // =============================================================================
 // Axis 4: Context markdown file
@@ -146,6 +164,8 @@ export type OpencodeEventName =
   | 'chat.message'
   | 'experimental.chat.system.transform';
 
+export type HermesEventName = 'pre_llm_call' | 'on_session_end' | 'on_session_finalize';
+
 // =============================================================================
 // Full protocol spec per platform
 // =============================================================================
@@ -158,7 +178,8 @@ export interface AgentHookProtocol<E extends string = string> {
     | 'codebuddy'
     | 'qodercn'
     | 'copilot'
-    | 'opencode';
+    | 'opencode'
+    | 'hermes';
   /** Human-readable label, used in logs and errors. */
   readonly label: string;
   /** Casing / namespacing convention for this platform's event names. */
@@ -313,6 +334,34 @@ export const HOOK_PROTOCOLS = {
     canBlockUserPrompt: false,
     canRewriteUserPrompt: true,
   },
+  hermes: {
+    agentId: 'hermes',
+    label: 'Hermes Agent',
+    eventNameStyle: 'snake-case',
+    injectionMechanism: 'stdout-json-context',
+    hookConfigShape: 'yaml-hook-array',
+    contextMdStrategy: 'none',
+    // Hermes config is global, not project-scoped: $HERMES_HOME/config.yaml
+    // (default ~/.hermes/config.yaml).
+    hookConfigPath: '~/.hermes/config.yaml',
+    contextMdPath: null,
+    eventNames: {
+      // pre_llm_call fires once per turn before the tool loop and appends
+      // `{"context": ...}` to the user message; Hermes has no separate
+      // SessionStart event, so context and the optional prompt appendix
+      // are delivered through two pre_llm_call entries.
+      pre: 'pre_llm_call' as HermesEventName,
+      prompt: 'pre_llm_call' as HermesEventName,
+      // on_session_end fires at the end of every run_conversation() call
+      // (per-turn equivalent of Claude's Stop).
+      stop: 'on_session_end' as HermesEventName,
+      // on_session_finalize fires at CLI/TUI/gateway teardown (session end).
+      post: 'on_session_finalize' as HermesEventName,
+    },
+    contextInjectionEvent: 'pre_llm_call' as HermesEventName,
+    canBlockUserPrompt: false,
+    canRewriteUserPrompt: false,
+  },
 } as const;
 
 export type AgentId = keyof typeof HOOK_PROTOCOLS;
@@ -381,6 +430,14 @@ type _OpencodeGuard = EnforceEventNameMatch<
   NonNullable<typeof HOOK_PROTOCOLS.opencode.eventNames.post>,
   NonNullable<typeof HOOK_PROTOCOLS.opencode.contextInjectionEvent>
 >;
+type _HermesGuard = EnforceEventNameMatch<
+  HermesEventName,
+  NonNullable<typeof HOOK_PROTOCOLS.hermes.eventNames.pre>,
+  NonNullable<typeof HOOK_PROTOCOLS.hermes.eventNames.prompt>,
+  NonNullable<typeof HOOK_PROTOCOLS.hermes.eventNames.stop>,
+  NonNullable<typeof HOOK_PROTOCOLS.hermes.eventNames.post>,
+  NonNullable<typeof HOOK_PROTOCOLS.hermes.contextInjectionEvent>
+>;
 
 // =============================================================================
 // Helpers
@@ -419,5 +476,9 @@ export function isValidEventName(id: AgentId, eventName: string): boolean {
  */
 export function usesStdoutInjection(id: AgentId): boolean {
   const m = HOOK_PROTOCOLS[id].injectionMechanism;
-  return m === 'stdout-plain-text' || m === 'stdout-json-protocol';
+  return (
+    m === 'stdout-plain-text' ||
+    m === 'stdout-json-protocol' ||
+    m === 'stdout-json-context'
+  );
 }

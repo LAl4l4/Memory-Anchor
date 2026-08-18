@@ -21,6 +21,8 @@ const PROMPT_HOOK_ALIASES: Record<string, PromptHookAgent> = {
   qoder: 'qodercn',
   qodercn: 'qodercn',
   'qoder-cn': 'qodercn',
+  hermes: 'hermes',
+  'hermes-agent': 'hermes',
 };
 
 export function getPromptHookConfigPath(cwd: string): string {
