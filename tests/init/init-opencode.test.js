@@ -54,14 +54,14 @@ test('creates .opencode/plugins/memory-anchor.js', async () => {
   expect(plugin).toContain('experimental.chat.messages.transform');
   expect(plugin).not.toContain("'chat.message':");
   expect(plugin).toContain('[IMPORTANT!] Must read ./.memoryanchor/chart/.../chart.md before any works and glob/grep.');
-  expect(plugin).toContain('const INDEX_PATH');
-  expect(plugin).toMatch(/path\.join\(ANCHOR_DIR, ['"]index\.md['"]\)/);
-  expect(plugin).toContain('const ROOT_CHART_PATH');
-  expect(plugin).toMatch(/path\.join\(ANCHOR_DIR, ['"]chart['"], ['"]chart\.md['"]\)/);
+  expect(plugin).toContain('function resolveWorkspaceRoot(directory, worktree)');
+  expect(plugin).toContain("fs.existsSync(path.join(candidate, '.memoryanchor'))");
+  expect(plugin).toContain("const anchorDir = path.join(workspaceRoot, '.memoryanchor');");
   expect(plugin).toContain('[INDEX ROUTING RULES — ALWAYS INJECTED]');
   expect(plugin).toContain('[ROOT CHART ALREADY INJECTED — DO NOT READ IT AGAIN]');
-  expect(plugin).toContain('readFileSafe(INDEX_PATH');
-  expect(plugin).toContain('fs.existsSync(ROOT_CHART_PATH)');
+  expect(plugin).toContain('readFileSafe(indexPath');
+  expect(plugin).toContain('fs.existsSync(rootChartPath)');
+  expect(plugin).toContain('cd ${workspaceRoot} && ${HOOK_BIN}-stop');
   expect(plugin).toContain('[1. CHART (project structure & architectural symbols)]');
   expect(plugin).toContain('[2. BALLAST (rules must follow)]');
   expect(plugin).toContain('[3. MANIFEST (module status & key decisions)]');
@@ -134,6 +134,51 @@ test('does not add the OpenCode reminder when the hook is disabled', async () =>
   expect(output.messages[0].parts[0].text).toBe('Inspect this.');
 });
 
+test('uses OpenCode worktree for context and lifecycle commands', async () => {
+  const nestedDirectory = path.join(tempDir, 'nested');
+  await mkdir(nestedDirectory);
+  await mkdir(path.join(tempDir, '.memoryanchor'), { recursive: true });
+  await writeFile(path.join(tempDir, '.memoryanchor', 'index.md'), '# worktree index\n');
+
+  const commands = [];
+  const { MemoryAnchorPlugin } = await import('../../dist/hooks/opencode/memory-anchor-plugin.js');
+  const hooks = await MemoryAnchorPlugin({
+    directory: nestedDirectory,
+    worktree: tempDir,
+    $: (strings, ...values) => {
+      commands.push({ strings: [...strings], values });
+      return { quiet: async () => undefined };
+    },
+  });
+
+  const systemOutput = { system: [] };
+  await hooks['experimental.chat.system.transform']({}, systemOutput);
+  expect(systemOutput.system.join('\n')).toContain('# worktree index');
+
+  await hooks.event({ event: { type: 'session.idle' } });
+  expect(commands).toHaveLength(1);
+  expect(commands[0].strings.join('')).toContain('cd ');
+  expect(commands[0].values).toContain(tempDir);
+});
+
+test('uses OpenCode directory when worktree does not contain the Memory Anchor state', async () => {
+  const nestedDirectory = path.join(tempDir, 'nested');
+  await mkdir(nestedDirectory);
+  await mkdir(path.join(tempDir, '.memoryanchor'), { recursive: true });
+  await writeFile(path.join(tempDir, '.memoryanchor', 'index.md'), '# directory index\n');
+
+  const { MemoryAnchorPlugin } = await import('../../dist/hooks/opencode/memory-anchor-plugin.js');
+  const hooks = await MemoryAnchorPlugin({
+    directory: tempDir,
+    worktree: path.dirname(tempDir),
+    $: () => ({ quiet: async () => undefined }),
+  });
+
+  const systemOutput = { system: [] };
+  await hooks['experimental.chat.system.transform']({}, systemOutput);
+  expect(systemOutput.system.join('\n')).toContain('# directory index');
+});
+
 test('creates opencode.json with schema and instructions', async () => {
   await runInitOpencode(tempDir);
 
@@ -170,7 +215,7 @@ test('plugin file destructures $ from ctx and uses Bun shell to invoke hooks', a
   // Per the opencode plugin contract, `$` (BunShell) is provided via the
   // PluginInput ctx — it must NOT be imported bare from "bun".
   expect(plugin).not.toMatch(/from\s+["']bun["']/);
-  expect(plugin).toMatch(/\{\s*\$\s*\}/);
+  expect(plugin).toMatch(/\{\s*\$\s*,/);
   // And used to spawn child processes for side-effect hooks.
   expect(plugin).toMatch(/\$\s*`/);
 });

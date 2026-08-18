@@ -1,5 +1,10 @@
 ## Update log
 
+- `2026/08/19`:
+    - [Fixed] OpenCode now resolves the active workspace from the first supplied context path containing `.memoryanchor` and runs lifecycle hooks from that root. This prevents non-Git or nested OpenCode sessions from reading the wrong state and repeatedly falling back.
+    - [Fixed] Incremental dependency-graph reconciliation now removes deleted target symbols from both reverse and forward edges, keeping deleted providers and their importers consistent with a full rebuild.
+    - Keep full builds source-driven: partition topology is rebuilt from the current workspace without reusing the previous directory registry. Add behavior-consistency coverage for file, directory, provider, virtual-branch, and frontier deletions with fixed test thresholds.
+
 - `2026/08/18`:
     - Add Hermes Agent hook adaptation. Hermes registers shell hooks in the global `$HERMES_HOME/config.yaml` (`yaml` round-trip editing preserves comments and user entries), so the integration extends `hookProtocol.ts` with the `snake-case` event style, `stdout-json-context` injection, and `yaml-hook-array` config shape. Context flows through `pre_llm_call` as `{"context": ...}` (appended to the user message, keeping the system-prompt cache intact), the stop handler binds to `on_session_end` and the session-end handler to `on_session_finalize`, and every Hermes hook is a silent no-op outside Memory Anchor workspaces because the global registration fires in all projects. `anchor prompt-hook` toggles the optional `pre_llm_call` prompt reminder and honors `HERMES_HOME`; init refuses to edit an invalid existing config.
     - Move OpenCode's optional per-turn chart reminder from `chat.message` to `experimental.chat.messages.transform`, so it is added only to the outbound message copy and does not modify the persisted user message. Keep the core Memory Anchor payload on `experimental.chat.system.transform`.

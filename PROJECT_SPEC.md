@@ -181,9 +181,11 @@ Each deduplicated change batch follows one ordered pipeline:
 
 Incremental graph maintenance never performs a repository-wide traversal of
 reverse edges. A changed or removed caller supplies every reverse mutation
-through its own forward edge list; a changed target is rebuilt in its own
-Git-visible chart update. Relative imports retain candidate target paths, so
-creating or deleting a code file refreshes only its unchanged importers.
+through its own forward edge list; deleting a target also removes the matching
+target entries from both persistent edge maps. A changed target is rebuilt in
+its own Git-visible chart update. Relative imports retain candidate target
+paths, so creating or deleting a code file refreshes only its unchanged
+importers.
 Missing or invalid graph state safely falls back to a full partitioned build.
 
 Changes that cross a split or merge threshold rebuild only the affected
@@ -213,7 +215,9 @@ OpenCode extends system context through
 `experimental.chat.system.transform`; its optional per-turn reminder reads the
 selection at runtime and mutates the outbound message copy through
 `experimental.chat.messages.transform`, leaving the persisted user message
-unchanged.
+unchanged. The plugin resolves workspace state from the first supplied
+`worktree`, `directory`, or process directory containing `.memoryanchor`; this
+also anchors lifecycle commands when OpenCode reports a non-Git worktree.
 
 Hermes Agent has no project-scoped hook config: shell hooks are registered in
 the global `$HERMES_HOME/config.yaml` (default `~/.hermes/config.yaml`), so

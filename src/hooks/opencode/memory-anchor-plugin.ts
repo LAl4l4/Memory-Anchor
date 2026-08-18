@@ -11,6 +11,8 @@ type BunShell = (strings: TemplateStringsArray, ...values: unknown[]) => QuietCo
 
 interface PluginInput {
   $: BunShell;
+  directory?: string;
+  worktree?: string | null;
 }
 
 interface MessagePart {
@@ -50,13 +52,6 @@ const HOOK_BIN = 'memoryanchor-opencode';
 const USER_PROMPT_APPENDIX =
   '[IMPORTANT!] Must read ./.memoryanchor/chart/.../chart.md before any works and glob/grep.';
 
-const ANCHOR_DIR = path.join(process.cwd(), '.memoryanchor');
-const INDEX_PATH = path.join(ANCHOR_DIR, 'index.md');
-const ROOT_CHART_PATH = path.join(ANCHOR_DIR, 'chart', 'chart.md');
-const BALLAST_PATH = path.join(ANCHOR_DIR, 'ballast.md');
-const MANIFEST_PATH = path.join(ANCHOR_DIR, 'manifest.md');
-const PROMPT_HOOK_CONFIG_PATH = path.join(ANCHOR_DIR, 'prompt-hooks.json');
-
 function readFileSafe(filePath: string, fallback: string): string {
   try {
     return fs.existsSync(filePath) ? fs.readFileSync(filePath, 'utf-8').trim() : fallback;
@@ -65,9 +60,24 @@ function readFileSafe(filePath: string, fallback: string): string {
   }
 }
 
-function buildMemoryCore(): string {
-  const index = readFileSafe(INDEX_PATH, 'No project chart available.');
-  const rootChart = fs.existsSync(ROOT_CHART_PATH) ? readFileSafe(ROOT_CHART_PATH, '') : '';
+function resolveWorkspaceRoot(directory?: string, worktree?: string | null): string {
+  const candidates = [worktree, directory, process.cwd()]
+    .filter((candidate): candidate is string => Boolean(candidate))
+    .map((candidate) => path.resolve(candidate));
+  const anchoredRoot = candidates.find((candidate) =>
+    fs.existsSync(path.join(candidate, '.memoryanchor')),
+  );
+  return anchoredRoot ?? path.resolve(directory ?? worktree ?? process.cwd());
+}
+
+function buildMemoryCore(workspaceRoot: string): string {
+  const anchorDir = path.join(workspaceRoot, '.memoryanchor');
+  const indexPath = path.join(anchorDir, 'index.md');
+  const rootChartPath = path.join(anchorDir, 'chart', 'chart.md');
+  const ballastPath = path.join(anchorDir, 'ballast.md');
+  const manifestPath = path.join(anchorDir, 'manifest.md');
+  const index = readFileSafe(indexPath, 'No project chart available.');
+  const rootChart = fs.existsSync(rootChartPath) ? readFileSafe(rootChartPath, '') : '';
   const chart = rootChart
     ? '[INDEX ROUTING RULES — ALWAYS INJECTED]\n' +
       index +
@@ -75,10 +85,10 @@ function buildMemoryCore(): string {
       rootChart
     : '[INDEX ROUTING RULES — ALWAYS INJECTED]\n' + index;
   const ballast = readFileSafe(
-    BALLAST_PATH,
+    ballastPath,
     'No active coding constraints or lessons-learned enforced.',
   );
-  const manifest = readFileSafe(MANIFEST_PATH, 'No active cross-session tasks found.');
+  const manifest = readFileSafe(manifestPath, 'No active cross-session tasks found.');
   const taskSection = ballast.includes('[STALE]')
     ? "\n[TRIGGERED MISSION: MEMORY PRUNING]\n- Urgent Status: Some developer-enforced limits inside the [2. BALLAST RULES] section are currently flagged with '[STALE]'.\n- Your Action Required: These rules are likely obsolete due to recent code changes. You MUST evaluate and directly rewrite '.memoryanchor/ballast.md' to DELETE any invalid stale rules during this session.\n"
     : '';
@@ -101,9 +111,10 @@ function buildMemoryCore(): string {
   ].join('\n');
 }
 
-function isPromptHookEnabled(): boolean {
+function isPromptHookEnabled(workspaceRoot: string): boolean {
   try {
-    const config = JSON.parse(readFileSafe(PROMPT_HOOK_CONFIG_PATH, '{}')) as {
+    const configPath = path.join(workspaceRoot, '.memoryanchor', 'prompt-hooks.json');
+    const config = JSON.parse(readFileSafe(configPath, '{}')) as {
       enabled?: unknown;
     };
     return Array.isArray(config.enabled) && config.enabled.includes('opencode');
@@ -116,14 +127,17 @@ function isTextPartWithText(part: MessagePart): part is MessagePart & { text: st
   return part.type === 'text' && typeof part.text === 'string';
 }
 
-export const MemoryAnchorPlugin = async ({ $ }: PluginInput) => ({
+export const MemoryAnchorPlugin = async ({ $, directory, worktree }: PluginInput) => {
+  const workspaceRoot = resolveWorkspaceRoot(directory, worktree);
+
+  return {
   // System context can only be extended through this experimental hook.
   'experimental.chat.system.transform': async (
     _input: unknown,
     output: SystemTransformOutput,
   ): Promise<void> => {
     try {
-      output.system.push(buildMemoryCore());
+      output.system.push(buildMemoryCore(workspaceRoot));
     } catch {
       // Hooks must never break the agent loop.
     }
@@ -137,7 +151,7 @@ export const MemoryAnchorPlugin = async ({ $ }: PluginInput) => ({
     output: ChatMessagesTransformOutput,
   ): Promise<void> => {
     try {
-      if (!isPromptHookEnabled()) return;
+      if (!isPromptHookEnabled(workspaceRoot)) return;
       const userMessage = [...output.messages]
         .reverse()
         .find((message) => message.info.role === 'user');
@@ -157,13 +171,14 @@ export const MemoryAnchorPlugin = async ({ $ }: PluginInput) => ({
   event: async ({ event }: EventOutput): Promise<void> => {
     try {
       if (event.type === 'session.idle') {
-        await $`${HOOK_BIN}-stop`.quiet();
+        await $`cd ${workspaceRoot} && ${HOOK_BIN}-stop`.quiet();
       }
       if (event.type === 'session.deleted') {
-        await $`${HOOK_BIN}-post`.quiet();
+        await $`cd ${workspaceRoot} && ${HOOK_BIN}-post`.quiet();
       }
     } catch {
       // Hooks must never break the agent loop.
     }
   },
-});
+  };
+};

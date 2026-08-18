@@ -130,6 +130,21 @@ function removeCaller(graph: PersistentDependencyGraph, callerId: string): void 
     delete graph.callerSymbols[callerId];
 }
 
+/** Remove one target and the forward edges that resolved to it. */
+function removeTarget(graph: PersistentDependencyGraph, targetKey: string): void {
+    for (const callerId of graph.reverseDependencies[targetKey] ?? []) {
+        const targets = graph.forwardDependencies[callerId] ?? [];
+        const next = targets.filter(candidate => candidate !== targetKey);
+        if (next.length === 0) {
+            delete graph.forwardDependencies[callerId];
+            delete graph.callerSymbols[callerId];
+        } else {
+            graph.forwardDependencies[callerId] = next;
+        }
+    }
+    delete graph.reverseDependencies[targetKey];
+}
+
 function addCaller(
     graph: PersistentDependencyGraph,
     callerId: string,
@@ -471,8 +486,16 @@ function replaceChangedTargetOffsets(
     state: IncrementalGraphState,
     snapshots: IncrementalGraphSnapshots
 ): void {
+    const currentTargetKeys = new Set<string>();
+    for (const [filePath, node] of state.currentNodesByPath) {
+        for (const symbol of node.symbols) {
+            currentTargetKeys.add(symbolKey(filePath, symbol.name));
+        }
+    }
+
     for (const targetKey of state.targetOffsetKeys) {
         delete graph.targetSymbolOffsets[targetKey];
+        if (!currentTargetKeys.has(targetKey)) removeTarget(graph, targetKey);
     }
     for (const [filePath, node] of state.currentNodesByPath) {
         for (const symbol of node.symbols) {
