@@ -123,9 +123,10 @@ export interface OpencodeSetupResult {
 //      return values through their `output` argument, not via subprocess
 //      stdout, and (c) fire-and-forget discards any result anyway.
 //
-//   2. Per-message reminder — the stable "chat.message" hook appends the
-//      Memory Anchor reminder as the final user-message part. OpenCode has
-//      no documented block decision for this hook, so it must be non-blocking.
+//   2. Per-message reminder — the experimental
+//      "experimental.chat.messages.transform" hook appends the Memory Anchor
+//      reminder to the outbound message copy. The persisted user message is
+//      left untouched.
 //
 //   3. Side-effect hooks — "session.idle" (work finished) and
 //      "session.deleted" trigger the published memoryanchor-opencode-stop /

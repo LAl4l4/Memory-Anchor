@@ -209,9 +209,11 @@ IDs (`claude`, `codex`, `codebuddy`, `qodercn`, `copilot`, `opencode`, and
 `anchor prompt-hook` command manages this selection, enabling the named
 agents exactly or all agents when no names are supplied. Codex is supported
 by the same opt-in policy and still has no session-level `SessionEnd` event.
-OpenCode continues to extend system context through
-`experimental.chat.system.transform`; its optional prompt reminder reads the
-selection at runtime.
+OpenCode extends system context through
+`experimental.chat.system.transform`; its optional per-turn reminder reads the
+selection at runtime and mutates the outbound message copy through
+`experimental.chat.messages.transform`, leaving the persisted user message
+unchanged.
 
 Hermes Agent has no project-scoped hook config: shell hooks are registered in
 the global `$HERMES_HOME/config.yaml` (default `~/.hermes/config.yaml`), so

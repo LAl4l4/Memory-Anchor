@@ -51,7 +51,8 @@ test('creates .opencode/plugins/memory-anchor.js', async () => {
   // Context injection must go through the documented system-transform hook,
   // NOT through a (non-existent) "session.start" event.
   expect(plugin).toContain('experimental.chat.system.transform');
-  expect(plugin).toContain('chat.message');
+  expect(plugin).toContain('experimental.chat.messages.transform');
+  expect(plugin).not.toContain("'chat.message':");
   expect(plugin).toContain('[IMPORTANT!] Must read ./.memoryanchor/chart/.../chart.md before any works and glob/grep.');
   expect(plugin).toContain('const INDEX_PATH');
   expect(plugin).toMatch(/path\.join\(ANCHOR_DIR, ['"]index\.md['"]\)/);
@@ -81,7 +82,7 @@ test('copies the TypeScript-compiled plugin verbatim', async () => {
   expect(plugin).toBe(compiledPlugin);
 });
 
-test('appends the reminder to an existing OpenCode text part without creating an invalid ID', async () => {
+test('adds the reminder to the outbound OpenCode message copy without changing message IDs', async () => {
   await mkdir(path.join(tempDir, '.memoryanchor'), { recursive: true });
   await writeFile(
     path.join(tempDir, '.memoryanchor', 'prompt-hooks.json'),
@@ -92,37 +93,45 @@ test('appends the reminder to an existing OpenCode text part without creating an
     $: () => ({ quiet: async () => undefined }),
   });
   const output = {
-    message: { id: 'msg_test', sessionID: 'ses_test' },
-    parts: [
-      { id: 'prt_file', messageID: 'msg_test', sessionID: 'ses_test', type: 'file' },
-      { id: 'prt_text', messageID: 'msg_test', sessionID: 'ses_test', type: 'text', text: 'Inspect this.' },
+    messages: [
+      {
+        info: { role: 'user' },
+        parts: [
+          { id: 'prt_file', messageID: 'msg_test', sessionID: 'ses_test', type: 'file' },
+          { id: 'prt_text', messageID: 'msg_test', sessionID: 'ses_test', type: 'text', text: 'Inspect this.' },
+        ],
+      },
     ],
   };
 
-  await hooks['chat.message']({}, output);
+  await hooks['experimental.chat.messages.transform']({}, output);
 
-  expect(output.parts).toHaveLength(2);
-  expect(output.parts[1].id).toBe('prt_text');
-  expect(output.parts[1].text).toBe(
+  expect(output.messages[0].parts).toHaveLength(2);
+  expect(output.messages[0].parts[1].id).toBe('prt_text');
+  expect(output.messages[0].parts[1].text).toBe(
     'Inspect this.\n\n[IMPORTANT!] Must read ./.memoryanchor/chart/.../chart.md before any works and glob/grep.',
   );
 });
 
-test('does not append the OpenCode reminder when the hook is disabled', async () => {
+test('does not add the OpenCode reminder when the hook is disabled', async () => {
   const { MemoryAnchorPlugin } = await import('../../dist/hooks/opencode/memory-anchor-plugin.js');
   const hooks = await MemoryAnchorPlugin({
     $: () => ({ quiet: async () => undefined }),
   });
   const output = {
-    message: { id: 'msg_disabled', sessionID: 'ses_disabled' },
-    parts: [
-      { id: 'prt_text_disabled', messageID: 'msg_disabled', sessionID: 'ses_disabled', type: 'text', text: 'Inspect this.' },
+    messages: [
+      {
+        info: { role: 'user' },
+        parts: [
+          { id: 'prt_text_disabled', messageID: 'msg_disabled', sessionID: 'ses_disabled', type: 'text', text: 'Inspect this.' },
+        ],
+      },
     ],
   };
 
-  await hooks['chat.message']({}, output);
+  await hooks['experimental.chat.messages.transform']({}, output);
 
-  expect(output.parts[0].text).toBe('Inspect this.');
+  expect(output.messages[0].parts[0].text).toBe('Inspect this.');
 });
 
 test('creates opencode.json with schema and instructions', async () => {

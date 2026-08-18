@@ -13,11 +13,6 @@ interface PluginInput {
   $: BunShell;
 }
 
-interface UserMessage {
-  id: string;
-  sessionID: string;
-}
-
 interface MessagePart {
   id: string;
   sessionID: string;
@@ -26,9 +21,15 @@ interface MessagePart {
   text?: unknown;
 }
 
-interface ChatMessageOutput {
-  message: UserMessage;
-  parts: MessagePart[];
+interface MessageInfo {
+  role: string;
+}
+
+interface ChatMessagesTransformOutput {
+  messages: Array<{
+    info: MessageInfo;
+    parts: MessagePart[];
+  }>;
 }
 
 interface SystemTransformOutput {
@@ -128,12 +129,21 @@ export const MemoryAnchorPlugin = async ({ $ }: PluginInput) => ({
     }
   },
 
-  // Reuse the final text part's OpenCode-generated ID rather than creating a
-  // new part: plugin hooks cannot access the internal PartID allocator.
-  'chat.message': async (_input: unknown, output: ChatMessageOutput): Promise<void> => {
+  // Add the optional reminder to the outbound message copy. This transform
+  // runs after the user message has been assembled but before it is converted
+  // into provider messages, so the persisted user message stays untouched.
+  'experimental.chat.messages.transform': async (
+    _input: unknown,
+    output: ChatMessagesTransformOutput,
+  ): Promise<void> => {
     try {
       if (!isPromptHookEnabled()) return;
-      const textPart = [...output.parts].reverse().find(isTextPartWithText);
+      const userMessage = [...output.messages]
+        .reverse()
+        .find((message) => message.info.role === 'user');
+      if (!userMessage) return;
+
+      const textPart = [...userMessage.parts].reverse().find(isTextPartWithText);
       if (!textPart || textPart.text.includes(USER_PROMPT_APPENDIX)) return;
 
       textPart.text = `${textPart.text}\n\n${USER_PROMPT_APPENDIX}`;

@@ -161,7 +161,7 @@ export type OpencodeEventName =
   | 'session.created'
   | 'session.idle'
   | 'session.deleted'
-  | 'chat.message'
+  | 'experimental.chat.messages.transform'
   | 'experimental.chat.system.transform';
 
 export type HermesEventName = 'pre_llm_call' | 'on_session_end' | 'on_session_finalize';
@@ -323,10 +323,10 @@ export const HOOK_PROTOCOLS = {
     hookConfigPath: '.opencode/plugins/memory-anchor.js',
     contextMdPath: null,
     eventNames: {
-      // opencode has no "pre" event; context is injected via
-      // `experimental.chat.system.transform` (see contextInjectionEvent).
+      // OpenCode has no native UserPromptSubmit event; the per-turn reminder
+      // is applied to the outbound message copy by the experimental transform.
       pre: null,
-      prompt: 'chat.message' as OpencodeEventName,
+      prompt: 'experimental.chat.messages.transform' as OpencodeEventName,
       stop: 'session.idle' as OpencodeEventName,
       post: 'session.deleted' as OpencodeEventName,
     },
