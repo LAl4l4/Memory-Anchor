@@ -1,5 +1,5 @@
 import { afterAll, afterEach, expect, test } from '@jest/globals';
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, stat, utimes, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
@@ -113,6 +113,81 @@ test('root direct files use the uniform shallow chart and update incrementally',
     '.memoryanchor/chart/src/chart.md'
   );
   await expect(readFile(srcChartPath, 'utf8')).resolves.toContain('workerFunction');
+});
+
+test('a topology change in a mixed root batch leaves unrelated chart outputs untouched', async () => {
+  tempDir = await mkdtemp(path.join(os.tmpdir(), 'memory-anchor-precise-topology-'));
+  await mkdir(path.join(tempDir, 'changing'));
+  await mkdir(path.join(tempDir, 'untouched'));
+  const rootPath = path.join(tempDir, 'root.ts');
+  const changingPath = path.join(tempDir, 'changing', 'entry.ts');
+  const originalChanging = 'export function changing() { return 1; }\n';
+  const expandedChanging = Array.from(
+    { length: 12 },
+    (_, index) => `export function expanded${index}() { return ${index}; }`
+  ).join('\n') + '\n';
+  await writeFile(
+    rootPath,
+    Array.from(
+      { length: 250 },
+      (_, index) => `export function rootValue${index}() { return ${index}; }`
+    ).join('\n') + '\n',
+    'utf8'
+  );
+  await writeFile(changingPath, originalChanging, 'utf8');
+  await writeFile(
+    path.join(tempDir, 'untouched', 'entry.ts'),
+    'export const untouched = 1;\n',
+    'utf8'
+  );
+
+  await buildPartitionedChartsForDebug({
+    projectRoot: tempDir,
+    thresholds: { splitAt: Number.MAX_SAFE_INTEGER, mergeAt: 0 }
+  });
+  const registryPath = path.join(tempDir, '.memoryanchor', 'dirTree.json');
+  const initialRegistry = JSON.parse(await readFile(registryPath, 'utf8'));
+  const changingChars = initialRegistry.children.find(
+    node => node.directory === 'changing'
+  ).thisDirectoryChars;
+  await writeFile(changingPath, expandedChanging, 'utf8');
+  await buildPartitionedChartsForDebug({
+    projectRoot: tempDir,
+    thresholds: { splitAt: Number.MAX_SAFE_INTEGER, mergeAt: 0 }
+  });
+  const expandedRegistry = JSON.parse(await readFile(registryPath, 'utf8'));
+  const expandedChangingChars = expandedRegistry.children.find(
+    node => node.directory === 'changing'
+  ).thisDirectoryChars;
+  expect(expandedChangingChars).toBeGreaterThan(changingChars);
+  const thresholds = {
+    splitAt: Math.floor((changingChars + expandedChangingChars) / 2),
+    mergeAt: changingChars,
+  };
+  await writeFile(changingPath, originalChanging, 'utf8');
+  await buildPartitionedChartsForDebug({ projectRoot: tempDir, thresholds });
+
+  const outputRoot = path.join(tempDir, '.memoryanchor', 'chart');
+  const untouchedChartPath = path.join(outputRoot, 'untouched', 'chart.md');
+  const fixedTimestamp = new Date(1_000);
+  await utimes(untouchedChartPath, fixedTimestamp, fixedTimestamp);
+  await writeFile(rootPath, Array.from(
+    { length: 250 },
+    (_, index) => `export function updatedRoot${index}() { return ${index}; }`
+  ).join('\n') + '\n', 'utf8');
+  await writeFile(changingPath, expandedChanging, 'utf8');
+
+  await expect(updatePartitionedChartsIncrementally([
+    'root.ts',
+    'changing/entry.ts'
+  ], { projectRoot: tempDir, thresholds })).resolves.toBe(true);
+
+  const updatedRegistry = JSON.parse(await readFile(registryPath, 'utf8'));
+  expect(updatedRegistry.children.find(node => node.directory === 'changing').isSplit)
+    .toBe(true);
+  await expect(readFile(path.join(outputRoot, 'chart.md'), 'utf8'))
+    .resolves.toContain('updatedRoot249');
+  expect((await stat(untouchedChartPath)).mtime.getTime()).toBe(fixedTimestamp.getTime());
 });
 
 test('adding the first root file creates a root chart and reparents child charts', async () => {

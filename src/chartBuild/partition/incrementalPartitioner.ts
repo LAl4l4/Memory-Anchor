@@ -41,8 +41,9 @@ import {
 import {
     captureChartTopology,
     hasChartTopologyChanged,
-    rebuildPartitionBoundary,
+    rebuildChangedPartitionCharts,
     type ChartTopologySnapshot,
+    type TopologyRebuildResult,
 } from './partitionedChartBuilder.js';
 
 export interface IncrementalPartitionOptions {
@@ -467,40 +468,6 @@ function getPreRenderDirectories(
     return [...directories].sort((left, right) => left.localeCompare(right));
 }
 
-function commonDirectory(directories: Iterable<string>): string {
-    const entries = [...new Set(directories)];
-    if (entries.length === 0) return '.';
-    const parts = entries.map(directory =>
-        directory === '.' ? [] : directory.split('/').filter(Boolean)
-    );
-    const shared: string[] = [];
-    for (let index = 0; ; index += 1) {
-        const segment = parts[0][index];
-        if (!segment || !parts.every(entry => entry[index] === segment)) break;
-        shared.push(segment);
-    }
-    return shared.length === 0 ? '.' : shared.join('/');
-}
-
-function getTopologyBoundary(
-    previousRoot: DirectoryTreeNode,
-    root: DirectoryTreeNode,
-    relativeFiles: readonly string[],
-    changedDirectories: readonly string[] = []
-): string {
-    const affectedDirectories = new Set([
-        ...getUniqueChangedDirectories(relativeFiles),
-        ...changedDirectories,
-    ]);
-    ownerDirectoriesForFiles(previousRoot, relativeFiles).forEach(directory =>
-        affectedDirectories.add(directory)
-    );
-    ownerDirectoriesForFiles(root, relativeFiles).forEach(directory =>
-        affectedDirectories.add(directory)
-    );
-    return commonDirectory(affectedDirectories);
-}
-
 function toDependencyFiles(
     projectRoot: string,
     dependencyPaths: ReadonlySet<string>
@@ -508,42 +475,39 @@ function toDependencyFiles(
     return [...dependencyPaths].map(relativePath => path.join(projectRoot, relativePath));
 }
 
+interface IncrementalRenderResult {
+    renderedDirectories: string[];
+    removedDirectories: string[];
+}
+
 async function renderFinalCharts(
-    root: DirectoryTreeNode,
-    previousRoot: DirectoryTreeNode,
     previousTopology: ChartTopologySnapshot,
     nextTopology: ChartTopologySnapshot,
     topologyChanged: boolean,
-    relativeFiles: readonly string[],
-    changedPreviewDirectories: readonly string[],
     renderDirectories: readonly string[],
     workspace: IncrementalWorkspace,
     dependencyPaths: ReadonlySet<string>,
     dependencyGraph: PersistentDependencyGraph
-): Promise<void> {
+): Promise<IncrementalRenderResult> {
     const dependencyFiles = toDependencyFiles(workspace.projectRoot, dependencyPaths);
     const globalDependencyRegistry = createGlobalDependencyRegistry(dependencyGraph);
     if (topologyChanged) {
-        await rebuildPartitionBoundary(
-            root,
-            getTopologyBoundary(
-                previousRoot,
-                root,
-                relativeFiles,
-                changedPreviewDirectories
-            ),
+        const result: TopologyRebuildResult = await rebuildChangedPartitionCharts(
+            previousTopology,
+            nextTopology,
             {
                 projectRoot: workspace.projectRoot,
-                previousTopology,
                 additionalDirectories: renderDirectories,
                 dependencyFiles,
                 globalDependencyRegistry,
             }
         );
-        return;
+        return result;
     }
 
-    if (renderDirectories.length === 0) return;
+    if (renderDirectories.length === 0) {
+        return { renderedDirectories: [], removedDirectories: [] };
+    }
     await writeChartSet(
         renderDirectories,
         workspace.projectRoot,
@@ -556,6 +520,7 @@ async function renderFinalCharts(
             globalDependencyRegistry,
         }
     );
+    return { renderedDirectories: [...renderDirectories], removedDirectories: [] };
 }
 
 /**
@@ -649,14 +614,10 @@ export async function updatePartitionedChartsIncrementally(
         requestedDirectories.has(directory)
     );
 
-    await renderFinalCharts(
-        root,
-        previousRoot,
+    const renderResult = await renderFinalCharts(
         previousTopology,
         nextTopology,
         topologyChanged,
-        files,
-        topologyUpdate.changedDirectories,
         renderDirectories,
         workspace,
         dependencyPaths,
@@ -671,7 +632,8 @@ export async function updatePartitionedChartsIncrementally(
     }
     appendDebugLog(
         'debug',
-        `Incremental partition pipeline rendered ${renderDirectories.length} chart(s); topology changed: ${topologyChanged}.`
+        `Incremental partition pipeline completed: rendered ${renderResult.renderedDirectories.length} chart(s), ` +
+        `removed ${renderResult.removedDirectories.length} obsolete chart(s); topology changed: ${topologyChanged}.`
     );
     return true;
 }

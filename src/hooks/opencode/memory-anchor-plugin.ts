@@ -52,6 +52,59 @@ const HOOK_BIN = 'memoryanchor-opencode';
 const USER_PROMPT_APPENDIX =
   '[IMPORTANT!] Must read ./.memoryanchor/chart/.../chart.md before any works and glob/grep.';
 
+type DebugLogLevel = 'debug' | 'error';
+
+function isDebugModeEnabled(workspaceRoot: string): boolean {
+  try {
+    const config = JSON.parse(
+      fs.readFileSync(path.join(workspaceRoot, '.memoryanchor', 'debug.json'), 'utf8'),
+    ) as { enabled?: unknown };
+    return config.enabled === true;
+  } catch {
+    return false;
+  }
+}
+
+function appendDebugLog(workspaceRoot: string, level: DebugLogLevel, message: string): void {
+  if (!isDebugModeEnabled(workspaceRoot)) return;
+  try {
+    const prefix = `[${new Date().toISOString()}] [${level.toUpperCase()}] `;
+    const lines = message.replace(/\r\n/g, '\n').split('\n');
+    fs.appendFileSync(
+      path.join(workspaceRoot, '.memoryanchor', 'debug.log'),
+      `${lines.map((line) => `${prefix}${line}`).join('\n')}\n`,
+      'utf8',
+    );
+  } catch {
+    // OpenCode diagnostics must not interfere with the agent loop.
+  }
+}
+
+function logHookTriggered(workspaceRoot: string, event: string): void {
+  appendDebugLog(
+    workspaceRoot,
+    'debug',
+    `Hook triggered | agent=opencode | event=${event} | workdir=${workspaceRoot}`,
+  );
+}
+
+function logHookSucceeded(workspaceRoot: string, event: string, result: string): void {
+  appendDebugLog(
+    workspaceRoot,
+    'debug',
+    `Hook result | agent=opencode | event=${event} | workdir=${workspaceRoot} | status=success | result=${result}`,
+  );
+}
+
+function logHookFailed(workspaceRoot: string, event: string, error: unknown): void {
+  const detail = error instanceof Error ? error.stack ?? error.message : String(error);
+  appendDebugLog(
+    workspaceRoot,
+    'error',
+    `Hook result | agent=opencode | event=${event} | workdir=${workspaceRoot} | status=failed\n${detail}`,
+  );
+}
+
 function readFileSafe(filePath: string, fallback: string): string {
   try {
     return fs.existsSync(filePath) ? fs.readFileSync(filePath, 'utf-8').trim() : fallback;
@@ -136,9 +189,14 @@ export const MemoryAnchorPlugin = async ({ $, directory, worktree }: PluginInput
     _input: unknown,
     output: SystemTransformOutput,
   ): Promise<void> => {
+    const event = 'experimental.chat.system.transform';
+    logHookTriggered(workspaceRoot, event);
     try {
-      output.system.push(buildMemoryCore(workspaceRoot));
-    } catch {
+      const memoryCore = buildMemoryCore(workspaceRoot);
+      output.system.push(memoryCore);
+      logHookSucceeded(workspaceRoot, event, `memory context injected (${memoryCore.length} chars)`);
+    } catch (error) {
+      logHookFailed(workspaceRoot, event, error);
       // Hooks must never break the agent loop.
     }
   },
@@ -150,18 +208,35 @@ export const MemoryAnchorPlugin = async ({ $, directory, worktree }: PluginInput
     _input: unknown,
     output: ChatMessagesTransformOutput,
   ): Promise<void> => {
+    const event = 'experimental.chat.messages.transform';
+    logHookTriggered(workspaceRoot, event);
     try {
-      if (!isPromptHookEnabled(workspaceRoot)) return;
+      if (!isPromptHookEnabled(workspaceRoot)) {
+        logHookSucceeded(workspaceRoot, event, 'skipped: UserPrompt hook disabled');
+        return;
+      }
       const userMessage = [...output.messages]
         .reverse()
         .find((message) => message.info.role === 'user');
-      if (!userMessage) return;
+      if (!userMessage) {
+        logHookSucceeded(workspaceRoot, event, 'skipped: no user message');
+        return;
+      }
 
       const textPart = [...userMessage.parts].reverse().find(isTextPartWithText);
-      if (!textPart || textPart.text.includes(USER_PROMPT_APPENDIX)) return;
+      if (!textPart) {
+        logHookSucceeded(workspaceRoot, event, 'skipped: no text message part');
+        return;
+      }
+      if (textPart.text.includes(USER_PROMPT_APPENDIX)) {
+        logHookSucceeded(workspaceRoot, event, 'skipped: prompt already contains the reminder');
+        return;
+      }
 
       textPart.text = `${textPart.text}\n\n${USER_PROMPT_APPENDIX}`;
-    } catch {
+      logHookSucceeded(workspaceRoot, event, 'prompt reminder appended');
+    } catch (error) {
+      logHookFailed(workspaceRoot, event, error);
       // Hooks must never break the agent loop.
     }
   },
@@ -169,14 +244,19 @@ export const MemoryAnchorPlugin = async ({ $, directory, worktree }: PluginInput
   // Runtime events are delivered through the generic `event` hook. The
   // lifecycle event names are values on the event payload, not hook keys.
   event: async ({ event }: EventOutput): Promise<void> => {
+    if (event.type !== 'session.idle' && event.type !== 'session.deleted') return;
+    logHookTriggered(workspaceRoot, event.type);
     try {
       if (event.type === 'session.idle') {
         await $`cd ${workspaceRoot} && ${HOOK_BIN}-stop`.quiet();
+        logHookSucceeded(workspaceRoot, event.type, `executed ${HOOK_BIN}-stop`);
       }
       if (event.type === 'session.deleted') {
         await $`cd ${workspaceRoot} && ${HOOK_BIN}-post`.quiet();
+        logHookSucceeded(workspaceRoot, event.type, `executed ${HOOK_BIN}-post`);
       }
-    } catch {
+    } catch (error) {
+      logHookFailed(workspaceRoot, event.type, error);
       // Hooks must never break the agent loop.
     }
   },

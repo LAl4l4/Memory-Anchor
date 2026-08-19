@@ -47,6 +47,8 @@ export const BALLAST_FILE_NAME = 'ballast.md';
 export const MANIFEST_FILE_NAME = 'manifest.md';
 export const DEBUG_CONFIG_FILE_NAME = 'debug.json';
 export const DEBUG_LOG_FILE_NAME = 'debug.log';
+/** Untracked source paths awaiting deletion detection by lifecycle refreshes. */
+export const UNTRACKED_FILE_WATCH_FILE_NAME = 'untracked-files.json';
 
 // =============================================================================
 // Default File Contents

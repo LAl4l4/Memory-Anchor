@@ -7,6 +7,7 @@ import { updatePartitionedChartIncrementally } from '../../chartBuild/incrementa
 import { destroyPool } from '../../chartBuild/buildChart.js';
 import { logToUser } from '../../chartBuild/shared/utils.js';
 import { appendDebugLog, formatError } from '../../utils/logger.js';
+import { getHookInvocation, logHookFailed, logHookSucceeded, logHookTriggered } from './hookDebug.js';
 
 const cwd = process.cwd();
 const ANCHOR_PATH = path.join(cwd, '.memoryanchor');
@@ -131,10 +132,12 @@ export function sanitizeBallast(): void {
 }
 
 export async function runSessionEnd(): Promise<void> {
+  const invocation = logHookTriggered(getHookInvocation());
   try {
     const changes = captureGitChanges();
     if (!changes || changes.length === 0) {
       appendDebugLog('debug', 'Session-end refresh skipped: Git reported no changes.');
+      logHookSucceeded(invocation, 'skipped: Git reported no changes');
     } else {
       appendDebugLog('debug', `Session-end refresh captured ${changes.length} Git change(s).`);
       updateManifest(changes);
@@ -144,11 +147,16 @@ export async function runSessionEnd(): Promise<void> {
       const changedPaths = changes.map((c) => c.file);
       await updatePartitionedChartIncrementally(changedPaths);
       appendDebugLog('debug', 'Session-end refresh completed.');
+      logHookSucceeded(
+        invocation,
+        `session maintenance and incremental refresh completed for ${changes.length} Git change(s)`,
+      );
     }
   } catch (error) {
     const message = `Session-end refresh failed: ${error instanceof Error ? error.message : error}`;
     logToUser(message, '31');
     appendDebugLog('error', `${message}\n${formatError(error)}`);
+    logHookFailed(invocation, error);
     throw error;
   } finally {
     await destroyPool();

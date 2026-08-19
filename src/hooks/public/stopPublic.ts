@@ -2,25 +2,30 @@
 import { updatePartitionedChartIncrementally } from '../../chartBuild/incremental.js';
 import { captureGitChanges, GitChange } from '../../utils/captureGitChanges.js';
 import { appendDebugLog, formatError } from '../../utils/logger.js';
+import { getHookInvocation, logHookFailed, logHookSucceeded, logHookTriggered } from './hookDebug.js';
 
-async function refreshChart(changes: GitChange[] | null): Promise<void> {
+async function refreshChart(changes: GitChange[] | null): Promise<string> {
   if (!changes || changes.length === 0) {
     appendDebugLog('debug', 'Stop refresh skipped: Git reported no changes.');
-    return;
+    return 'skipped: Git reported no changes';
   }
 
   appendDebugLog('debug', `Stop refresh captured ${changes.length} Git change(s).`);
   const changedPaths = changes.map((c) => c.file);
   await updatePartitionedChartIncrementally(changedPaths);
   appendDebugLog('debug', 'Stop refresh completed.');
+  return `incremental refresh completed for ${changes.length} Git change(s)`;
 }
 
 export async function runStop(): Promise<void> {
+  const invocation = logHookTriggered(getHookInvocation());
   try {
     const changes = captureGitChanges();
-    await refreshChart(changes);
+    const result = await refreshChart(changes);
+    logHookSucceeded(invocation, result);
   } catch (error) {
     appendDebugLog('error', `Stop refresh failed:\n${formatError(error)}`);
+    logHookFailed(invocation, error);
     throw error;
   }
   process.exit(0);

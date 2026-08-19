@@ -75,6 +75,32 @@ test('runStop calls the partitioned incremental updater when there are git chang
   process.exit.mockRestore();
 });
 
+test('runStop forwards a watched untracked-file deletion to the incremental updater', async () => {
+  initGitRepo();
+  const watchedPath = path.join(tempDir, 'watched.ts');
+  await writeFile(watchedPath, 'export const watched = 1;');
+
+  jest.unstable_mockModule('../../dist/chartBuild/incremental.js', () => ({
+    updatePartitionedChartIncrementally: jest.fn(async () => {}),
+  }));
+
+  jest.spyOn(process, 'exit').mockImplementation(() => {});
+
+  const stopModule = await import('../../dist/hooks/public/stopPublic.js');
+  const incremental = await import('../../dist/chartBuild/incremental.js');
+
+  await stopModule.runStop();
+  incremental.updatePartitionedChartIncrementally.mockClear();
+  await rm(watchedPath);
+
+  await stopModule.runStop();
+
+  expect(incremental.updatePartitionedChartIncrementally).toHaveBeenCalledWith([
+    'watched.ts'
+  ]);
+  process.exit.mockRestore();
+});
+
 test('runStop do nothing when no git repo exists (captureGitChanges returns null)', async () => {
   jest.unstable_mockModule('../../dist/chartBuild/incremental.js', () => ({
     updatePartitionedChartIncrementally: jest.fn(async () => {}),

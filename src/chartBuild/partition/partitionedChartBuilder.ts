@@ -41,6 +41,14 @@ export interface RebuildPartitionBoundaryOptions extends CreatePartitionedCharts
     additionalDirectories?: readonly string[];
 }
 
+/** Exact output work performed while reconciling an incremental topology change. */
+export interface TopologyRebuildResult {
+    chartPaths: string[];
+    renderedDirectories: string[];
+    /** Former owners whose generated chart file was removed. */
+    removedDirectories: string[];
+}
+
 export type PartitionedChartsBuildResult = BuildChartResult;
 export type PartitionedChartsDebugResult = BuildChartResult;
 
@@ -109,10 +117,66 @@ function getBoundaryRebuildDirectories(
     return [...localDirectories, ...externalParents];
 }
 
+/**
+ * Return only charts whose ownership, direct-file scope, or child routing
+ * changed between two topology snapshots. Content-only chart updates are
+ * supplied separately by the incremental caller.
+ */
+function getTopologyRebuildDirectories(
+    previous: ChartTopologySnapshot,
+    next: ChartTopologySnapshot
+): string[] {
+    const previousDirectories = new Set(previous.directories);
+    const directories = new Set<string>();
+
+    for (const directory of next.directories) {
+        if (!previousDirectories.has(directory) ||
+            previous.shallowDirectories.has(directory) !== next.shallowDirectories.has(directory) ||
+            !sameChartChildren(directory, previous, next)) {
+            directories.add(directory);
+        }
+    }
+
+    // A chart whose parent changed has no parent metadata of its own, but the
+    // old and new parent both differ in chartChildren and are covered above.
+    // Root-directory changes affect index.md and do not require unrelated
+    // chart bodies to be regenerated.
+    return next.directories.filter(directory => directories.has(directory));
+}
+
+function getRemovedTopologyDirectories(
+    previous: ChartTopologySnapshot,
+    next: ChartTopologySnapshot
+): string[] {
+    const nextDirectories = new Set(next.directories);
+    return previous.directories.filter(directory => !nextDirectories.has(directory));
+}
+
 function resetBoundaryOutput(outputRoot: string, boundaryDirectory: string): void {
     const affectedOutput = path.join(outputRoot, boundaryDirectory);
     fs.rmSync(affectedOutput, { recursive: true, force: true });
     fs.mkdirSync(outputRoot, { recursive: true });
+}
+
+function getChartOutputPath(outputRoot: string, directory: string): string {
+    return path.join(directory === '.' ? outputRoot : path.join(outputRoot, directory), 'chart.md');
+}
+
+/** Remove a stale chart without deleting siblings that share an output parent. */
+function removeChartOutput(outputRoot: string, directory: string): boolean {
+    const chartPath = getChartOutputPath(outputRoot, directory);
+    if (!fs.existsSync(chartPath)) return false;
+
+    fs.rmSync(chartPath, { force: true });
+    if (directory === '.') return true;
+
+    let currentDirectory = path.dirname(chartPath);
+    while (currentDirectory !== outputRoot) {
+        if (fs.readdirSync(currentDirectory).length > 0) break;
+        fs.rmdirSync(currentDirectory);
+        currentDirectory = path.dirname(currentDirectory);
+    }
+    return true;
 }
 
 function getTopologyChartOptions(
@@ -138,6 +202,50 @@ function rebuildCompleteTopology(
         projectRoot,
         ...getTopologyChartOptions(topology, options),
     });
+}
+
+/**
+ * Reconcile an incremental topology mutation by rewriting only changed chart
+ * owners and removing only former owners. This deliberately avoids deriving a
+ * broad physical boundary from an unrelated batch of changed files.
+ */
+export async function rebuildChangedPartitionCharts(
+    previousTopology: ChartTopologySnapshot,
+    nextTopology: ChartTopologySnapshot,
+    options: RebuildPartitionBoundaryOptions = {}
+): Promise<TopologyRebuildResult> {
+    const workspace = resolveWorkspacePaths();
+    const projectRoot = path.resolve(options.projectRoot ?? workspace.projectRoot);
+    const outputRoot = path.join(
+        projectRoot,
+        '.memoryanchor',
+        PARTITIONED_CHART_DIRECTORY_NAME
+    );
+    const requestedDirectories = new Set([
+        ...getTopologyRebuildDirectories(previousTopology, nextTopology),
+        ...(options.additionalDirectories ?? []),
+    ]);
+    const renderedDirectories = nextTopology.directories.filter(directory =>
+        requestedDirectories.has(directory)
+    );
+    const removedDirectories = getRemovedTopologyDirectories(
+        previousTopology,
+        nextTopology
+    ).filter(directory => removeChartOutput(outputRoot, directory));
+    const chartPaths = renderedDirectories.length === 0
+        ? []
+        : await writeChartSet(
+            renderedDirectories,
+            projectRoot,
+            outputRoot,
+            getTopologyChartOptions(nextTopology, {
+                ...options,
+                dependencyFiles: options.dependencyFiles ?? listParseableProjectFiles(projectRoot),
+            })
+        );
+
+    writePartitionIndex(projectRoot, nextTopology.rootDirectories);
+    return { chartPaths, renderedDirectories, removedDirectories };
 }
 
 /** Compatibility entry: rebuild the virtual chart set after a topology change. */

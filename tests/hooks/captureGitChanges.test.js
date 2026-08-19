@@ -1,10 +1,11 @@
 import { afterEach, beforeEach, expect, test } from '@jest/globals';
 import { execSync } from 'node:child_process';
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
 import { captureGitChanges } from '../../dist/utils/captureGitChanges.js';
+import { UNTRACKED_FILE_WATCH_FILE_NAME } from '../../dist/constant.js';
 
 const originalCwd = process.cwd();
 let tempDir = '';
@@ -55,4 +56,49 @@ test('captureGitChanges expands multiple new untracked directories into file pat
     'src/feature-c',
   ]));
   expect(changes?.every(change => change.status === '??')).toBe(true);
+});
+
+test('reports deletion of a previously observed untracked file', async () => {
+  initGitRepo();
+
+  const watchedPath = 'src/untracked.ts';
+  await mkdir(path.join(tempDir, 'src'));
+  await writeFile(path.join(tempDir, watchedPath), 'export const value = 1;\n');
+
+  expect(captureGitChanges()).toEqual(expect.arrayContaining([
+    expect.objectContaining({ status: '??', file: watchedPath })
+  ]));
+  const watchPath = path.join(
+    tempDir,
+    '.memoryanchor',
+    UNTRACKED_FILE_WATCH_FILE_NAME
+  );
+  await expect(readFile(watchPath, 'utf8')).resolves.toContain(watchedPath);
+
+  await rm(path.join(tempDir, watchedPath));
+
+  expect(captureGitChanges()).toEqual(expect.arrayContaining([
+    { status: 'D', file: watchedPath }
+  ]));
+  await expect(readFile(watchPath, 'utf8')).rejects.toMatchObject({ code: 'ENOENT' });
+});
+
+test('stops watching an untracked file after it enters the Git index', async () => {
+  initGitRepo();
+
+  const watchedPath = 'src/tracked-later.ts';
+  await mkdir(path.join(tempDir, 'src'));
+  await writeFile(path.join(tempDir, watchedPath), 'export const value = 1;\n');
+  captureGitChanges();
+
+  execSync(`git add ${watchedPath}`, { cwd: tempDir });
+  expect(captureGitChanges()).toEqual(expect.arrayContaining([
+    expect.objectContaining({ file: watchedPath })
+  ]));
+
+  await expect(readFile(path.join(
+    tempDir,
+    '.memoryanchor',
+    UNTRACKED_FILE_WATCH_FILE_NAME
+  ), 'utf8')).rejects.toMatchObject({ code: 'ENOENT' });
 });

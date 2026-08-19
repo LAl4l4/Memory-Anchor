@@ -44,6 +44,7 @@ with the CLI.
 | `.memoryanchor/chart/**/chart.md` | Generated architecture charts, partitioned by directory topology. |
 | `.memoryanchor/dirTree.json` | Persisted directory sizes, split states, and virtual chart-tree routes. |
 | `.memoryanchor/dependencyGraph.json` | Persisted file-import candidate and function-level forward/reverse dependency edges for incremental chart refreshes. |
+| `.memoryanchor/untracked-files.json` | Observed Git-untracked paths whose existence is checked on future lifecycle refreshes. |
 | `.memoryanchor/ballast.md` | Durable default and repository-specific implementation rules. |
 | `.memoryanchor/manifest.md` | Module status, dependencies, known issues, and key decisions. |
 | `.memoryanchor/debug.json` | Opt-in, workspace-local diagnostic logging setting. |
@@ -161,7 +162,11 @@ single-machine snapshot, not a performance guarantee.
 ## 8. Incremental refresh
 
 Supported stop and session-end integrations identify Git-visible changed files
-and call `updatePartitionedChartIncrementally`. The legacy
+and call `updatePartitionedChartIncrementally`. Newly observed `??` paths are
+persisted in `.memoryanchor/untracked-files.json`; later lifecycle captures
+check that small set for disappearance and emit synthetic deletion paths before
+incremental reconciliation. A path is removed from the watch set once it enters
+Git's index. The legacy
 `updateChartIncrementally` API remains a compatibility alias.
 
 Each deduplicated change batch follows one ordered pipeline:
@@ -202,6 +207,12 @@ The log mirrors normal CLI and build messages, and additionally records
 incremental fallback reasons, lifecycle outcomes, and caught failures. Debug
 mode is disabled by default; `anchor debug --off` stops further appends without
 deleting the existing log.
+
+Each native hook records one trigger and one result entry with its platform
+agent ID, lifecycle event, resolved working directory, and success or failure
+detail. OpenCode follows the same format inside its copied standalone plugin,
+so its transform and lifecycle callbacks remain observable without changing
+their hook contract.
 
 ## 9. Agent integration requirements
 

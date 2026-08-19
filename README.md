@@ -148,7 +148,7 @@ Hermes registers shell hooks in the user's global `$HERMES_HOME/config.yaml`, so
 
 UserPrompt reminders are disabled by default for every integration, including Codex. Use `anchor prompt-hook <agent...>` to enable exactly the listed agents, or `anchor prompt-hook` with no agent list to enable all supported integrations. Use `anchor prompt-hook --off [agent...]` to disable selected reminders, or all reminders when no agent is supplied. The selection is persisted in `.memoryanchor/prompt-hooks.json`, and rerunning any init command reconciles only Memory Anchor's managed prompt entries while preserving user-owned hooks.
 
-When an integration needs investigation, run `anchor debug`. This enables a workspace-local `.memoryanchor/debug.log` without changing normal console behavior. It records normal CLI output, full-build stages, incremental refresh decisions, fallback reasons, and lifecycle failures. Use `anchor debug --off` to stop appending; the existing log is retained for inspection.
+When an integration needs investigation, run `anchor debug`. This enables a workspace-local `.memoryanchor/debug.log` without changing normal console behavior. It records normal CLI output, full-build stages, incremental refresh decisions, fallback reasons, and lifecycle failures. Every supported hook additionally records its agent, event, resolved working directory, and success/failure result; OpenCode records the same fields from its standalone plugin. Use `anchor debug --off` to stop appending; the existing log is retained for inspection.
 
 ## Commands
 
