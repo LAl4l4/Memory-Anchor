@@ -45,6 +45,8 @@ export const INDEX_FILE_NAME = 'index.md';
 export const CHART_FILE_NAME = INDEX_FILE_NAME;
 export const BALLAST_FILE_NAME = 'ballast.md';
 export const MANIFEST_FILE_NAME = 'manifest.md';
+export const DEBUG_CONFIG_FILE_NAME = 'debug.json';
+export const DEBUG_LOG_FILE_NAME = 'debug.log';
 
 // =============================================================================
 // Default File Contents

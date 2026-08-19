@@ -30,6 +30,9 @@ export async function runCli(argv: string[]): Promise<void> {
   registerBuiltInCommands(cli, context);
 
   cli.command('', 'Show help').action(() => {
+    if (cli.args[0]) {
+      throw new Error(`Unknown command: ${cli.args[0]}`);
+    }
     showScaffoldHelp(false);
   });
 
@@ -42,5 +45,6 @@ export async function runCli(argv: string[]): Promise<void> {
   });
 
   cli.help();
-  cli.parse(argv);
+  cli.parse(argv, { run: false });
+  await cli.runMatchedCommand();
 }

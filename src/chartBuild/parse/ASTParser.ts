@@ -3,6 +3,7 @@ import os from "os";
 import { ParserWorkerPool } from './parserPool.js';
 import { getAvailableParsers } from '../parser-loader.js';
 import { EXT_TO_LANGUAGE } from '../../utils/ext-to-lang.js';
+import { formatError, logger } from '../../utils/logger.js';
 import type { ChartFile, FileNode, FileSymbol } from '../shared/CBHTypes.js';
 
 // Re-export types for backward compatibility
@@ -65,7 +66,7 @@ export async function parseFileArchitecture(
         const fileNode = await pool!.parse(absolutePath, relativePath, lang);
         return fileNode;
     } catch (err) {
-        console.error(err);
+        logger.error(formatError(err));
         return {
             relativePath,
             language: lang,

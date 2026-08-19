@@ -4,6 +4,7 @@ import { Parser, type Tree } from "web-tree-sitter";
 import { loadLanguage } from '../parser-loader.js';
 import { extractFileArchitecture } from './symbolExtractor.js';
 import type { FileNode, ParseRequest } from '../shared/CBHTypes.js';
+import { appendDebugLog, formatError } from '../../utils/logger.js';
 
 // Per-worker state: init once, reuse parser across tasks
 await Parser.init();
@@ -33,7 +34,9 @@ parentPort!.on('message', async (msg: ParseRequest) => {
         tree = parser.parse(source);
 
         if (!tree || !tree.rootNode) {
-            process.stderr.write(`\x1b[31m[Memory Anchor] ⚠️ Failed to parse ${relativePath}\x1b[0m\n`);
+            const message = `[Memory Anchor] ⚠️ Failed to parse ${relativePath}`;
+            process.stderr.write(`\x1b[31m${message}\x1b[0m\n`);
+            appendDebugLog('error', message);
             parentPort!.postMessage({
                 fileNode: {
                     relativePath,
@@ -56,6 +59,10 @@ parentPort!.on('message', async (msg: ParseRequest) => {
 
         parentPort!.postMessage({ fileNode });
     } catch (err) {
+        appendDebugLog(
+            'error',
+            `[Memory Anchor] Failed to parse ${relativePath}: ${formatError(err)}`
+        );
         parentPort!.postMessage({
             fileNode: {
                 relativePath,

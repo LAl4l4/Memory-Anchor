@@ -23,6 +23,7 @@ import {
     listProjectFiles,
     resolveWorkspacePaths,
 } from '../shared/utils.js';
+import { appendDebugLog, formatError } from '../../utils/logger.js';
 import {
     DIRECTORY_CHAR_THRESHOLDS,
     DirectoryCharThresholds,
@@ -165,6 +166,13 @@ function resolveIncrementalWorkspace(
 
 function loadDirectoryTree(workspace: IncrementalWorkspace): DirectoryTreeNode | null {
     if (!fs.existsSync(workspace.registryPath) || !fs.existsSync(workspace.indexPath)) {
+        const missing = [workspace.registryPath, workspace.indexPath]
+            .filter(filePath => !fs.existsSync(filePath))
+            .map(filePath => path.basename(filePath));
+        appendDebugLog(
+            'warn',
+            `Incremental topology unavailable: missing ${missing.join(', ')}.`
+        );
         return null;
     }
     try {
@@ -172,7 +180,11 @@ function loadDirectoryTree(workspace: IncrementalWorkspace): DirectoryTreeNode |
             fs.readFileSync(workspace.registryPath, 'utf-8')
         ) as DirectoryTreeRegistryNode;
         return fromDirectoryTreeRegistry(registry);
-    } catch {
+    } catch (error) {
+        appendDebugLog(
+            'warn',
+            `Incremental topology is invalid at ${workspace.registryPath}: ${formatError(error)}`
+        );
         return null;
     }
 }
@@ -563,10 +575,24 @@ export async function updatePartitionedChartsIncrementally(
     if (!root) return false;
 
     const files = normalizeChangedFiles(changedFiles);
-    if (files.length === 0) return true;
+    if (files.length === 0) {
+        appendDebugLog('debug', 'Incremental partition pipeline skipped: every changed path is ignored.');
+        return true;
+    }
 
     const dependencyGraph = loadPersistentDependencyGraph(workspace.dependencyGraphPath);
-    if (!dependencyGraph) return false;
+    if (!dependencyGraph) {
+        appendDebugLog(
+            'warn',
+            `Incremental dependency graph unavailable: ${workspace.dependencyGraphPath}`
+        );
+        return false;
+    }
+
+    appendDebugLog(
+        'debug',
+        `Incremental partition pipeline started for ${files.length} file(s) across ${getUniqueChangedDirectories(files).length} director${getUniqueChangedDirectories(files).length === 1 ? 'y' : 'ies'}.`
+    );
 
     const previousRoot = fromDirectoryTreeRegistry(toDirectoryTreeRegistry(root));
     const previousTopology = captureChartTopology(root);
@@ -643,5 +669,9 @@ export async function updatePartitionedChartsIncrementally(
     if (topologyUpdate.changed) {
         persistDirectoryTree(workspace.registryPath, root);
     }
+    appendDebugLog(
+        'debug',
+        `Incremental partition pipeline rendered ${renderDirectories.length} chart(s); topology changed: ${topologyChanged}.`
+    );
     return true;
 }

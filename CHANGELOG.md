@@ -1,6 +1,9 @@
 ## Update log
 
 - `2026/08/19`:
+    - find incremental update will always fallback in all agent and only in next.js repo, need further check. I need print logs in .memoryanchor/ when error cause.
+    - [Added] `anchor debug` persists an opt-in workspace debug setting and appends CLI, chart-build, lifecycle, and incremental-fallback diagnostics to `.memoryanchor/debug.log`; `anchor debug --off` stops further writes without deleting the evidence.
+    - find when opencode close, session deleted not triggered, need more check.
     - [Fixed] OpenCode now resolves the active workspace from the first supplied context path containing `.memoryanchor` and runs lifecycle hooks from that root. This prevents non-Git or nested OpenCode sessions from reading the wrong state and repeatedly falling back.
     - [Fixed] Incremental dependency-graph reconciliation now removes deleted target symbols from both reverse and forward edges, keeping deleted providers and their importers consistent with a full rebuild.
     - Keep full builds source-driven: partition topology is rebuilt from the current workspace without reusing the previous directory registry. Add behavior-consistency coverage for file, directory, provider, virtual-branch, and frontier deletions with fixed test thresholds.

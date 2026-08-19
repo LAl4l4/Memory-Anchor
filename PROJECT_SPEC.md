@@ -46,6 +46,8 @@ with the CLI.
 | `.memoryanchor/dependencyGraph.json` | Persisted file-import candidate and function-level forward/reverse dependency edges for incremental chart refreshes. |
 | `.memoryanchor/ballast.md` | Durable default and repository-specific implementation rules. |
 | `.memoryanchor/manifest.md` | Module status, dependencies, known issues, and key decisions. |
+| `.memoryanchor/debug.json` | Opt-in, workspace-local diagnostic logging setting. |
+| `.memoryanchor/debug.log` | Append-only diagnostics emitted while debug mode is enabled. |
 | `AGENTS.md` | Managed instructions that tell supported agents how to traverse and use the memory. |
 
 Charts are generated artifacts and must not be edited manually. `ballast.md` and
@@ -194,6 +196,12 @@ Direct-file additions and removals update the persisted physical tree locally;
 only missing or invalid topology/dependency state safely falls back to a full
 partitioned build. Batches deduplicate physical directories before
 directory-scoped I/O and final chart owners before reparsing.
+
+`anchor debug` enables workspace-local diagnostics in `.memoryanchor/debug.log`.
+The log mirrors normal CLI and build messages, and additionally records
+incremental fallback reasons, lifecycle outcomes, and caught failures. Debug
+mode is disabled by default; `anchor debug --off` stops further appends without
+deleting the existing log.
 
 ## 9. Agent integration requirements
 

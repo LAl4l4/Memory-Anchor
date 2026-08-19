@@ -2,6 +2,7 @@ import * as fs from 'node:fs';
 import * as path from 'path';
 import { globSync } from 'glob';
 import { EXT_TO_LANGUAGE } from '../../utils/ext-to-lang.js';
+import { appendDebugLog } from '../../utils/logger.js';
 import { IGNORED_DIR_NAMES, IGNORED_FILE_NAMES } from '../../constant.js';
 import type { WorkspacePaths } from './CBHTypes.js';
 
@@ -28,6 +29,10 @@ export const IGNORE_PATTERNS: string[] = [
 
 export function logToUser(message: string, colorCode: string = '32'): void {
     process.stderr.write(`\x1b[${colorCode}m[Memory Anchor] ${message}\x1b[0m\n`);
+    appendDebugLog(
+        colorCode === '31' ? 'error' : colorCode === '33' ? 'warn' : 'info',
+        `[Memory Anchor] ${message}`
+    );
 }
 
 export function getSemanticHint(filePath: string): string {

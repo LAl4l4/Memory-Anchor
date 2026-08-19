@@ -12,6 +12,7 @@ import type {
     PersistentDependencyGraph,
     PersistentDependencyGraphUpdate,
 } from '../shared/CBHTypes.js';
+import { appendDebugLog, formatError } from '../../utils/logger.js';
 
 export const DEPENDENCY_GRAPH_FILE_NAME = 'dependencyGraph.json';
 
@@ -270,8 +271,14 @@ export function loadPersistentDependencyGraph(
 ): PersistentDependencyGraph | null {
     try {
         const value = JSON.parse(fs.readFileSync(graphPath, 'utf-8')) as unknown;
-        return isGraph(value) ? value : null;
-    } catch {
+        if (isGraph(value)) return value;
+        appendDebugLog('warn', `Persistent dependency graph has an unsupported shape: ${graphPath}`);
+        return null;
+    } catch (error) {
+        appendDebugLog(
+            'warn',
+            `Unable to load persistent dependency graph at ${graphPath}: ${formatError(error)}`
+        );
         return null;
     }
 }

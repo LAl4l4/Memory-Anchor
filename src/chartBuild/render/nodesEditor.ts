@@ -5,6 +5,7 @@ import { getResolvedDependencyPaths } from '../reverse/dependencyGraph.js';
 import type { ClassifiedFiles, FileNode, ParsedFileResult, PendingFileParse } from '../shared/CBHTypes.js';
 import { CHART_PATH, PROJECT_ROOT } from '../shared/utils.js';
 import { getSkeletonFileOrder, addFileToSkeleton, removeFileFromSkeleton } from './skeletonEditor.js';
+import { logger } from '../../utils/logger.js';
 
 /**
  * Build the Nodes section from pre-parsed FileNode results.
@@ -171,7 +172,7 @@ export function serializeNodes(skeleton: string, nodeMap: Map<string, string>): 
 
     for (const p of nodeMap.keys()) {
         if (!skeletonSet.has(p)) {
-            console.warn(`[Memory Anchor] Dropping orphan node block for '${p}' (not in skeleton). Consider running 'anchor init' if this persists.`);
+            logger.warn(`[Memory Anchor] Dropping orphan node block for '${p}' (not in skeleton). Consider running 'anchor init' if this persists.`);
         }
     }
 

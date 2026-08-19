@@ -10,6 +10,7 @@ import { partition } from './partition/runPartitioner.js';
 import { PARTITIONED_CHART_INDEX_NAME, runRender } from './render/runRender.js';
 import { destroyPool } from './parse/ASTParser.js';
 import { logToUser } from './shared/utils.js';
+import { appendDebugLog, formatError } from '../utils/logger.js';
 import type { BuildDirectoryTreeRegistryOptions } from './partition/partitioner.js';
 import type { DirectoryTreeNode } from './partition/directoryTree.js';
 
@@ -101,7 +102,9 @@ export async function buildChartFull(): Promise<void> {
             "32"
         );
     } catch (error: any) {
-        process.stderr.write(`\x1b[31m[Memory Anchor Error] Build failed: ${error?.message || error}\x1b[0m\n`);
+        const message = `[Memory Anchor Error] Build failed: ${error?.message || error}`;
+        process.stderr.write(`\x1b[31m${message}\x1b[0m\n`);
+        appendDebugLog('error', `${message}\n${formatError(error)}`);
         throw error;
     } finally {
         await destroyPool();

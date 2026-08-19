@@ -29,6 +29,8 @@ Memory Anchor keeps its generated state under `.memoryanchor/`:
 | `.memoryanchor/ballast.md` | Durable default and repository-specific rules. |
 | `.memoryanchor/manifest.md` | Module status, known issues, dependencies, and architectural decisions. |
 | `.memoryanchor/prompt-hooks.json` | Optional UserPrompt hook selection; absent or empty means disabled. |
+| `.memoryanchor/debug.json` | Opt-in persistent diagnostic logging setting, managed by `anchor debug`. |
+| `.memoryanchor/debug.log` | Append-only CLI and lifecycle diagnostics while debug mode is enabled. |
 | `AGENTS.md` | Workflow instructions telling agents how to use the index, charts, ballast, and manifest. |
 
 Charts are generated output and should not be edited manually. Ballast and manifest are intentionally readable project memory.
@@ -146,6 +148,8 @@ Hermes registers shell hooks in the user's global `$HERMES_HOME/config.yaml`, so
 
 UserPrompt reminders are disabled by default for every integration, including Codex. Use `anchor prompt-hook <agent...>` to enable exactly the listed agents, or `anchor prompt-hook` with no agent list to enable all supported integrations. Use `anchor prompt-hook --off [agent...]` to disable selected reminders, or all reminders when no agent is supplied. The selection is persisted in `.memoryanchor/prompt-hooks.json`, and rerunning any init command reconciles only Memory Anchor's managed prompt entries while preserving user-owned hooks.
 
+When an integration needs investigation, run `anchor debug`. This enables a workspace-local `.memoryanchor/debug.log` without changing normal console behavior. It records normal CLI output, full-build stages, incremental refresh decisions, fallback reasons, and lifecycle failures. Use `anchor debug --off` to stop appending; the existing log is retained for inspection.
+
 ## Commands
 
 | Command | Description |
@@ -160,6 +164,7 @@ UserPrompt reminders are disabled by default for every integration, including Co
 | `anchor init-qodercn` | Initialize the QoderCLI CN integration. |
 | `anchor init-hermes` | Initialize the Hermes Agent hooks in `$HERMES_HOME/config.yaml`. |
 | `anchor prompt-hook [agents...]` | Enable or disable optional UserPrompt reminders (`--off` disables). |
+| `anchor debug` | Enable persistent diagnostics in `.memoryanchor/debug.log` (`--off` disables without deleting the log). |
 | `anchor status` | Show the version, workspace, and core Memory Anchor file status. |
 | `anchor version` | Print the installed version. |
 | `anchor help` | Show CLI help. |

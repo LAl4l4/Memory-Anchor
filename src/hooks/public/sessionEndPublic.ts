@@ -5,14 +5,12 @@ import { BALLAST_DEFAULT_RULES, BALLAST_DEFAULT_TITLE, BALLAST_SPECIFIC_TITLE, C
 import { captureGitChanges, GitChange } from '../../utils/captureGitChanges.js';
 import { updatePartitionedChartIncrementally } from '../../chartBuild/incremental.js';
 import { destroyPool } from '../../chartBuild/buildChart.js';
+import { logToUser } from '../../chartBuild/shared/utils.js';
+import { appendDebugLog, formatError } from '../../utils/logger.js';
 
 const cwd = process.cwd();
 const ANCHOR_PATH = path.join(cwd, '.memoryanchor');
 const BALLAST_PATH = path.join(ANCHOR_PATH, 'ballast.md');
-
-function logToUser(message: string, colorCode: string = '36'): void {
-  process.stderr.write(`\x1b[${colorCode}m[Memory Anchor] ${message}\x1b[0m\n`);
-}
 
 export function updateManifest(changes: GitChange[] | null): void {
   if (!changes || changes.length === 0) return;
@@ -133,16 +131,27 @@ export function sanitizeBallast(): void {
 }
 
 export async function runSessionEnd(): Promise<void> {
-  const changes = captureGitChanges();
-  if (changes && changes.length > 0) {
-    updateManifest(changes);
-    cleanBallastRules(changes);
-    sanitizeBallast();
+  try {
+    const changes = captureGitChanges();
+    if (!changes || changes.length === 0) {
+      appendDebugLog('debug', 'Session-end refresh skipped: Git reported no changes.');
+    } else {
+      appendDebugLog('debug', `Session-end refresh captured ${changes.length} Git change(s).`);
+      updateManifest(changes);
+      cleanBallastRules(changes);
+      sanitizeBallast();
 
-    const changedPaths = changes.map((c) => c.file);
-    await updatePartitionedChartIncrementally(changedPaths);
+      const changedPaths = changes.map((c) => c.file);
+      await updatePartitionedChartIncrementally(changedPaths);
+      appendDebugLog('debug', 'Session-end refresh completed.');
+    }
+  } catch (error) {
+    const message = `Session-end refresh failed: ${error instanceof Error ? error.message : error}`;
+    logToUser(message, '31');
+    appendDebugLog('error', `${message}\n${formatError(error)}`);
+    throw error;
+  } finally {
+    await destroyPool();
   }
-
-  await destroyPool();
   process.exit(0);
 }

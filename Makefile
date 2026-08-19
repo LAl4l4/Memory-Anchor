@@ -55,14 +55,14 @@ chart-full:
 FILES ?=
 chart-inc:
 	@npm run build
-	@node -e "Promise.all([import('./dist/chartBuild/incremental.js'), import('./dist/chartBuild/buildChart.js')]).then(async ([{ updateChartIncrementally }, { destroyPool }]) => { const files = '$(FILES)'.split(' ').filter(Boolean); if (!files.length) { console.error('Usage: make chart-inc FILES=\"file1.ts file2.ts\"'); process.exitCode = 1; return; } try { await updateChartIncrementally(files); } finally { await destroyPool(); } })"
+	@node -e "Promise.all([import('./dist/chartBuild/incremental.js'), import('./dist/chartBuild/buildChart.js'), import('./dist/utils/logger.js')]).then(async ([{ updateChartIncrementally }, { destroyPool }, { logger }]) => { const files = '$(FILES)'.split(' ').filter(Boolean); if (!files.length) { logger.error('Usage: make chart-inc FILES=\"file1.ts file2.ts\"'); process.exitCode = 1; return; } try { await updateChartIncrementally(files); } finally { await destroyPool(); } })"
 
 # 调试目录分区注册表（尚未接入正式 CLI）
 chart-registry:
 	@npm run build
-	@node -e "import('./dist/chartBuild/buildChart.js').then(async ({ buildDirectoryTreeRegistryForDebug }) => { await buildDirectoryTreeRegistryForDebug(); console.error('[Memory Anchor] Directory registry written to: .memoryanchor/dirTree.json'); })"
+	@node -e "Promise.all([import('./dist/chartBuild/buildChart.js'), import('./dist/utils/logger.js')]).then(async ([{ buildDirectoryTreeRegistryForDebug }, { logger }]) => { await buildDirectoryTreeRegistryForDebug(); logger.info('[Memory Anchor] Directory registry written to: .memoryanchor/dirTree.json'); })"
 
 # 调试完整目录分区：生成 registry，并写入镜像目录 chart
 chart-partitions:
 	@npm run build
-	@node -e "import('./dist/chartBuild/partition/partitionedChartBuilder.js').then(async ({ buildPartitionedChartsForDebug }) => { const result = await buildPartitionedChartsForDebug(); console.error('[Memory Anchor] Partition directories: ' + result.directories.join(', ')); console.error('[Memory Anchor] Partitioned charts written: ' + result.chartPaths.length); console.error('[Memory Anchor] Chart index written to: ' + result.indexPath); })"
+	@node -e "Promise.all([import('./dist/chartBuild/partition/partitionedChartBuilder.js'), import('./dist/utils/logger.js')]).then(async ([{ buildPartitionedChartsForDebug }, { logger }]) => { const result = await buildPartitionedChartsForDebug(); logger.info('[Memory Anchor] Partition directories: ' + result.directories.join(', ')); logger.info('[Memory Anchor] Partitioned charts written: ' + result.chartPaths.length); logger.info('[Memory Anchor] Chart index written to: ' + result.indexPath); })"
