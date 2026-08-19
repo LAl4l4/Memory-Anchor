@@ -59,11 +59,13 @@ important boundary is whether the path has ever entered Git's index.
 
 ## Solution design
 
-The initial AI-proposed recovery was to run a full rebuild, which clears the
-stale graph but repeats repository-wide work after every occurrence. The
+The initial AI-proposed recovery was to scan the whole workspace on every
+lifecycle refresh and call `fs.exists` for every file node already persisted
+in the dependency graph. That could discover deleted untracked files, but it
+would make each refresh pay for a repository-wide existence scan. The
 repository author proposed the more precise fix: persist only the paths Git
 currently labels `??`, then perform a cheap existence check on that small set
-at every Stop hook. When a watched path disappears, feed the existing
+at every lifecycle capture. When a watched path disappears, feed the existing
 incremental reconciler a deletion path; when Git begins tracking the path,
 remove it from the watch set.
 

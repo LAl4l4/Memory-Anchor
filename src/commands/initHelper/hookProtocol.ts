@@ -158,9 +158,7 @@ export type CopilotEventName =
   | 'sessionEnd';
 
 export type OpencodeEventName =
-  | 'session.created'
   | 'session.idle'
-  | 'session.deleted'
   | 'experimental.chat.messages.transform'
   | 'experimental.chat.system.transform';
 
@@ -327,8 +325,10 @@ export const HOOK_PROTOCOLS = {
       // is applied to the outbound message copy by the experimental transform.
       pre: null,
       prompt: 'experimental.chat.messages.transform' as OpencodeEventName,
+      // Match Codex's fallback: the only completion event runs the
+      // session-end handler because OpenCode has no native finalization hook.
       stop: 'session.idle' as OpencodeEventName,
-      post: 'session.deleted' as OpencodeEventName,
+      post: null,
     },
     contextInjectionEvent: 'experimental.chat.system.transform' as OpencodeEventName,
     canBlockUserPrompt: false,

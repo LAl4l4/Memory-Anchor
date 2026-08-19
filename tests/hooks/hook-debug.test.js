@@ -72,7 +72,7 @@ test('hook invocation inference recognizes installed package-bin names', async (
 
   expect(getHookInvocation('/usr/local/bin/memoryanchor-opencode-post', '/workspace')).toEqual({
     agent: 'opencode',
-    event: 'session.deleted',
+    event: 'session.idle',
     workdir: '/workspace',
   });
 });

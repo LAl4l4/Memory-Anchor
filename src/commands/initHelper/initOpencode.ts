@@ -128,12 +128,12 @@ export interface OpencodeSetupResult {
 //      reminder to the outbound message copy. The persisted user message is
 //      left untouched.
 //
-//   3. Side-effect hooks — "session.idle" (work finished) and
-//      "session.deleted" trigger the published memoryanchor-opencode-stop /
-//      -post CLI bins via ctx.$. These genuinely ARE fire-and-forget because
-//      we only need the side effect (incremental chart refresh / session-end
-//      bookkeeping); their stdout is intentionally discarded. The `$` comes
-//      from the PluginInput ctx (opencode's own BunShell), not from a bare
+//   3. Side-effect hook — "session.idle" triggers the published
+//      memoryanchor-opencode-post CLI bin via ctx.$. Like Codex's Stop hook,
+//      it runs session-end maintenance because OpenCode's stable plugin API
+//      has no CLI/application shutdown event. "session.deleted" instead means
+//      that a stored conversation was deleted and has no side effect. The `$`
+//      comes from the PluginInput ctx (opencode's own BunShell), not from a bare
 //      "import { $ } from 'bun'" — the latter isn't part of the plugin
 //      contract.
 

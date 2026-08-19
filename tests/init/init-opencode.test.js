@@ -61,15 +61,18 @@ test('creates .opencode/plugins/memory-anchor.js', async () => {
   expect(plugin).toContain('[ROOT CHART ALREADY INJECTED — DO NOT READ IT AGAIN]');
   expect(plugin).toContain('readFileSafe(indexPath');
   expect(plugin).toContain('fs.existsSync(rootChartPath)');
-  expect(plugin).toContain('cd ${workspaceRoot} && ${HOOK_BIN}-stop');
+  expect(plugin).toContain('cd ${workspaceRoot} && ${HOOK_BIN}-post');
   expect(plugin).toContain('[1. CHART (project structure & architectural symbols)]');
   expect(plugin).toContain('[2. BALLAST (rules must follow)]');
   expect(plugin).toContain('[3. MANIFEST (module status & key decisions)]');
   expect(plugin).not.toContain('session.start');
   expect(plugin).not.toContain('memoryanchor-opencode-pre');
-  // Side-effect hooks fire on the real opencode events.
+  // session.idle is the Codex-style session-end fallback. session.deleted
+  // means a stored conversation was deleted, not that the OpenCode CLI exited.
   expect(plugin).toContain('session.idle');
-  expect(plugin).toContain('session.deleted');
+  expect(plugin).not.toContain("&& event.type !== 'session.deleted'");
+  expect(plugin).toContain('${HOOK_BIN}-post');
+  expect(plugin).not.toContain('${HOOK_BIN}-stop');
 });
 
 test('copies the TypeScript-compiled plugin verbatim', async () => {
@@ -158,7 +161,11 @@ test('uses OpenCode worktree for context and lifecycle commands', async () => {
   await hooks.event({ event: { type: 'session.idle' } });
   expect(commands).toHaveLength(1);
   expect(commands[0].strings.join('')).toContain('cd ');
+  expect(commands[0].strings.join('')).toContain('-post');
   expect(commands[0].values).toContain(tempDir);
+
+  await hooks.event({ event: { type: 'session.deleted' } });
+  expect(commands).toHaveLength(1);
 });
 
 test('uses OpenCode directory when worktree does not contain the Memory Anchor state', async () => {

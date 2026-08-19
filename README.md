@@ -140,9 +140,9 @@ Session ends
 | QoderCLI CN | `anchor init-qodercn` | `.qoder/settings.json` |
 | Hermes Agent | `anchor init-hermes` | `$HERMES_HOME/config.yaml` (default `~/.hermes/config.yaml`) |
 
-All platform wrappers converge on the same public stop and session-end handlers, so they share Git capture, partitioned incremental updates, fallback behavior, and parser-pool lifecycle.
+Platform wrappers that expose native lifecycle callbacks converge on the same public stop and session-end handlers, sharing Git capture, partitioned incremental updates, fallback behavior, and parser-pool lifecycle.
 
-OpenCode uses `experimental.chat.system.transform` to append the Memory Anchor payload to the system prompt. Its `session.idle` and `session.deleted` events invoke the stop and session-end side effects through the generated plugin.
+OpenCode uses `experimental.chat.system.transform` to append the Memory Anchor payload to the system prompt. Like Codex's `Stop` fallback, its `session.idle` event invokes the session-end handler through the generated plugin, performing session maintenance and incremental refresh after work completes. The stable plugin API has no CLI-shutdown event; `session.deleted` means a stored conversation was deleted and deliberately has no Memory Anchor side effect.
 
 Hermes registers shell hooks in the user's global `$HERMES_HOME/config.yaml`, so they fire in every project Hermes runs in; outside a Memory Anchor workspace each hook is a silent no-op. Context is delivered through `pre_llm_call` as `{"context": ...}`, which Hermes appends to the user message (never the system prompt, preserving the prompt cache). `on_session_end` runs the stop handler per turn and `on_session_finalize` runs the session-end handler at CLI teardown. Hermes asks for one-time consent per hook on first run; non-interactive runs need `hooks_auto_accept: true` or `HERMES_ACCEPT_HOOKS=1`.
 

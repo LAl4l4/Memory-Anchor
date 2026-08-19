@@ -234,7 +234,10 @@ OpenCode extends system context through
 `experimental.chat.system.transform`; its optional per-turn reminder reads the
 selection at runtime and mutates the outbound message copy through
 `experimental.chat.messages.transform`, leaving the persisted user message
-unchanged. The plugin resolves workspace state from the first supplied
+unchanged. Like Codex's `Stop` fallback, `session.idle` runs session-end
+maintenance and incremental refresh; the stable plugin API has no
+CLI-shutdown event, and `session.deleted` is a stored-conversation deletion
+with no Memory Anchor side effect. The plugin resolves workspace state from the first supplied
 `worktree`, `directory`, or process directory containing `.memoryanchor`; this
 also anchors lifecycle commands when OpenCode reports a non-Git worktree.
 

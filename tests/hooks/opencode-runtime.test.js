@@ -318,10 +318,7 @@ runtimeTest(
       )}\n`,
     );
 
-    for (const [name, event] of [
-      ['memoryanchor-opencode-stop', 'stop'],
-      ['memoryanchor-opencode-post', 'post'],
-    ]) {
+    for (const [name, event] of [['memoryanchor-opencode-post', 'post']]) {
       const scriptPath = path.join(binDir, name);
       await writeFile(
         scriptPath,
@@ -364,7 +361,7 @@ runtimeTest(
     try {
       await waitFor(async () => {
         const events = await readFile(eventsPath, 'utf8').catch(() => '');
-        return events.includes('stop\n');
+        return events.includes('post\n');
       });
     } catch (error) {
       throw new Error(
@@ -385,17 +382,7 @@ runtimeTest(
       '[IMPORTANT!] Must read ./.memoryanchor/chart/.../chart.md before any works and glob/grep.',
     );
 
-    await requestJson(baseUrl, `/session/${session.id}`, {
-      headers: { 'x-opencode-directory': tempDir },
-      method: 'DELETE',
-    });
-    await waitFor(async () => {
-      const events = await readFile(eventsPath, 'utf8').catch(() => '');
-      return events.includes('post\n');
-    });
-
     const events = await readFile(eventsPath, 'utf8');
-    expect(events).toContain('stop\n');
     expect(events).toContain('post\n');
     expect(fakeBackend.requests.some(({ url }) => url?.endsWith('/chat/completions'))).toBe(true);
   },

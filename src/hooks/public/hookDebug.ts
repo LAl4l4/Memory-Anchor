@@ -64,7 +64,7 @@ const INVOCATION_BY_BIN_NAME: Record<string, Pick<HookInvocation, 'agent' | 'eve
   'memoryanchor-hermes-post': { agent: 'hermes', event: 'SessionEnd' },
   'memoryanchor-hermes-prompt': { agent: 'hermes', event: 'UserPromptSubmit' },
   'memoryanchor-opencode-stop': { agent: 'opencode', event: 'session.idle' },
-  'memoryanchor-opencode-post': { agent: 'opencode', event: 'session.deleted' },
+  'memoryanchor-opencode-post': { agent: 'opencode', event: 'session.idle' },
 };
 
 /** Infer a native hook's platform and lifecycle event from its executable path. */

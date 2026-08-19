@@ -244,17 +244,15 @@ export const MemoryAnchorPlugin = async ({ $, directory, worktree }: PluginInput
   // Runtime events are delivered through the generic `event` hook. The
   // lifecycle event names are values on the event payload, not hook keys.
   event: async ({ event }: EventOutput): Promise<void> => {
-    if (event.type !== 'session.idle' && event.type !== 'session.deleted') return;
+    // OpenCode emits `session.deleted` only when the user deletes a stored
+    // session. Its v1 plugin event stream has no CLI/application-shutdown
+    // event, so use `session.idle` as the Codex-style fallback for session-end
+    // maintenance instead.
+    if (event.type !== 'session.idle') return;
     logHookTriggered(workspaceRoot, event.type);
     try {
-      if (event.type === 'session.idle') {
-        await $`cd ${workspaceRoot} && ${HOOK_BIN}-stop`.quiet();
-        logHookSucceeded(workspaceRoot, event.type, `executed ${HOOK_BIN}-stop`);
-      }
-      if (event.type === 'session.deleted') {
-        await $`cd ${workspaceRoot} && ${HOOK_BIN}-post`.quiet();
-        logHookSucceeded(workspaceRoot, event.type, `executed ${HOOK_BIN}-post`);
-      }
+      await $`cd ${workspaceRoot} && ${HOOK_BIN}-post`.quiet();
+      logHookSucceeded(workspaceRoot, event.type, `executed ${HOOK_BIN}-post`);
     } catch (error) {
       logHookFailed(workspaceRoot, event.type, error);
       // Hooks must never break the agent loop.
