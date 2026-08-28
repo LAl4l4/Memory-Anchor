@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { HOOK_COMMANDS, OPENCODE_SCHEMA_URL, REQUIRED_INSTRUCTION_ENTRIES } from '../../dist/constant.js';
+import { BALLAST_MAX_BYTES, HOOK_COMMANDS, OPENCODE_SCHEMA_URL, REQUIRED_INSTRUCTION_ENTRIES } from '../../dist/constant.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -135,6 +135,25 @@ test('does not add the OpenCode reminder when the hook is disabled', async () =>
   await hooks['experimental.chat.messages.transform']({}, output);
 
   expect(output.messages[0].parts[0].text).toBe('Inspect this.');
+});
+
+test('OpenCode requests memory compaction when ballast exceeds its byte limit', async () => {
+  const anchorDir = path.join(tempDir, '.memoryanchor');
+  await mkdir(anchorDir, { recursive: true });
+  await writeFile(path.join(anchorDir, 'ballast.md'), `- [ ] ${'x'.repeat(BALLAST_MAX_BYTES)}`);
+  await writeFile(path.join(anchorDir, 'manifest.md'), '## Module Status\n### core');
+
+  const { MemoryAnchorPlugin } = await import('../../dist/hooks/opencode/memory-anchor-plugin.js');
+  const hooks = await MemoryAnchorPlugin({
+    directory: tempDir,
+    $: () => ({ quiet: async () => undefined }),
+  });
+  const output = { system: [] };
+
+  await hooks['experimental.chat.system.transform']({}, output);
+
+  expect(output.system.join('\n')).toContain('[TRIGGERED MISSION: MEMORY COMPACTION]');
+  expect(output.system.join('\n')).toContain('Shorten `ballast.md`');
 });
 
 test('uses OpenCode worktree for context and lifecycle commands', async () => {

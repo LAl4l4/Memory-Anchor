@@ -12,23 +12,26 @@ import { logger } from '../../utils/logger.js';
  * Pure formatting — no file I/O or parsing.
  */
 export function buildNodesSection(fileNodes: FileNode[]): string {
-    let nodesSection = "## 2. Key Architecture Nodes\n";
+    const nodeBlocks: string[] = [];
     for (const fileNode of fileNodes) {
         const validSymbols = fileNode.symbols.filter(
             exp => exp.type !== 'error'
         );
 
         const dependencies = getResolvedDependencyPaths(fileNode);
+        if (validSymbols.length === 0 && dependencies.length === 0) continue;
+
         const dependencySuffix = dependencies.length > 0 ? ` -> ${dependencies.join('; ')}` : '';
-        nodesSection += `### /${fileNode.relativePath}${dependencySuffix}\n`;
+        let nodeBlock = `### /${fileNode.relativePath}${dependencySuffix}\n`;
         if (validSymbols.length > 0) {
             validSymbols.forEach((exp) => {
-                nodesSection += `${formatSymbol(exp)}\n`;
+                nodeBlock += `${formatSymbol(exp)}\n`;
             });
         }
-        nodesSection += '\n';
+        nodeBlocks.push(nodeBlock.trimEnd());
     }
-    return nodesSection;
+    if (nodeBlocks.length === 0) return '';
+    return `## Symbols & Callers\n${nodeBlocks.join('\n\n')}\n`;
 }
 
 // =============================================================================
@@ -176,7 +179,8 @@ export function serializeNodes(skeleton: string, nodeMap: Map<string, string>): 
         }
     }
 
-    return '## 2. Key Architecture Nodes\n' + orderedBlocks.join('\n\n') + '\n';
+    if (orderedBlocks.length === 0) return '';
+    return '## Symbols & Callers\n' + orderedBlocks.join('\n\n') + '\n';
 }
 
 // =============================================================================

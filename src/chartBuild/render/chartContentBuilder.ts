@@ -117,7 +117,8 @@ export function renderChartContent(
     dependencyPaths: DependencyPathLookup,
     globalDependencyRegistry?: GlobalDependencyRegistry,
     chartDirectory: string = '.',
-    timing?: Partial<ChartRenderTiming>
+    timing?: Partial<ChartRenderTiming>,
+    chartMetadata: string = ''
 ): string {
     const dependencyStartedAt = process.hrtime.bigint();
     const graphNodes = globalDependencyRegistry
@@ -129,7 +130,7 @@ export function renderChartContent(
     timing && (timing.dependencyMs = Number(process.hrtime.bigint() - dependencyStartedAt) / 1_000_000);
 
     const skeletonStartedAt = process.hrtime.bigint();
-    const skeletonSection = buildSkeletonSection(dirGroups, graphNodes);
+    const skeletonSection = buildSkeletonSection(dirGroups);
     timing && (timing.skeletonMs = Number(process.hrtime.bigint() - skeletonStartedAt) / 1_000_000);
 
     const nodesStartedAt = process.hrtime.bigint();
@@ -137,7 +138,11 @@ export function renderChartContent(
     timing && (timing.nodesMs = Number(process.hrtime.bigint() - nodesStartedAt) / 1_000_000);
 
     const assemblyStartedAt = process.hrtime.bigint();
-    const content = `# ${chartHeading}\n\n${skeletonSection}\n\n${nodesSection}`;
+    const sections = [`# ${chartHeading}`];
+    if (chartMetadata) sections.push(chartMetadata);
+    sections.push(skeletonSection);
+    if (nodesSection) sections.push(nodesSection.trimEnd());
+    const content = `${sections.join('\n\n')}\n`;
     timing && (timing.assemblyMs = Number(process.hrtime.bigint() - assemblyStartedAt) / 1_000_000);
     return content;
 }

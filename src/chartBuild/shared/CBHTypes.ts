@@ -135,6 +135,8 @@ export interface ChartRenderTask {
     dirGroups: [string, string[]][];
     fileNodes: FileNode[];
     chartHeading: string;
+    /** Human-readable scope, ownership, and navigation metadata. */
+    chartMetadata?: string;
     childChartsSection: string;
     writeOutput: boolean;
     dependencyPaths?: string[];

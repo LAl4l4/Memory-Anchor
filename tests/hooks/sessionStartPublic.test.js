@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 
-import { ANCHOR_DIR_NAME, BALLAST_DEFAULT_TITLE, BALLAST_FILE_NAME, BALLAST_SPECIFIC_TITLE, CHART_FILE_NAME, MANIFEST_FILE_NAME } from '../../dist/constant.js';
+import { ANCHOR_DIR_NAME, BALLAST_DEFAULT_TITLE, BALLAST_FILE_NAME, BALLAST_MAX_BYTES, BALLAST_SPECIFIC_TITLE, CHART_FILE_NAME, MANIFEST_FILE_NAME, MANIFEST_MODULE_STATUS_MAX_BYTES } from '../../dist/constant.js';
 
 const originalCwd = process.cwd();
 
@@ -114,6 +114,50 @@ test('loadMemoryCore does NOT inject MEMORY PRUNING when ballast has no [STALE] 
 
   expect(result).not.toContain('[TRIGGERED MISSION: MEMORY PRUNING]');
   expect(result).not.toContain('Urgent Status');
+});
+
+test('loadMemoryCore requests ballast compaction when ballast exceeds its byte limit', async () => {
+  await writeFile(
+    path.join(anchorPath, BALLAST_FILE_NAME),
+    `- [ ] ${'x'.repeat(BALLAST_MAX_BYTES)}`,
+  );
+  await writeFile(path.join(anchorPath, MANIFEST_FILE_NAME), '## Module Status\n### core');
+
+  const { loadMemoryCore } = await import('../../dist/hooks/public/sessionStartPublic.js');
+  const result = loadMemoryCore();
+
+  expect(result).toContain('[TRIGGERED MISSION: MEMORY COMPACTION]');
+  expect(result).toContain('Shorten `ballast.md`');
+  expect(result).toContain(`limit: ${BALLAST_MAX_BYTES} bytes`);
+});
+
+test('loadMemoryCore limits only the manifest Module Status section', async () => {
+  const oversizedModules = `## Module Status\n${'m'.repeat(MANIFEST_MODULE_STATUS_MAX_BYTES)}`;
+  await writeFile(path.join(anchorPath, BALLAST_FILE_NAME), '- [ ] Small rule');
+  await writeFile(
+    path.join(anchorPath, MANIFEST_FILE_NAME),
+    `${oversizedModules}\n\n## Key Decisions\n- compact decision`,
+  );
+
+  const { loadMemoryCore } = await import('../../dist/hooks/public/sessionStartPublic.js');
+  const result = loadMemoryCore();
+
+  expect(result).toContain('[TRIGGERED MISSION: MEMORY COMPACTION]');
+  expect(result).toContain('Shorten only the `## Module Status` section');
+  expect(result).toContain(`limit: ${MANIFEST_MODULE_STATUS_MAX_BYTES} bytes`);
+});
+
+test('loadMemoryCore ignores an oversized Key Decisions section', async () => {
+  await writeFile(path.join(anchorPath, BALLAST_FILE_NAME), '- [ ] Small rule');
+  await writeFile(
+    path.join(anchorPath, MANIFEST_FILE_NAME),
+    `## Module Status\n### core\n- status: Stable\n\n## Key Decisions\n- ${'d'.repeat(MANIFEST_MODULE_STATUS_MAX_BYTES + 1)}`,
+  );
+
+  const { loadMemoryCore } = await import('../../dist/hooks/public/sessionStartPublic.js');
+  const result = loadMemoryCore();
+
+  expect(result).not.toContain('[TRIGGERED MISSION: MEMORY COMPACTION]');
 });
 
 test('loadMemoryCore reads ballast from file but manifest falls back when manifest is missing', async () => {

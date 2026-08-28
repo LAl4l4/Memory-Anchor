@@ -60,14 +60,46 @@ function getChartWorkspacePath(directory: string): string {
 }
 
 function buildChartReference(directory: string): string {
-    return `### ${getChartWorkspacePath(directory)}`;
+    return `- \`${getChartWorkspacePath(directory)}\``;
 }
 
 function buildChildChartsSection(directories: readonly string[]): string {
     if (directories.length === 0) return '';
-    return `## 3. Child Charts
+    return `## Child Charts
 
-${directories.map(buildChartReference).join('\n\n')}`;
+${directories.map(directory => {
+        const label = directory === '.' ? 'repository root' : `${path.posix.basename(directory)}/`;
+        return `- \`${label}\` → \`${getChartWorkspacePath(directory)}\``;
+    }).join('\n')}`;
+}
+
+function findParentChart(
+    directory: string,
+    chartChildren: ReadonlyMap<string, readonly string[]> | undefined
+): string | undefined {
+    if (!chartChildren) return undefined;
+    for (const [parent, children] of chartChildren) {
+        if (children.includes(directory)) return parent;
+    }
+    return undefined;
+}
+
+function buildChartMetadata(
+    directory: string,
+    shallow: boolean,
+    fileCount: number,
+    parentChart?: string
+): string {
+    const scope = shallow
+        ? directory === '.' ? '/' : `${directory}/`
+        : directory === '.' ? '/**' : `${directory}/**`;
+    const mode = shallow ? 'shallow (direct files only)' : 'recursive frontier';
+    const parent = parentChart === undefined
+        ? 'none (entry chart)'
+        : `\`${getChartWorkspacePath(parentChart)}\``;
+    return `> Chart: \`${getChartWorkspacePath(directory)}\`
+> Scope: \`${scope}\` · Mode: ${mode} · Files: ${fileCount}
+> Parent: ${parent}`;
 }
 
 function getPartitionOutputRoot(projectRoot: string): string {
@@ -103,7 +135,8 @@ async function preparePartitionedChart(
     outputRoot: string,
     parseCache: ChartParseCache,
     childCharts: readonly string[] = [],
-    shallow = false
+    shallow = false,
+    parentChart?: string
 ): Promise<ChartRenderTask> {
     validateDirectory(directory);
     const sourceDirectory = resolveSourceDirectory(projectRoot, directory);
@@ -116,6 +149,7 @@ async function preparePartitionedChart(
     const chartDirectory = resolveChartDirectory(outputRoot, directory);
     const chartPath = path.join(chartDirectory, 'chart.md');
     await primeChartParseCache(dirGroups, sourceDirectory, parseCache);
+    const fileNodes = getChartFileNodes(dirGroups, sourceDirectory, parseCache);
 
     return {
         chartPath,
@@ -123,8 +157,9 @@ async function preparePartitionedChart(
         dirGroups: [...dirGroups.entries()],
         // Structured-clone into the worker makes each graph inversion task
         // independent: it cannot mutate the build-scoped parse cache.
-        fileNodes: getChartFileNodes(dirGroups, sourceDirectory, parseCache),
-        chartHeading: `CHART AT ${getChartWorkspacePath(directory)}`,
+        fileNodes,
+        chartHeading: `Architecture: ${directory === '.' ? 'repository root' : directory}`,
+        chartMetadata: buildChartMetadata(directory, shallow, fileNodes.length, parentChart),
         childChartsSection,
         chartDirectory: directory,
         writeOutput: true,
@@ -155,7 +190,8 @@ function renderPartitionedChart(
         dependencyPaths,
         globalDependencyRegistry,
         task.chartDirectory,
-        timing
+        timing,
+        task.chartMetadata
     );
     const assemblyStartedAt = process.hrtime.bigint();
     const chartContent = task.childChartsSection
@@ -210,7 +246,8 @@ export async function writeChartSet(
             outputRoot,
             parseCache,
             options.chartChildren?.get(directory) ?? [],
-            options.shallowDirectories?.has(directory) ?? false
+            options.shallowDirectories?.has(directory) ?? false,
+            findParentChart(directory, options.chartChildren)
         ));
     }
     const preparationMs = elapsedMilliseconds(preparationStartedAt);
@@ -266,25 +303,16 @@ export function writePartitionIndex(projectRoot: string, directories: readonly s
 }
 
 export function buildPartitionedChartIndex(directories: readonly string[]): string {
-    const partitions = directories.map(buildChartReference).join('\n\n');
+    const partitions = directories.map(buildChartReference).join('\n');
 
     return `# Project Chart Index
 
-## Usage
+> Start with the entry chart closest to the task, then follow its Child Charts until the scope matches.
+> Listed chart paths are authoritative; physical directories do not necessarily own charts.
 
-How to find the right chart:
+Legend: \`+\` exported · \`-\` internal · \`->\` imports · \`<-\` callers · \`[Lx-y]\` source range
 
-1. Start with the chart paths listed under Root Partitions.
-2. Open the chart whose path is closest to the task.
-3. Read that chart's Child Charts section and follow only the listed paths
-   when the task belongs to a more specific area.
-4. Repeat until the current chart is the closest match. Every chart exposes
-   its own path at the top so you can verify your location.
-5. Do not guess chart paths from physical directories. A non-split frontier
-   may own one recursive chart even without direct files; descendants covered
-   by that chart do not own additional charts. Follow only listed paths.
-
-## Root Partitions
+## Entry Charts
 
 ${partitions}
 `;

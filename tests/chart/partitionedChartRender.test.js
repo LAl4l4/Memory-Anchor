@@ -27,19 +27,19 @@ afterAll(async () => {
   await destroyPool();
 });
 
-test('partition index uses workspace paths as heading blocks', () => {
+test('partition index uses a compact entry-chart list', () => {
   const index = buildPartitionedChartIndex(['Frontend', 'Backend']);
 
-  expect(index).toContain('### .memoryanchor/chart/Frontend/chart.md');
-  expect(index).toContain('### .memoryanchor/chart/Backend/chart.md');
+  expect(index).toContain('- `.memoryanchor/chart/Frontend/chart.md`');
+  expect(index).toContain('- `.memoryanchor/chart/Backend/chart.md`');
   expect(index).not.toContain('- path:');
   expect(index).not.toContain('- scope:');
   expect(index).not.toContain('- [Frontend]');
-  expect(index).toContain('How to find the right chart:');
-  expect(index).toContain('whose path is closest to the task');
-  expect(index).toContain('follow only the listed paths');
-  expect(index).toContain('A non-split frontier');
-  expect(index).toContain('Follow only listed paths');
+  expect(index).not.toContain('### .memoryanchor/chart/Frontend/chart.md');
+  expect(index).toContain('## Entry Charts');
+  expect(index).toContain('Start with the entry chart closest to the task');
+  expect(index).toContain('Listed chart paths are authoritative');
+  expect(index).toContain('Legend: `+` exported');
 });
 
 test('automatic and debug entries write registries without changing chart.md', async () => {
@@ -125,8 +125,12 @@ test('a non-shallow frontier chart recursively scans its selected subtree', asyn
   expect(chart).toContain('frontendFunction');
   expect(chart).toContain('buttonFunction');
   expect(chart).not.toContain('backendFunction');
+  expect(chart).toContain('# Architecture: Frontend');
+  expect(chart).toContain('> Chart: `.memoryanchor/chart/Frontend/chart.md`');
+  expect(chart).toContain('> Scope: `Frontend/**` · Mode: recursive frontier · Files: 2');
+  expect(chart).toContain('> Parent: none (entry chart)');
   expect(index).toContain('# Project Chart Index');
-  expect(index).toContain('### .memoryanchor/chart/Frontend/chart.md');
+  expect(index).toContain('- `.memoryanchor/chart/Frontend/chart.md`');
   await expect(readFile(path.join(anchorDir, 'chart.md'), 'utf8'))
     .rejects.toMatchObject({ code: 'ENOENT' });
 });
@@ -184,7 +188,7 @@ test('a small project with many directories is flattened into one root chart', a
   expect(result.directories).toEqual(['.']);
   expect(rootChart).toContain('aFunction');
   expect(rootChart).toContain('fFunction');
-  expect(rootChart).not.toContain('## 3. Child Charts');
+  expect(rootChart).not.toContain('## Child Charts');
   expect(index).toContain('.memoryanchor/chart/chart.md');
 
   for (const nested of ['a', 'a/b', 'a/b/c', 'a/b/c/d', 'a/b/c/d/e', 'a/b/c/d/e/f']) {
@@ -224,10 +228,13 @@ test('a split ancestor with direct files links to the first non-split frontier c
   expect(result.directories).toEqual(['a', 'a/b']);
   expect(aChart).toContain('aFunction39');
   expect(aChart).not.toContain('fFunction');
-  expect(aChart).toContain('.memoryanchor/chart/a/b/chart.md');
+  expect(aChart).toContain('> Scope: `a/` · Mode: shallow (direct files only) · Files: 1');
+  expect(aChart).toContain('- `b/` → `.memoryanchor/chart/a/b/chart.md`');
   expect(frontierChart).toContain('fFunction');
   expect(frontierChart).not.toContain('aFunction39');
-  expect(frontierChart).not.toContain('## 3. Child Charts');
+  expect(frontierChart).toContain('> Scope: `a/b/**` · Mode: recursive frontier · Files: 1');
+  expect(frontierChart).toContain('> Parent: `.memoryanchor/chart/a/chart.md`');
+  expect(frontierChart).not.toContain('## Child Charts');
   expect(index).toContain('.memoryanchor/chart/a/chart.md');
   expect(index).not.toContain('.memoryanchor/chart/a/b/chart.md');
 

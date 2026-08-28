@@ -31,14 +31,14 @@ test('buildChartFull includes fixture paths in the skeleton', async () => {
   const chartContent = await readFile(context.chartPath, 'utf8');
   const normalizedChart = chartContent.replace(/\\/g, '/');
 
-  expect(indexContent).toContain('### .memoryanchor/chart/chart.md');
+  expect(indexContent).toContain('- `.memoryanchor/chart/chart.md`');
   expect(normalizedChart).toContain('### tests/chart/test-src/');
   for (const { file } of fixtures) {
     expect(normalizedChart).toContain(`- ${file}\n`);
   }
   expect(normalizedChart).toContain('### /tests/chart/test-src/sample.c\n');
   expect(normalizedChart).not.toContain('dependencies:');
-  expect(normalizedChart).not.toContain('none');
+  expect(normalizedChart).not.toContain('dependencies: none');
 });
 
 test('buildChartFull logs completion and duration for every build stage', async () => {
@@ -76,12 +76,30 @@ test('chart uses in-chart Tree-sitter imports and emits symbol reverse dependenc
   await context.buildChartFull();
 
   const chartContent = (await readFile(context.chartPath, 'utf8')).replace(/\\/g, '/');
+  const skeleton = chartContent.slice(0, chartContent.indexOf('## Symbols & Callers'));
+  expect(skeleton).toContain('- consumer.ts\n');
+  expect(skeleton).not.toContain('consumer.ts ->');
   expect(chartContent).toContain('### /tests/chart/test-src/consumer.ts -> tests/chart/test-src/dependency.ts');
   expect(chartContent).toContain(
     '+ shared() [L1-1] <- tests/chart/test-src/consumer.ts:caller()'
   );
   expect(chartContent).not.toContain('external-package');
   expect(chartContent).not.toContain('Source code module.');
+});
+
+test('symbol-free files stay in the skeleton without empty node headings', async () => {
+  const emptyPath = path.join(context.tempDir, 'tests', 'chart', 'test-src', 'empty.ts');
+  try {
+    await writeFile(emptyPath, '// intentionally contains no architecture symbols\n');
+
+    await context.buildChartFull();
+
+    const chartContent = (await readFile(context.chartPath, 'utf8')).replace(/\\/g, '/');
+    expect(chartContent).toContain('- empty.ts\n');
+    expect(chartContent).not.toContain('### /tests/chart/test-src/empty.ts');
+  } finally {
+    await rm(emptyPath, { force: true });
+  }
 });
 
 test('workers attach deduplicated forward calls directly to their containing symbols', async () => {

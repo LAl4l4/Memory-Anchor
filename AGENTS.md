@@ -32,7 +32,7 @@ Memory Anchor is initialized in this repository. Follow these rules to ensure it
 ### Workflow
 - At the start of every task, read ./.memoryanchor/chart/.../chart.md to establish a project-wide view before working on repository files.
 - If the agent has any uncertainty about the overall project structure, immediately read ./.memoryanchor/index.md again, then read the closest matching directory chart listed there.
-- Must follow all rules in ./.memoryanchor/ballast.md. After solving a bug, add a rule under "Ballast Specific Rules For This Repository" to prevent recurrence.
+- Must follow all rules in ./.memoryanchor/ballast.md. After solving a bug, first merge the lesson into an existing rule when possible. Add a new rule under "Ballast Specific Rules For This Repository" only when it represents a distinct, durable repository constraint.
 - After any of features implemented, update Module Status (and Key Decisions, if applicable) in ./.memoryanchor/manifest.md.
 
 ### ballast.md format

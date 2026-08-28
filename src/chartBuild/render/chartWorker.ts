@@ -42,7 +42,8 @@ parentPort!.on('message', (task: ChartRenderTask) => {
             getDependencyPaths(task),
             globalDependencyRegistry,
             task.chartDirectory,
-            timing
+            timing,
+            task.chartMetadata
         );
         const assemblyStartedAt = process.hrtime.bigint();
         const chartContent = task.childChartsSection

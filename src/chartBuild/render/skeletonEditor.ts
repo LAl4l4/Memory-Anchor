@@ -1,27 +1,18 @@
 import * as path from 'path';
-import { getResolvedDependencyPaths } from '../reverse/dependencyGraph.js';
-import type { FileNode } from '../shared/CBHTypes.js';
 import { escapeRegex } from '../shared/utils.js';
 
 /**
  * Generate directory-grouped file skeleton from pre-built dir-to-files mapping.
  * - Root-level files (.) are listed directly without a heading.
- * - Subdirectories get a ### heading and list their basenames with in-chart dependencies.
+ * - Subdirectories get a ### heading and list their basenames.
  * - Directories are listed recursively — each directory containing files gets its own section.
  */
-function formatDependencySuffix(fileNode: FileNode | undefined): string {
-    const dependencies = fileNode ? getResolvedDependencyPaths(fileNode) : [];
-    return dependencies.length > 0 ? ` -> ${dependencies.join('; ')}` : '';
-}
-
 export function generateTreeSkeleton(
-    dirGroups: Map<string, string[]>,
-    fileNodes: readonly FileNode[] = []
+    dirGroups: Map<string, string[]>
 ): string {
     // Sort directories depth-first (parent before children, then alphabetically)
     const sortedDirs = [...dirGroups.keys()].sort((a, b) => a.localeCompare(b));
 
-    const nodesByPath = new Map(fileNodes.map(fileNode => [fileNode.relativePath, fileNode]));
     let skeletonStr = "";
 
     for (const dir of sortedDirs) {
@@ -30,7 +21,7 @@ export function generateTreeSkeleton(
         if (dir === '.') {
             // Root-level files — no heading, use full path
             for (const file of dirFiles) {
-                skeletonStr += `- /${file}${formatDependencySuffix(nodesByPath.get(file))}\n`;
+                skeletonStr += `- /${file}\n`;
             }
             if (dirFiles.length > 0) {
                 skeletonStr += '\n';
@@ -39,7 +30,7 @@ export function generateTreeSkeleton(
             skeletonStr += `### ${dir}/\n`;
             for (const file of dirFiles) {
                 const base = path.basename(file);
-                skeletonStr += `- ${base}${formatDependencySuffix(nodesByPath.get(file))}\n`;
+                skeletonStr += `- ${base}\n`;
             }
             skeletonStr += '\n';
         }
@@ -49,11 +40,10 @@ export function generateTreeSkeleton(
 }
 
 export function buildSkeletonSection(
-    dirGroups: Map<string, string[]>,
-    fileNodes: readonly FileNode[] = []
+    dirGroups: Map<string, string[]>
 ): string {
-    let skeletonSection = "## 1. Directory Skeleton\n";
-    skeletonSection += generateTreeSkeleton(dirGroups, fileNodes);
+    let skeletonSection = "## Directory Skeleton\n";
+    skeletonSection += generateTreeSkeleton(dirGroups);
     return skeletonSection;
 }
 
@@ -98,7 +88,7 @@ export function addFileToSkeleton(skeletonSection: string, file: string): string
         // Root-level file
         const rootLine = `- /${base}`;
         const lines = skeletonSection.split('\n');
-        const titleIndex = lines.findIndex(l => l.startsWith('## 1. Directory Skeleton'));
+        const titleIndex = lines.findIndex(l => l.startsWith('## Directory Skeleton'));
         let insertIndex = titleIndex + 1;
         while (insertIndex < lines.length && lines[insertIndex].trim() === '') insertIndex++;
         while (
@@ -154,8 +144,8 @@ export function insertNewDirSection(skeletonSection: string, dir: string, fileLi
     }
 
     if (!inserted) {
-        // Append at end (before ## 2. Key Architecture Nodes)
-        const nodesIdx = lines.findIndex(l => l.startsWith('## 2.'));
+        // Append at end (before Symbols & Callers when both sections are present).
+        const nodesIdx = lines.findIndex(l => l.startsWith('## Symbols & Callers'));
         const insertIdx = nodesIdx >= 0 ? nodesIdx : lines.length;
         lines.splice(insertIdx, 0, '', newHeading, ...fileLines);
     }

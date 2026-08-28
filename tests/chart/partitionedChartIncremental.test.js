@@ -87,7 +87,10 @@ test('root direct files use the uniform shallow chart and update incrementally',
   expect(result.directories).toEqual(['.', 'src']);
   await expect(readFile(rootChartPath, 'utf8')).resolves.toContain('rootFunction');
   await expect(readFile(rootChartPath, 'utf8')).resolves.toContain(
-    '# CHART AT .memoryanchor/chart/chart.md'
+    '# Architecture: repository root'
+  );
+  await expect(readFile(rootChartPath, 'utf8')).resolves.toContain(
+    '> Scope: `/` · Mode: shallow (direct files only) · Files: 1'
   );
   await expect(readFile(rootChartPath, 'utf8')).resolves.not.toContain('workerFunction');
   await expect(readFile(rootChartPath, 'utf8')).resolves.toContain(

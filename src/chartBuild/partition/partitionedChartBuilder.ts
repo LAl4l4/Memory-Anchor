@@ -73,6 +73,24 @@ function sameChartChildren(
         previousChildren.every((child, index) => child === nextChildren[index]);
 }
 
+function getChartParent(
+    directory: string,
+    topology: ChartTopologySnapshot
+): string | null {
+    for (const [parent, children] of topology.chartChildren) {
+        if (children.includes(directory)) return parent;
+    }
+    return null;
+}
+
+function sameChartParent(
+    directory: string,
+    previous: ChartTopologySnapshot,
+    next: ChartTopologySnapshot
+): boolean {
+    return getChartParent(directory, previous) === getChartParent(directory, next);
+}
+
 function sameStringList(left: readonly string[], right: readonly string[]): boolean {
     return left.length === right.length && left.every((entry, index) => entry === right[index]);
 }
@@ -112,7 +130,10 @@ function getBoundaryRebuildDirectories(
         directory.startsWith(`${boundaryDirectory}/`);
     const localDirectories = next.directories.filter(isInsideBoundary);
     const externalParents = next.directories.filter(directory =>
-        !isInsideBoundary(directory) && !sameChartChildren(directory, previous, next)
+        !isInsideBoundary(directory) && (
+            !sameChartChildren(directory, previous, next) ||
+            !sameChartParent(directory, previous, next)
+        )
     );
     return [...localDirectories, ...externalParents];
 }
@@ -132,15 +153,15 @@ function getTopologyRebuildDirectories(
     for (const directory of next.directories) {
         if (!previousDirectories.has(directory) ||
             previous.shallowDirectories.has(directory) !== next.shallowDirectories.has(directory) ||
-            !sameChartChildren(directory, previous, next)) {
+            !sameChartChildren(directory, previous, next) ||
+            !sameChartParent(directory, previous, next)) {
             directories.add(directory);
         }
     }
 
-    // A chart whose parent changed has no parent metadata of its own, but the
-    // old and new parent both differ in chartChildren and are covered above.
-    // Root-directory changes affect index.md and do not require unrelated
-    // chart bodies to be regenerated.
+    // Parent changes alter rendered chart metadata even when the chart's own
+    // files and children are unchanged. Root-directory changes still affect
+    // index.md without requiring unrelated chart bodies to be regenerated.
     return next.directories.filter(directory => directories.has(directory));
 }
 

@@ -1,5 +1,10 @@
 ## Update log
 
+- `2026/08/29`:
+    - [Added] Session-start context now enforces advisory memory-size limits: ballast above 5 KiB or the manifest `Module Status` section above 8 KiB triggers an explicit compaction mission for the model. The complete memory remains injected, and both native hooks and the OpenCode plugin request semantic merging instead of truncating rules or module records.
+    - [Changed] Repository guidance now requires agents to merge new lessons into existing ballast rules first and add a new line only for a distinct, durable constraint.
+    - [Improved] Simplify generated chart navigation and presentation: `index.md` is now a compact entry-chart router; each chart exposes its path, scope, traversal mode, file count, and parent; directory skeletons no longer duplicate dependency edges; empty symbol blocks are omitted; and child-chart routes use compact labels. Incremental topology reconciliation now rerenders charts whose displayed parent changes, keeping full and incremental output identical.
+
 - `2026/08/19`:
     - [Fixed] Incremental refresh now persists observed `??` file paths in `.memoryanchor/untracked-files.json`, checks those paths at each Stop/session-end capture, and supplies a synthetic deletion when one disappears before entering Git's index. It removes a path from the watch set once `git ls-files` reports it as tracked, so the persistent dependency graph no longer retains stale reverse callers from deleted untracked files. See [Incremental Untracked-File Deletion Fix](./fixes/INCREMENTAL_UNTRACKED_DELETION_LIMITATION.md).
     - find incremental update will always fallback in all agent and only in next.js repo, need further check. I need print logs in .memoryanchor/ when error cause.
