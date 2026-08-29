@@ -11,6 +11,7 @@ export class LazyWorkerPool<Request extends object, Result> {
     private idle: Worker[] = [];
     private runningTasks = new Map<Worker, PendingTask<Request, Result>>();
     private workerStarts = new Set<Promise<void>>();
+    private startingWorkerInstances = new Set<Worker>();
     private maxWorkers = 0;
     private startingWorkers = 0;
     private peakOutstandingTasks = 0;
@@ -36,25 +37,29 @@ export class LazyWorkerPool<Request extends object, Result> {
     private createWorker(): Promise<Worker> {
         return new Promise((resolve, reject) => {
             const worker = this.options.createWorker();
+            this.startingWorkerInstances.add(worker);
             let ready = false;
 
             worker.once('message', (message) => {
                 if (message.type === 'ready') {
                     ready = true;
+                    this.startingWorkerInstances.delete(worker);
                     resolve(worker);
                 } else {
+                    this.startingWorkerInstances.delete(worker);
+                    void worker.terminate();
                     reject(new Error('Worker init failed'));
                 }
             });
 
             worker.on('message', (message) => {
-                if (message.type === 'ready') return;
+                if (!ready || message.type === 'ready') return;
                 const task = this.runningTasks.get(worker);
-                if (task) {
-                    this.runningTasks.delete(worker);
-                    if (message.type === 'error') task.reject(this.options.getError(message));
-                    else task.resolve(this.options.getResult(message));
-                }
+                if (!task) return;
+                this.runningTasks.delete(worker);
+                if (message.type === 'error') task.reject(this.options.getError(message));
+                else task.resolve(this.options.getResult(message));
+                worker.unref();
                 this.idle.push(worker);
                 this.drain();
             });
@@ -65,11 +70,13 @@ export class LazyWorkerPool<Request extends object, Result> {
                     this.runningTasks.delete(worker);
                     task.reject(error);
                 } else if (!ready) {
+                    this.startingWorkerInstances.delete(worker);
                     reject(error);
                 }
             });
 
             worker.on('exit', (code) => {
+                this.startingWorkerInstances.delete(worker);
                 this.removeDeadWorker(worker);
                 const task = this.runningTasks.get(worker);
                 if (task) {
@@ -109,6 +116,7 @@ export class LazyWorkerPool<Request extends object, Result> {
                 this.startingWorkers -= 1;
                 reserved = false;
                 this.workers.push(worker);
+                worker.unref();
                 this.idle.push(worker);
                 this.drain();
             } catch (error) {
@@ -137,6 +145,7 @@ export class LazyWorkerPool<Request extends object, Result> {
         while (this.idle.length > 0 && this.queue.length > 0) {
             const worker = this.idle.pop()!;
             const task = this.queue.shift()!;
+            worker.ref();
             this.runningTasks.set(worker, task);
             worker.postMessage(task.request);
         }
@@ -165,12 +174,17 @@ export class LazyWorkerPool<Request extends object, Result> {
         for (const task of this.runningTasks.values()) task.reject(error);
         this.queue = [];
         this.runningTasks.clear();
+        const workersToTerminate = new Set([
+            ...this.workers,
+            ...this.startingWorkerInstances,
+        ]);
         await Promise.allSettled([
-            ...this.workers.map(worker => worker.terminate()),
+            ...[...workersToTerminate].map(worker => worker.terminate()),
             ...this.workerStarts,
         ]);
         this.workers = [];
         this.idle = [];
+        this.startingWorkerInstances.clear();
         this.maxWorkers = 0;
     }
 }

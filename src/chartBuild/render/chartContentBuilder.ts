@@ -6,8 +6,7 @@ import {
     resolveFileDependencies,
     type DependencyPathLookup,
 } from '../reverse/dependencyGraph.js';
-import { buildNodesSection } from './nodesEditor.js';
-import { buildSkeletonSection } from './skeletonEditor.js';
+import { buildArchitectureSection } from './architectureEditor.js';
 import type {
     ChartFile,
     ChartParseCache,
@@ -129,19 +128,14 @@ export function renderChartContent(
         : buildChartDependencyGraph(fileNodes, dependencyPaths);
     timing && (timing.dependencyMs = Number(process.hrtime.bigint() - dependencyStartedAt) / 1_000_000);
 
-    const skeletonStartedAt = process.hrtime.bigint();
-    const skeletonSection = buildSkeletonSection(dirGroups);
-    timing && (timing.skeletonMs = Number(process.hrtime.bigint() - skeletonStartedAt) / 1_000_000);
-
-    const nodesStartedAt = process.hrtime.bigint();
-    const nodesSection = buildNodesSection(graphNodes);
-    timing && (timing.nodesMs = Number(process.hrtime.bigint() - nodesStartedAt) / 1_000_000);
+    const architectureStartedAt = process.hrtime.bigint();
+    const architectureSection = buildArchitectureSection(dirGroups, graphNodes);
+    timing && (timing.architectureMs = Number(process.hrtime.bigint() - architectureStartedAt) / 1_000_000);
 
     const assemblyStartedAt = process.hrtime.bigint();
     const sections = [`# ${chartHeading}`];
     if (chartMetadata) sections.push(chartMetadata);
-    sections.push(skeletonSection);
-    if (nodesSection) sections.push(nodesSection.trimEnd());
+    sections.push(architectureSection);
     const content = `${sections.join('\n\n')}\n`;
     timing && (timing.assemblyMs = Number(process.hrtime.bigint() - assemblyStartedAt) / 1_000_000);
     return content;

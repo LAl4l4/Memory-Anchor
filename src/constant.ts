@@ -43,39 +43,41 @@ export const ANCHOR_DIR_NAME = '.memoryanchor';
 export const INDEX_FILE_NAME = 'index.md';
 /** @deprecated Use INDEX_FILE_NAME. Retained for compatibility with integrations. */
 export const CHART_FILE_NAME = INDEX_FILE_NAME;
-export const BALLAST_FILE_NAME = 'ballast.md';
-export const MANIFEST_FILE_NAME = 'manifest.md';
+export const GUARDRAILS_FILE_NAME = 'guardrails.md';
+export const PROJECT_STATE_FILE_NAME = 'project-state.md';
+export const LEGACY_BALLAST_FILE_NAME = 'ballast.md';
+export const LEGACY_MANIFEST_FILE_NAME = 'manifest.md';
 export const DEBUG_CONFIG_FILE_NAME = 'debug.json';
 export const DEBUG_LOG_FILE_NAME = 'debug.log';
 /** Untracked source paths awaiting deletion detection by lifecycle refreshes. */
 export const UNTRACKED_FILE_WATCH_FILE_NAME = 'untracked-files.json';
 
 /** UTF-8 byte budgets that trigger an injected memory-compaction mission. */
-export const BALLAST_MAX_BYTES = 5 * 1024;
-export const MANIFEST_MODULE_STATUS_MAX_BYTES = 8 * 1024;
+export const GUARDRAILS_MAX_BYTES = 5 * 1024;
+export const PROJECT_STATE_MODULE_STATUS_MAX_BYTES = 8 * 1024;
 
 // =============================================================================
 // Default File Contents
 // =============================================================================
 
-export const BALLAST_DEFAULT_RULES: string[] = [  
+export const GUARDRAILS_DEFAULT_RULES: string[] = [
   '- [ ] At the start of every task, read ./.memoryanchor/chart/.../chart.md to establish a project-wide view before working on repository files.',
   '- [ ] If the agent has any uncertainty about the overall project structure, immediately read ./.memoryanchor/index.md again. Then open partition chart files when index.md identifies the relevant directory.',
   '- [ ] Do not change ./.memoryanchor/index.md or ./.memoryanchor/chart/ by yourself. Only do it when user explicitly instructs you to.',
   '- [ ] Follow ./.memoryanchor/AGENTS.md rules.',
   '- [ ] Do not rebuild a function that already exists and used by others, instead, pull it out to a separate file and import it',
-  '- [ ] After implementing a feature, update the Module Status in ./.memoryanchor/manifest.md. If it is a significant architectural change, also update Key Decisions.',
+  '- [ ] After implementing a feature, update the Module Status in ./.memoryanchor/project-state.md. If it is a significant architectural change, also update Key Decisions.',
 ];
 
-export const BALLAST_DEFAULT_TITLE = '# Default Ballast Rules(You must not change these part)';
+export const GUARDRAILS_DEFAULT_TITLE = '# Default Guardrails (do not modify)';
 
-export const BALLAST_SPECIFIC_TITLE = '# Specific Rules For This Repository(Change this after solve bugs or user add specific rules)';
+export const GUARDRAILS_SPECIFIC_TITLE = '# Repository-specific Guardrails (maintain as the repository evolves)';
 
-export const BALLAST_DEFAULT_RULE = BALLAST_DEFAULT_RULES.join('\n');
+export const GUARDRAILS_DEFAULT_RULE = GUARDRAILS_DEFAULT_RULES.join('\n');
 
-export const BALLAST_DEFAULT_CONTENT = `${BALLAST_DEFAULT_RULE}\n`;
+export const GUARDRAILS_DEFAULT_CONTENT = `${GUARDRAILS_DEFAULT_RULE}\n`;
 
-export const MANIFEST_DEFAULT_CONTENT = `
+export const PROJECT_STATE_DEFAULT_CONTENT = `
 ## Module Status
 
 ### sample-module-1(e.g. initialization): 
@@ -98,8 +100,8 @@ Memory Anchor is initialized in this repository. Follow these rules to ensure it
 ### File Roles
 - ./.memoryanchor/index.md: Auto-generated project chart index. Its entries point to directory-level architecture maps under ./.memoryanchor/chart/.
 - ./.memoryanchor/chart/.../chart.md: Directory-level architecture map. Read the root chart at the start of every task for project-wide context, then use index.md and Child Charts to find the chart closest to the task.
-- ./.memoryanchor/manifest.md: Current project state — Module Status (functionality/status/known_issues/notes) and Key Decisions (architectural choices and rationale).
-- ./.memoryanchor/ballast.md: Persistent repo-specific rules/guardrails, one per line.
+- ./.memoryanchor/project-state.md: Current project state — Module Status (functionality/status/known_issues/notes) and Key Decisions (architectural choices and rationale).
+- ./.memoryanchor/guardrails.md: Persistent repository guardrails, one per line.
 - ./.memoryanchor/prompt-hooks.json: Optional UserPrompt hook selection; missing or empty means disabled.
 
 ### Chart Relationship Notation
@@ -112,10 +114,10 @@ Memory Anchor is initialized in this repository. Follow these rules to ensure it
 ### Workflow
 - At the start of every task, read ./.memoryanchor/chart/.../chart.md to establish a project-wide view before working on repository files.
 - If the agent has any uncertainty about the overall project structure, immediately read ./.memoryanchor/index.md again, then read the closest matching directory chart listed there.
-- Must follow all rules in ./.memoryanchor/ballast.md. After solving a bug, first merge the lesson into an existing rule when possible. Add a new rule under "Ballast Specific Rules For This Repository" only when it represents a distinct, durable repository constraint.
-- After any of features implemented, update Module Status (and Key Decisions, if applicable) in ./.memoryanchor/manifest.md.
+- Must follow all rules in ./.memoryanchor/guardrails.md. After solving a bug, first merge the lesson into an existing rule when possible. Add a new rule under "Repository-specific Guardrails" only when it represents a distinct, durable repository constraint.
+- After any of features implemented, update Module Status (and Key Decisions, if applicable) in ./.memoryanchor/project-state.md.
 
-### ballast.md format
+### guardrails.md format
 - Keep only valid rules. Delete obsolete ones.
 - One line per rule, exact format: '- [ ] Rule content'
 
@@ -197,7 +199,7 @@ export const OPENCODE_SCHEMA_URL = 'https://opencode.ai/config.json';
 
 export const REQUIRED_INSTRUCTION_ENTRIES = [
   './AGENTS.md',
-  // The plugin injects index.md, ballast.md, and manifest.md together.
+  // The plugin injects index.md, guardrails.md, and project-state.md together.
 ] as const;
 
 // =============================================================================
@@ -277,10 +279,10 @@ export const TYPE_DECLARATION_TYPES = new Set([
 ]);
 
 // =============================================================================
-// Code Extensions (for [STALE] marking on ballast rules)
+// Code Extensions (for [STALE] marking on guardrails)
 // =============================================================================
 
-// Files/extensions that SHOULD trigger [STALE] marking on ballast rules.
+// Files/extensions that SHOULD trigger [STALE] marking on guardrails.
 // Only code files — config files, docs, and assets don't make business-logic rules obsolete.
 export const CODE_EXTENSIONS = new Set([
   '.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs',

@@ -30,8 +30,7 @@ parentPort!.on('message', (task: ChartRenderTask) => {
     try {
         const timing = {
             dependencyMs: 0,
-            skeletonMs: 0,
-            nodesMs: 0,
+            architectureMs: 0,
             assemblyMs: 0,
             writeMs: 0,
         };

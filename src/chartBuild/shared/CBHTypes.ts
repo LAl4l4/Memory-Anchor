@@ -123,8 +123,7 @@ export interface ChartWorkerData {
 /** CPU and write timings returned by one chart-render worker task. */
 export interface ChartRenderTiming {
     dependencyMs: number;
-    skeletonMs: number;
-    nodesMs: number;
+    architectureMs: number;
     assemblyMs: number;
     writeMs: number;
 }

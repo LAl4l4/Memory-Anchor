@@ -52,8 +52,8 @@ const HOOK_BIN = 'memoryanchor-opencode';
 const USER_PROMPT_APPENDIX =
   '[IMPORTANT!] Must read ./.memoryanchor/chart/.../chart.md before any works and glob/grep.';
 // This plugin is copied standalone, so keep these values in sync with constant.ts.
-const BALLAST_MAX_BYTES = 5 * 1024;
-const MANIFEST_MODULE_STATUS_MAX_BYTES = 8 * 1024;
+const GUARDRAILS_MAX_BYTES = 5 * 1024;
+const PROJECT_STATE_MODULE_STATUS_MAX_BYTES = 8 * 1024;
 
 type DebugLogLevel = 'debug' | 'error';
 
@@ -126,40 +126,40 @@ function resolveWorkspaceRoot(directory?: string, worktree?: string | null): str
   return anchoredRoot ?? path.resolve(directory ?? worktree ?? process.cwd());
 }
 
-function extractManifestModuleStatus(manifest: string): string {
+function extractProjectStateModuleStatus(projectState: string): string {
   const moduleHeading = /^##\s+Module Status\s*$/m;
-  const headingMatch = moduleHeading.exec(manifest);
+  const headingMatch = moduleHeading.exec(projectState);
   if (!headingMatch) return '';
 
   const sectionStart = headingMatch.index;
   const afterHeading = sectionStart + headingMatch[0].length;
-  const nextSectionMatch = /^##\s+Key Decisions\s*$/m.exec(manifest.slice(afterHeading));
+  const nextSectionMatch = /^##\s+Key Decisions\s*$/m.exec(projectState.slice(afterHeading));
   const sectionEnd = nextSectionMatch
     ? afterHeading + nextSectionMatch.index
-    : manifest.length;
-  return manifest.slice(sectionStart, sectionEnd).trim();
+    : projectState.length;
+  return projectState.slice(sectionStart, sectionEnd).trim();
 }
 
-function buildMemoryCompactionMission(ballast: string, manifest: string): string {
-  const ballastBytes = Buffer.byteLength(ballast, 'utf8');
-  const moduleStatusBytes = Buffer.byteLength(extractManifestModuleStatus(manifest), 'utf8');
-  const ballastOverLimit = ballastBytes > BALLAST_MAX_BYTES;
-  const moduleStatusOverLimit = moduleStatusBytes > MANIFEST_MODULE_STATUS_MAX_BYTES;
-  if (!ballastOverLimit && !moduleStatusOverLimit) return '';
+function buildMemoryCompactionMission(guardrails: string, projectState: string): string {
+  const guardrailsBytes = Buffer.byteLength(guardrails, 'utf8');
+  const moduleStatusBytes = Buffer.byteLength(extractProjectStateModuleStatus(projectState), 'utf8');
+  const guardrailsOverLimit = guardrailsBytes > GUARDRAILS_MAX_BYTES;
+  const moduleStatusOverLimit = moduleStatusBytes > PROJECT_STATE_MODULE_STATUS_MAX_BYTES;
+  if (!guardrailsOverLimit && !moduleStatusOverLimit) return '';
 
   const exceeded: string[] = [];
   const actions: string[] = [];
-  if (ballastOverLimit) {
+  if (guardrailsOverLimit) {
     exceeded.push(
-      `- \`.memoryanchor/ballast.md\` is ${ballastBytes} UTF-8 bytes; limit: ${BALLAST_MAX_BYTES} bytes.`,
+      `- \`.memoryanchor/guardrails.md\` is ${guardrailsBytes} UTF-8 bytes; limit: ${GUARDRAILS_MAX_BYTES} bytes.`,
     );
     actions.push(
-      '- Shorten `ballast.md`: preserve every default rule, remove obsolete or duplicate specific rules, merge into existing rules first, and add a rule only for a distinct durable repository constraint.',
+      '- Shorten `guardrails.md`: preserve every default rule, remove obsolete or duplicate repository-specific rules, merge into existing rules first, and add a rule only for a distinct durable repository constraint.',
     );
   }
   if (moduleStatusOverLimit) {
     exceeded.push(
-      `- The \`## Module Status\` section of \`.memoryanchor/manifest.md\` is ${moduleStatusBytes} UTF-8 bytes; limit: ${MANIFEST_MODULE_STATUS_MAX_BYTES} bytes.`,
+      `- The \`## Module Status\` section of \`.memoryanchor/project-state.md\` is ${moduleStatusBytes} UTF-8 bytes; limit: ${PROJECT_STATE_MODULE_STATUS_MAX_BYTES} bytes.`,
     );
     actions.push(
       '- Shorten only the `## Module Status` section: merge duplicate modules and replace historical detail with concise current state while preserving functionality, status, dependencies, known issues, and essential notes.',
@@ -179,8 +179,8 @@ function buildMemoryCore(workspaceRoot: string): string {
   const anchorDir = path.join(workspaceRoot, '.memoryanchor');
   const indexPath = path.join(anchorDir, 'index.md');
   const rootChartPath = path.join(anchorDir, 'chart', 'chart.md');
-  const ballastPath = path.join(anchorDir, 'ballast.md');
-  const manifestPath = path.join(anchorDir, 'manifest.md');
+  const guardrailsPath = path.join(anchorDir, 'guardrails.md');
+  const projectStatePath = path.join(anchorDir, 'project-state.md');
   const index = readFileSafe(indexPath, 'No project chart available.');
   const rootChart = fs.existsSync(rootChartPath) ? readFileSafe(rootChartPath, '') : '';
   const chart = rootChart
@@ -189,14 +189,14 @@ function buildMemoryCore(workspaceRoot: string): string {
       '\n\n[ROOT CHART ALREADY INJECTED — DO NOT READ IT AGAIN]\n' +
       rootChart
     : '[INDEX ROUTING RULES — ALWAYS INJECTED]\n' + index;
-  const ballast = readFileSafe(
-    ballastPath,
+  const guardrails = readFileSafe(
+    guardrailsPath,
     'No active coding constraints or lessons-learned enforced.',
   );
-  const manifest = readFileSafe(manifestPath, 'No active cross-session tasks found.');
-  let taskSection = buildMemoryCompactionMission(ballast, manifest);
-  taskSection += ballast.includes('[STALE]')
-    ? "\n[TRIGGERED MISSION: MEMORY PRUNING]\n- Urgent Status: Some developer-enforced limits inside the [2. BALLAST RULES] section are currently flagged with '[STALE]'.\n- Your Action Required: These rules are likely obsolete due to recent code changes. You MUST evaluate and directly rewrite '.memoryanchor/ballast.md' to DELETE any invalid stale rules during this session.\n"
+  const projectState = readFileSafe(projectStatePath, 'No active cross-session tasks found.');
+  let taskSection = buildMemoryCompactionMission(guardrails, projectState);
+  taskSection += guardrails.includes('[STALE]')
+    ? "\n[TRIGGERED MISSION: MEMORY PRUNING]\n- Urgent Status: Some developer-enforced limits inside the [2. GUARDRAILS] section are currently flagged with '[STALE]'.\n- Your Action Required: These rules are likely obsolete due to recent code changes. You MUST evaluate and directly rewrite '.memoryanchor/guardrails.md' to DELETE any invalid stale rules during this session.\n"
     : '';
 
   return [
@@ -208,11 +208,11 @@ function buildMemoryCore(workspaceRoot: string): string {
     '[1. CHART (project structure & architectural symbols)]',
     chart,
     '',
-    '[2. BALLAST (rules must follow)]',
-    ballast,
+    '[2. GUARDRAILS (rules must follow)]',
+    guardrails,
     '',
-    '[3. MANIFEST (module status & key decisions)]',
-    manifest,
+    '[3. PROJECT STATE (module status & key decisions)]',
+    projectState,
     '==================================================',
   ].join('\n');
 }

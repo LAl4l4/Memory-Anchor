@@ -9,7 +9,7 @@
 - **CLI entrypoint**: `src/cli.ts` (shebang) calls `runCli` from `src/index.ts`, which wires the CAC CLI and registers built-in commands.
 - **Core runtime**: `src/index.ts` builds the CAC instance, registers commands, and handles the default/help behavior.
 - **Commands**: `src/commands/*` register CAC commands. `src/commands/index.ts` wires them together.
-- **Init behavior**: `init` creates `.memory_anchor/{chart,ballast,manifest}.md` and `.github/hooks/memory-anchor.json`.
+- **Init behavior**: `init` creates `.memoryanchor/index.md`, `.memoryanchor/guardrails.md`, `.memoryanchor/project-state.md`, and `.github/hooks/memory-anchor.json`.
 - **Config/logging**: `src/core/config.ts` provides default `.copilotwolf` paths; `src/utils/logger.ts` is the console logger.
 
 ## Key conventions

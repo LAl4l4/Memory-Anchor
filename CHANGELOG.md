@@ -1,9 +1,14 @@
 ## Update log
 
+- `2026/08/30`:
+    - [Changed] Renamed persistent memory files to `guardrails.md` and `project-state.md`; session context, CLI status, generated guidance, and OpenCode injection now use the clearer names. `anchor init` migrates legacy `ballast.md` and `manifest.md` files when their canonical replacements are absent.
+
 - `2026/08/29`:
-    - [Added] Session-start context now enforces advisory memory-size limits: ballast above 5 KiB or the manifest `Module Status` section above 8 KiB triggers an explicit compaction mission for the model. The complete memory remains injected, and both native hooks and the OpenCode plugin request semantic merging instead of truncating rules or module records.
-    - [Changed] Repository guidance now requires agents to merge new lessons into existing ballast rules first and add a new line only for a distinct, durable constraint.
+    - [Added] Session-start context now enforces advisory memory-size limits: guardrails above 5 KiB or the project-state `Module Status` section above 8 KiB triggers an explicit compaction mission for the model. The complete memory remains injected, and both native hooks and the OpenCode plugin request semantic merging instead of truncating rules or module records.
+    - [Changed] Repository guidance now requires agents to merge new lessons into existing guardrails first and add a new line only for a distinct, durable constraint.
     - [Improved] Simplify generated chart navigation and presentation: `index.md` is now a compact entry-chart router; each chart exposes its path, scope, traversal mode, file count, and parent; directory skeletons no longer duplicate dependency edges; empty symbol blocks are omitted; and child-chart routes use compact labels. Incremental topology reconciliation now rerenders charts whose displayed parent changes, keeping full and incremental output identical.
+    - [Fixed] Worker-pool shutdown now retains Worker instances that are still waiting for their ready handshake and terminates them before awaiting startup promises. Workers remain referenced during startup and active tasks but are unreferenced while idle, so a stalled initialization can be destroyed immediately and an abandoned idle pool can no longer keep Jest or a CLI process alive.
+    - [Changed] Migrated Jest test suites and shared test helpers from JavaScript to TypeScript using the standard `ts-jest` transformer. All tests now pass strict TypeScript checking before execution; JavaScript parser fixtures remain unchanged.
 
 - `2026/08/19`:
     - [Fixed] Incremental refresh now persists observed `??` file paths in `.memoryanchor/untracked-files.json`, checks those paths at each Stop/session-end capture, and supplies a synthetic deletion when one disappears before entering Git's index. It removes a path from the watch set once `git ls-files` reports it as tracked, so the persistent dependency graph no longer retains stale reverse callers from deleted untracked files. See [Incremental Untracked-File Deletion Fix](./fixes/INCREMENTAL_UNTRACKED_DELETION_LIMITATION.md).

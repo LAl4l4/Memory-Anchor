@@ -26,14 +26,14 @@ Memory Anchor keeps its generated state under `.memoryanchor/`:
 | `.memoryanchor/index.md` | Small repository-level index that routes an agent to the closest chart partition. |
 | `.memoryanchor/chart/**/chart.md` | Directory-scoped architecture charts containing a dependency skeleton, extracted symbols, and in-chart reverse symbol dependencies. |
 | `.memoryanchor/dirTree.json` | Internal directory topology, aggregate character counts, and split state used by incremental updates. |
-| `.memoryanchor/ballast.md` | Durable default and repository-specific rules. |
-| `.memoryanchor/manifest.md` | Module status, known issues, dependencies, and architectural decisions. |
+| `.memoryanchor/guardrails.md` | Durable default and repository-specific guardrails. |
+| `.memoryanchor/project-state.md` | Module status, known issues, dependencies, and architectural decisions. |
 | `.memoryanchor/prompt-hooks.json` | Optional UserPrompt hook selection; absent or empty means disabled. |
 | `.memoryanchor/debug.json` | Opt-in persistent diagnostic logging setting, managed by `anchor debug`. |
 | `.memoryanchor/debug.log` | Append-only CLI and lifecycle diagnostics while debug mode is enabled. |
-| `AGENTS.md` | Workflow instructions telling agents how to use the index, charts, ballast, and manifest. |
+| `AGENTS.md` | Workflow instructions telling agents how to use the index, charts, guardrails, and project state. |
 
-Charts are generated output and should not be edited manually. Ballast and manifest are intentionally readable project memory.
+Charts are generated output and should not be edited manually. Guardrails and project state are intentionally readable project memory.
 
 ## Why partition the chart?
 
@@ -53,8 +53,8 @@ The output mirrors the source tree. For example:
 .memoryanchor/
 ├── index.md
 ├── dirTree.json
-├── ballast.md
-├── manifest.md
+├── guardrails.md
+├── project-state.md
 └── chart/
     ├── src/
     │   ├── chartBuild/chart.md
@@ -63,7 +63,7 @@ The output mirrors the source tree. For example:
     └── tests/chart.md
 ```
 
-At session start, Memory Anchor injects the index, ballast, and manifest. The index tells the agent which directory chart to open, so unrelated architecture does not need to occupy the initial context.
+At session start, Memory Anchor injects the index, guardrails, and project state. The index tells the agent which directory chart to open, so unrelated architecture does not need to occupy the initial context.
 
 ## Incremental updates
 
@@ -111,10 +111,10 @@ A representative `anchor init` run on the Next.js repository parsed 24,602 sourc
 ```text
 anchor init
     │  full directory scan → dirTree registry → partition charts + index
-    │  create ballast/manifest and configure agent integrations
+    │  create guardrails/project state and configure agent integrations
     ▼
 Session starts
-    │  inject index + ballast + manifest
+    │  inject index + guardrails + project state
     ▼
 Agent works
     │  index routes the agent to the closest directory chart
@@ -123,7 +123,7 @@ Agent stops
     │  Git changes → partitioned incremental refresh
     ▼
 Session ends
-       capture changes, maintain ballast, refresh partitions, release workers
+       capture changes, maintain guardrails, refresh partitions, release workers
 ```
 
 ![Memory Anchor initialization and incremental refresh demo](assets/memoryanchorDemo.gif)
@@ -234,7 +234,7 @@ make chart-partitions
 
 ## Contributing
 
-Keep changes focused, add regression tests for behavior changes, and preserve the generated-memory workflow. Feature work should update `.memoryanchor/manifest.md`; resolved repository-specific bugs should add a valid prevention rule to `.memoryanchor/ballast.md`.
+Keep changes focused, add regression tests for behavior changes, and preserve the generated-memory workflow. Feature work should update `.memoryanchor/project-state.md`; resolved repository-specific bugs should add a valid prevention rule to `.memoryanchor/guardrails.md`.
 
 ## License
 

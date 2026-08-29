@@ -58,7 +58,7 @@ function assertPluginEventNamesMatchProtocol(plugin: string): void {
 
   // Anything that looks like `"<prefix>.<name>(.<name>)"`, where prefix is one
   // of the opencode event namespaces, MUST be one of the protocol events.
-  // This white-lists the event namespaces we recognize so that `"ballast.md"`,
+  // This white-lists the event namespaces we recognize so that `"guardrails.md"`,
   // `"memoryanchor-opencode"`, etc. aren't mis-flagged as events.
   const OPENCODE_EVENT_PREFIXES = new Set(['session', 'chat', 'tool', 'shell', 'permission', 'command', 'experimental']);
   const seenUnknown = new Set<string>();
@@ -116,7 +116,7 @@ export interface OpencodeSetupResult {
 //      hook is the only documented way for a plugin to extend opencode's
 //      system prompt. On every LLM turn it always reads index.md as routing
 //      rules, additionally includes ./.memoryanchor/chart/chart.md when that
-//      root chart exists, then reads ballast.md and manifest.md from disk and
+//      root chart exists, then reads guardrails.md and project-state.md from disk and
 //      pushes the memory-core payload into output.system. This replaces the
 //      previous "session.start → fire-and-forget pre hook" design, which
 //      never worked: (a) opencode has no "session.start" event, (b) hooks

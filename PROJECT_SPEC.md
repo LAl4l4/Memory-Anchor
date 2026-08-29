@@ -45,14 +45,14 @@ with the CLI.
 | `.memoryanchor/dirTree.json` | Persisted directory sizes, split states, and virtual chart-tree routes. |
 | `.memoryanchor/dependencyGraph.json` | Persisted file-import candidate and function-level forward/reverse dependency edges for incremental chart refreshes. |
 | `.memoryanchor/untracked-files.json` | Observed Git-untracked paths whose existence is checked on future lifecycle refreshes. |
-| `.memoryanchor/ballast.md` | Durable default and repository-specific implementation rules. |
-| `.memoryanchor/manifest.md` | Module status, dependencies, known issues, and key decisions. |
+| `.memoryanchor/guardrails.md` | Durable default and repository-specific implementation guardrails. |
+| `.memoryanchor/project-state.md` | Module status, dependencies, known issues, and key decisions. |
 | `.memoryanchor/debug.json` | Opt-in, workspace-local diagnostic logging setting. |
 | `.memoryanchor/debug.log` | Append-only diagnostics emitted while debug mode is enabled. |
 | `AGENTS.md` | Managed instructions that tell supported agents how to traverse and use the memory. |
 
-Charts are generated artifacts and must not be edited manually. `ballast.md` and
-`manifest.md` are durable project memory and are intentionally maintained over
+Charts are generated artifacts and must not be edited manually. `guardrails.md` and
+`project-state.md` are durable project memory and are intentionally maintained over
 time.
 
 ## 4. Full initialization
@@ -220,8 +220,8 @@ At session start, the common context payload must provide, in order:
 
 1. Index routing rules.
 2. The root chart when one exists.
-3. Ballast rules.
-4. Manifest state and decisions.
+3. Guardrails.
+4. Project state and decisions.
 
 Per-turn reinforcement is opt-in and controlled by
 `.memoryanchor/prompt-hooks.json`. The file stores an `enabled` array of agent
@@ -262,8 +262,8 @@ JavaScript, JSON, Python, Ruby, Rust, Scala, Swift, TypeScript, and TSX.
 
 ## 11. Acceptance criteria
 
-- `anchor init` creates a valid index, chart tree, directory registry, ballast,
-  manifest, and configured integrations without duplicate managed hooks.
+- `anchor init` creates a valid index, chart tree, directory registry, guardrails,
+  project state, and configured integrations without duplicate managed hooks.
 - Every generated chart follows the content contract and identifies its own
   path.
 - The index and Child Chart routes reach the nearest valid chart partition.

@@ -115,15 +115,13 @@ function sumRenderTimings(results: readonly { timing?: ChartRenderTiming }[]): C
         const timing = result.timing;
         if (!timing) return total;
         total.dependencyMs += timing.dependencyMs;
-        total.skeletonMs += timing.skeletonMs;
-        total.nodesMs += timing.nodesMs;
+        total.architectureMs += timing.architectureMs;
         total.assemblyMs += timing.assemblyMs;
         total.writeMs += timing.writeMs;
         return total;
     }, {
         dependencyMs: 0,
-        skeletonMs: 0,
-        nodesMs: 0,
+        architectureMs: 0,
         assemblyMs: 0,
         writeMs: 0,
     });
@@ -178,8 +176,7 @@ function renderPartitionedChart(
 ): ChartRenderResult {
     const timing: ChartRenderTiming = {
         dependencyMs: 0,
-        skeletonMs: 0,
-        nodesMs: 0,
+        architectureMs: 0,
         assemblyMs: 0,
         writeMs: 0,
     };
@@ -277,8 +274,7 @@ export async function writeChartSet(
         return Math.max(
             maximum,
             result.timing.dependencyMs +
-            result.timing.skeletonMs +
-            result.timing.nodesMs +
+            result.timing.architectureMs +
             result.timing.assemblyMs +
             result.timing.writeMs
         );
@@ -286,8 +282,7 @@ export async function writeChartSet(
     logToUser(
         `[Render] in-process wall=${renderWallMs.toFixed(2)}ms, ` +
         `cpu-sum dependency=${renderTiming.dependencyMs.toFixed(2)}ms ` +
-        `skeleton=${renderTiming.skeletonMs.toFixed(2)}ms ` +
-        `nodes=${renderTiming.nodesMs.toFixed(2)}ms ` +
+        `architecture=${renderTiming.architectureMs.toFixed(2)}ms ` +
         `assembly=${renderTiming.assemblyMs.toFixed(2)}ms ` +
         `write=${renderTiming.writeMs.toFixed(2)}ms, ` +
         `max-task=${maxTaskMs.toFixed(2)}ms`,

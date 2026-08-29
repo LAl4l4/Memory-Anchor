@@ -18,8 +18,8 @@ Memory Anchor is initialized in this repository. Follow these rules to ensure it
 ### File Roles
 - ./.memoryanchor/index.md: Auto-generated project chart index. Its entries point to directory-level architecture maps under ./.memoryanchor/chart/.
 - ./.memoryanchor/chart/.../chart.md: Directory-level architecture map. Read the root chart at the start of every task for project-wide context, then use index.md and Child Charts to find the chart closest to the task.
-- ./.memoryanchor/manifest.md: Current project state — Module Status (functionality/status/known_issues/notes) and Key Decisions (architectural choices and rationale).
-- ./.memoryanchor/ballast.md: Persistent repo-specific rules/guardrails, one per line.
+- ./.memoryanchor/project-state.md: Current project state — Module Status (functionality/status/known_issues/notes) and Key Decisions (architectural choices and rationale).
+- ./.memoryanchor/guardrails.md: Persistent repository guardrails, one per line.
 - ./.memoryanchor/prompt-hooks.json: Optional UserPrompt hook selection; missing or empty means disabled.
 
 ### Chart Relationship Notation
@@ -32,10 +32,10 @@ Memory Anchor is initialized in this repository. Follow these rules to ensure it
 ### Workflow
 - At the start of every task, read ./.memoryanchor/chart/.../chart.md to establish a project-wide view before working on repository files.
 - If the agent has any uncertainty about the overall project structure, immediately read ./.memoryanchor/index.md again, then read the closest matching directory chart listed there.
-- Must follow all rules in ./.memoryanchor/ballast.md. After solving a bug, first merge the lesson into an existing rule when possible. Add a new rule under "Ballast Specific Rules For This Repository" only when it represents a distinct, durable repository constraint.
-- After any of features implemented, update Module Status (and Key Decisions, if applicable) in ./.memoryanchor/manifest.md.
+- Must follow all rules in ./.memoryanchor/guardrails.md. After solving a bug, first merge the lesson into an existing rule when possible. Add a new rule under "Repository-specific Guardrails" only when it represents a distinct, durable repository constraint.
+- After any of features implemented, update Module Status (and Key Decisions, if applicable) in ./.memoryanchor/project-state.md.
 
-### ballast.md format
+### guardrails.md format
 - Keep only valid rules. Delete obsolete ones.
 - One line per rule, exact format: '- [ ] Rule content'
 

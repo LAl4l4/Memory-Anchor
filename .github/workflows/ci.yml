@@ -23,6 +23,4 @@ jobs:
 
       - run: npm ci --silent
 
-      - run: npm run build
-
-      - run: node --experimental-vm-modules ./node_modules/jest/bin/jest.js
+      - run: npm test

@@ -1,6 +1,23 @@
 import * as path from 'path';
 import { escapeRegex } from '../shared/utils.js';
 
+export interface OrderedDirectoryFiles {
+    directory: string;
+    files: string[];
+}
+
+/** Return a stable directory/file order shared by all tree-style renderers. */
+export function getOrderedDirectoryFiles(
+    dirGroups: ReadonlyMap<string, readonly string[]>
+): OrderedDirectoryFiles[] {
+    return [...dirGroups.keys()]
+        .sort((a, b) => a.localeCompare(b))
+        .map(directory => ({
+            directory,
+            files: [...dirGroups.get(directory)!].sort(),
+        }));
+}
+
 /**
  * Generate directory-grouped file skeleton from pre-built dir-to-files mapping.
  * - Root-level files (.) are listed directly without a heading.
@@ -10,25 +27,20 @@ import { escapeRegex } from '../shared/utils.js';
 export function generateTreeSkeleton(
     dirGroups: Map<string, string[]>
 ): string {
-    // Sort directories depth-first (parent before children, then alphabetically)
-    const sortedDirs = [...dirGroups.keys()].sort((a, b) => a.localeCompare(b));
-
     let skeletonStr = "";
 
-    for (const dir of sortedDirs) {
-        const dirFiles = dirGroups.get(dir)!.sort();
-
-        if (dir === '.') {
+    for (const { directory, files } of getOrderedDirectoryFiles(dirGroups)) {
+        if (directory === '.') {
             // Root-level files — no heading, use full path
-            for (const file of dirFiles) {
+            for (const file of files) {
                 skeletonStr += `- /${file}\n`;
             }
-            if (dirFiles.length > 0) {
+            if (files.length > 0) {
                 skeletonStr += '\n';
             }
         } else {
-            skeletonStr += `### ${dir}/\n`;
-            for (const file of dirFiles) {
+            skeletonStr += `### ${directory}/\n`;
+            for (const file of files) {
                 const base = path.basename(file);
                 skeletonStr += `- ${base}\n`;
             }

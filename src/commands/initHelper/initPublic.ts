@@ -1,11 +1,20 @@
 import { createReadStream, existsSync } from 'node:fs';
-import { access, appendFile, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { access, appendFile, mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { createInterface } from 'node:readline';
 import { fileURLToPath } from 'node:url';
 import { buildChartFull, destroyPool } from '../../chartBuild/buildChart.js';
-import { AGENTS_CONTENT, GITIGNORE_ENTRY, INDEX_FILE_NAME, MANIFEST_DEFAULT_CONTENT } from '../../constant.js';
-import { ensureBallastFile } from '../../chartBuild/init-ballast.js';
+import {
+  AGENTS_CONTENT,
+  GITIGNORE_ENTRY,
+  GUARDRAILS_FILE_NAME,
+  INDEX_FILE_NAME,
+  LEGACY_BALLAST_FILE_NAME,
+  LEGACY_MANIFEST_FILE_NAME,
+  PROJECT_STATE_DEFAULT_CONTENT,
+  PROJECT_STATE_FILE_NAME,
+} from '../../constant.js';
+import { ensureGuardrailsFile } from '../../chartBuild/init-guardrails.js';
 import { scanAvailableParsers } from '../../chartBuild/scan-parsers.js';
 import { ensurePromptHookConfig } from './promptHookConfig.js';
 
@@ -154,18 +163,38 @@ export async function ensureGitignore(gitignorePath: string): Promise<boolean> {
   return true;
 }
 
+/** Move legacy memory files to their clearer canonical names without data loss. */
+export async function migrateLegacyAnchorFiles(memoryAnchorDir: string): Promise<boolean> {
+  const migrations = [
+    [LEGACY_BALLAST_FILE_NAME, GUARDRAILS_FILE_NAME],
+    [LEGACY_MANIFEST_FILE_NAME, PROJECT_STATE_FILE_NAME],
+  ] as const;
+  let migrated = false;
+
+  for (const [legacyName, canonicalName] of migrations) {
+    const legacyPath = path.join(memoryAnchorDir, legacyName);
+    const canonicalPath = path.join(memoryAnchorDir, canonicalName);
+    if (!(await fileExists(legacyPath)) || await fileExists(canonicalPath)) continue;
+    await rename(legacyPath, canonicalPath);
+    migrated = true;
+  }
+
+  return migrated;
+}
+
 export async function ensureAnchorFiles(memoryAnchorDir: string): Promise<boolean> {
+  const migrated = await migrateLegacyAnchorFiles(memoryAnchorDir);
   const chartCreated = await ensureFile(path.join(memoryAnchorDir, INDEX_FILE_NAME));
-  const ballastCreated = await ensureBallastFile(
-    path.join(memoryAnchorDir, 'ballast.md')
+  const guardrailsCreated = await ensureGuardrailsFile(
+    path.join(memoryAnchorDir, GUARDRAILS_FILE_NAME)
   );
-  const manifestCreated = await ensureFile(
-    path.join(memoryAnchorDir, 'manifest.md'),
-    MANIFEST_DEFAULT_CONTENT
+  const projectStateCreated = await ensureFile(
+    path.join(memoryAnchorDir, PROJECT_STATE_FILE_NAME),
+    PROJECT_STATE_DEFAULT_CONTENT
   );
   const promptHookConfigCreated = await ensurePromptHookConfig(memoryAnchorDir);
 
-  return chartCreated || ballastCreated || manifestCreated || promptHookConfigCreated;
+  return migrated || chartCreated || guardrailsCreated || projectStateCreated || promptHookConfigCreated;
 }
 
 export async function ensureAgentsFile(agentsPath: string): Promise<boolean> {
@@ -211,8 +240,8 @@ export async function ensureWorkspaceDirectories(memoryAnchorDir: string): Promi
 export interface BasePaths {
   memoryAnchorDir: string;
   chartPath: string;
-  ballastPath: string;
-  manifestPath: string;
+  guardrailsPath: string;
+  projectStatePath: string;
   gitignorePath: string;
   agentsPath: string;
 }
@@ -222,8 +251,8 @@ export function getBasePaths(cwd: string): BasePaths {
   return {
     memoryAnchorDir,
     chartPath: path.join(memoryAnchorDir, INDEX_FILE_NAME),
-    ballastPath: path.join(memoryAnchorDir, 'ballast.md'),
-    manifestPath: path.join(memoryAnchorDir, 'manifest.md'),
+    guardrailsPath: path.join(memoryAnchorDir, GUARDRAILS_FILE_NAME),
+    projectStatePath: path.join(memoryAnchorDir, PROJECT_STATE_FILE_NAME),
     gitignorePath: path.join(cwd, '.gitignore'),
     agentsPath: path.join(cwd, 'AGENTS.md'),
   };

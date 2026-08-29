@@ -1,7 +1,13 @@
 #!/usr/bin/env node
 import * as fs from 'fs';
 import * as path from 'path';
-import { BALLAST_DEFAULT_RULES, BALLAST_DEFAULT_TITLE, BALLAST_SPECIFIC_TITLE, CODE_EXTENSIONS, STALE_BLACKLIST } from '../../constant.js';
+import {
+  CODE_EXTENSIONS,
+  GUARDRAILS_DEFAULT_RULES,
+  GUARDRAILS_DEFAULT_TITLE,
+  GUARDRAILS_SPECIFIC_TITLE,
+  STALE_BLACKLIST,
+} from '../../constant.js';
 import { captureGitChanges, GitChange } from '../../utils/captureGitChanges.js';
 import { updatePartitionedChartIncrementally } from '../../chartBuild/incremental.js';
 import { destroyPool } from '../../chartBuild/buildChart.js';
@@ -11,9 +17,9 @@ import { getHookInvocation, logHookFailed, logHookSucceeded, logHookTriggered } 
 
 const cwd = process.cwd();
 const ANCHOR_PATH = path.join(cwd, '.memoryanchor');
-const BALLAST_PATH = path.join(ANCHOR_PATH, 'ballast.md');
+const GUARDRAILS_PATH = path.join(ANCHOR_PATH, 'guardrails.md');
 
-export function updateManifest(changes: GitChange[] | null): void {
+export function updateProjectState(changes: GitChange[] | null): void {
   if (!changes || changes.length === 0) return;
 
   const parts: string[] = [];
@@ -26,10 +32,10 @@ export function updateManifest(changes: GitChange[] | null): void {
   logToUser(`Code changes captured: ${parts.join('; ')}`, '36');
 }
 
-export function cleanBallastRules(changes: GitChange[] | null): void {
-  if (!fs.existsSync(BALLAST_PATH) || !changes || changes.length === 0) return;
+export function cleanGuardrailsRules(changes: GitChange[] | null): void {
+  if (!fs.existsSync(GUARDRAILS_PATH) || !changes || changes.length === 0) return;
 
-  let ballastContent = fs.readFileSync(BALLAST_PATH, 'utf-8');
+  let guardrailsContent = fs.readFileSync(GUARDRAILS_PATH, 'utf-8');
   let hasChanged = false;
 
   changes.forEach((c: GitChange) => {
@@ -41,8 +47,8 @@ export function cleanBallastRules(changes: GitChange[] | null): void {
     const escapedKeyword = fileKeyword.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
     const ruleRegex = new RegExp(`(- \\[ \\].*${escapedKeyword}.*)`, 'g');
 
-    if (ruleRegex.test(ballastContent)) {
-      ballastContent = ballastContent.replace(ruleRegex, (match) => {
+    if (ruleRegex.test(guardrailsContent)) {
+      guardrailsContent = guardrailsContent.replace(ruleRegex, (match) => {
         hasChanged = true;
         if (match.includes('[STALE]')) return match;
         return `${match} [STALE] *(File changed in previous session. Verify if this rule is obsolete)*`;
@@ -51,8 +57,8 @@ export function cleanBallastRules(changes: GitChange[] | null): void {
   });
 
   if (hasChanged) {
-    fs.writeFileSync(BALLAST_PATH, ballastContent, 'utf-8');
-    logToUser('Ballast scanned. Potential obsolete rules marked with [STALE].', '35');
+    fs.writeFileSync(GUARDRAILS_PATH, guardrailsContent, 'utf-8');
+    logToUser('Guardrails scanned. Potential obsolete rules marked with [STALE].', '35');
   }
 }
 
@@ -83,13 +89,13 @@ function normalizeLine(line: string): string | null {
   return normalizeRuleLine(trimmed)
 }
 
-export function sanitizeBallast(): void {
-  if (!fs.existsSync(BALLAST_PATH)) return;
+export function sanitizeGuardrails(): void {
+  if (!fs.existsSync(GUARDRAILS_PATH)) return;
 
-  const content = fs.readFileSync(BALLAST_PATH, 'utf8');
-  const defaultSet = new Set(BALLAST_DEFAULT_RULES.map((r) => r.trim()));
+  const content = fs.readFileSync(GUARDRAILS_PATH, 'utf8');
+  const defaultSet = new Set(GUARDRAILS_DEFAULT_RULES.map((r) => r.trim()));
 
-  const specificIndex = content.indexOf(BALLAST_SPECIFIC_TITLE);
+  const specificIndex = content.indexOf(GUARDRAILS_SPECIFIC_TITLE);
 
   let defaultRules: string[] = [];
   let specificRules: string[] = [];
@@ -123,12 +129,12 @@ export function sanitizeBallast(): void {
   defaultRules = [...new Set(defaultRules)];
   specificRules = [...new Set(specificRules)];
 
-  const defaultBlock = BALLAST_DEFAULT_RULES.join('\n');
+  const defaultBlock = GUARDRAILS_DEFAULT_RULES.join('\n');
   const specificBlock = specificRules.length > 0 ? specificRules.join('\n') : '';
 
-  const output = `${BALLAST_DEFAULT_TITLE}\n${defaultBlock}\n\n${BALLAST_SPECIFIC_TITLE}\n${specificBlock}\n`;
-  fs.writeFileSync(BALLAST_PATH, output, 'utf8');
-  logToUser(`Ballast normalized (${defaultRules.length} default, ${specificRules.length} specific)`, '35');
+  const output = `${GUARDRAILS_DEFAULT_TITLE}\n${defaultBlock}\n\n${GUARDRAILS_SPECIFIC_TITLE}\n${specificBlock}\n`;
+  fs.writeFileSync(GUARDRAILS_PATH, output, 'utf8');
+  logToUser(`Guardrails normalized (${defaultRules.length} default, ${specificRules.length} specific)`, '35');
 }
 
 export async function runSessionEnd(): Promise<void> {
@@ -140,9 +146,9 @@ export async function runSessionEnd(): Promise<void> {
       logHookSucceeded(invocation, 'skipped: Git reported no changes');
     } else {
       appendDebugLog('debug', `Session-end refresh captured ${changes.length} Git change(s).`);
-      updateManifest(changes);
-      cleanBallastRules(changes);
-      sanitizeBallast();
+      updateProjectState(changes);
+      cleanGuardrailsRules(changes);
+      sanitizeGuardrails();
 
       const changedPaths = changes.map((c) => c.file);
       await updatePartitionedChartIncrementally(changedPaths);
