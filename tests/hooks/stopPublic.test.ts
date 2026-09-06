@@ -128,3 +128,32 @@ test('runStop do nothing when no git repo exists (captureGitChanges returns null
 
   exitSpy.mockRestore();
 });
+
+
+test('runStop retries an untracked deletion after refresh failure and acknowledges success', async () => {
+  initGitRepo();
+  const update = jest.fn<() => Promise<void>>();
+  update.mockResolvedValue(undefined);
+  jest.resetModules();
+  jest.unstable_mockModule('../../dist/chartBuild/incremental.js', () => ({
+    updatePartitionedChartIncrementally: update,
+  }));
+  const exitSpy = mockProcessExit();
+  try {
+    const hook = await import('../../dist/hooks/public/stopPublic.js');
+    await writeFile('retry.ts', 'export const value = 1;');
+    await hook.runStop();
+    await rm('retry.ts');
+    update.mockClear();
+    update.mockRejectedValueOnce(new Error('refresh failed'));
+    await expect(hook.runStop()).rejects.toThrow('refresh failed');
+    expect(update).toHaveBeenLastCalledWith(['retry.ts']);
+    await hook.runStop();
+    expect(update).toHaveBeenCalledTimes(2);
+    expect(update).toHaveBeenLastCalledWith(['retry.ts']);
+    await hook.runStop();
+    expect(update).toHaveBeenCalledTimes(2);
+  } finally {
+    exitSpy.mockRestore();
+  }
+});

@@ -18,7 +18,6 @@ import type { GitChange } from '../../dist/utils/captureGitChanges.js';
 const originalCwd = process.cwd();
 
 let updateManifest: typeof import('../../dist/hooks/public/sessionEndPublic.js').updateProjectState;
-let cleanBallastRules: typeof import('../../dist/hooks/public/sessionEndPublic.js').cleanGuardrailsRules;
 let sanitizeBallast: typeof import('../../dist/hooks/public/sessionEndPublic.js').sanitizeGuardrails;
 let tempDir = '';
 let anchorPath = '';
@@ -51,7 +50,6 @@ beforeEach(async () => {
 
   ({
     updateProjectState: updateManifest,
-    cleanGuardrailsRules: cleanBallastRules,
     sanitizeGuardrails: sanitizeBallast,
   } = await import('../../dist/hooks/public/sessionEndPublic.js'));
 });
@@ -137,56 +135,6 @@ test('updateManifest does NOT log when changes is empty array', () => {
   expect(spy).not.toHaveBeenCalled();
 
   spy.mockRestore();
-});
-
-// ── cleanBallastRules ───────────────────────────────────────────────
-
-test('cleanBallastRules marks matching code-file rules with [STALE]', async () => {
-  await writeFile(ballastPath, SAMPLE_BALLAST);
-
-  cleanBallastRules(changes(['M', 'src/tests/sample.ts']));
-
-  const updated = await readFile(ballastPath, 'utf8');
-  expect(updated).toContain('[STALE]');
-  expect(updated).toContain('Always add tests for sample.ts helpers');
-  expect(updated).toContain('Never use eval()'); // eval rule untouched — unrelated file
-  expect(updated).not.toContain('Never use eval() [STALE]');
-});
-
-test('cleanBallastRules does NOT mark [STALE] when the rule already has one', async () => {
-  const content = SAMPLE_BALLAST.replace(
-    '- [ ] Always add tests for sample.ts helpers.',
-    '- [ ] Always add tests for sample.ts helpers. [STALE] *(already stale)*'
-  );
-  await writeFile(ballastPath, content);
-
-  const before = await readFile(ballastPath, 'utf8');
-  cleanBallastRules(changes(['M', 'src/tests/sample.ts']));
-  const after = await readFile(ballastPath, 'utf8');
-
-  expect(after).toBe(before);
-});
-
-test('cleanBallastRules skips blacklisted files (AGENTS.md, README.md)', async () => {
-  await writeFile(ballastPath, SAMPLE_BALLAST);
-
-  cleanBallastRules(changes(['M', 'AGENTS.md']));
-
-  const updated = await readFile(ballastPath, 'utf8');
-  expect(updated).not.toContain('[STALE]');
-});
-
-test('cleanBallastRules skips non-code files', async () => {
-  await writeFile(ballastPath, SAMPLE_BALLAST);
-
-  cleanBallastRules(changes(['M', 'docs/readme.txt']));
-
-  const updated = await readFile(ballastPath, 'utf8');
-  expect(updated).not.toContain('[STALE]');
-});
-
-test('cleanGuardrailsRules is no-op when guardrails.md does not exist', () => {
-  expect(() => cleanBallastRules(changes(['M', 'src/foo.ts']))).not.toThrow();
 });
 
 // ── sanitizeBallast ─────────────────────────────────────────────────
@@ -332,6 +280,7 @@ test('runSessionEnd orchestrates full pipeline when git changes exist', async ()
   const ballast = await readFile(ballastPath, 'utf8');
   expect(ballast).toContain(BALLAST_DEFAULT_TITLE);
   expect(ballast).toContain(BALLAST_SPECIFIC_TITLE);
+  expect(ballast).toBe(SAMPLE_BALLAST);
 
   exitSpy.mockRestore();
 });
@@ -393,4 +342,36 @@ test('runSessionEnd skips chart update when no git repo exists', async () => {
   expect(exitSpy).toHaveBeenCalledWith(0);
 
   exitSpy.mockRestore();
+});
+
+
+test('runSessionEnd retries an untracked deletion after refresh failure and acknowledges success', async () => {
+  initGitRepo(tempDir);
+  const update = jest.fn<() => Promise<void>>();
+  update.mockResolvedValue(undefined);
+  jest.resetModules();
+  jest.unstable_mockModule('../../dist/chartBuild/buildChart.js', () => ({
+    destroyPool: jest.fn(async () => {}),
+  }));
+  jest.unstable_mockModule('../../dist/chartBuild/incremental.js', () => ({
+    updatePartitionedChartIncrementally: update,
+  }));
+  const exitSpy = mockProcessExit();
+  try {
+    const hook = await import('../../dist/hooks/public/sessionEndPublic.js');
+    await writeFile('retry.ts', 'export const value = 1;');
+    await hook.runSessionEnd();
+    await rm('retry.ts');
+    update.mockClear();
+    update.mockRejectedValueOnce(new Error('refresh failed'));
+    await expect(hook.runSessionEnd()).rejects.toThrow('refresh failed');
+    expect(update).toHaveBeenLastCalledWith(['retry.ts']);
+    await hook.runSessionEnd();
+    expect(update).toHaveBeenCalledTimes(2);
+    expect(update).toHaveBeenLastCalledWith(['retry.ts']);
+    await hook.runSessionEnd();
+    expect(update).toHaveBeenCalledTimes(2);
+  } finally {
+    exitSpy.mockRestore();
+  }
 });

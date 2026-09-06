@@ -334,6 +334,7 @@ runtimeTest(
     await writeFile(path.join(chartDir, 'chart.md'), '# test root chart\n');
     await writeFile(path.join(anchorDir, 'guardrails.md'), '# test guardrails\n');
     await writeFile(path.join(anchorDir, 'project-state.md'), '# test project state\n');
+    await writeFile(path.join(anchorDir, 'decisions.md'), '# test decisions\n');
     await writeFile(
       path.join(anchorDir, 'prompt-hooks.json'),
       JSON.stringify({ enabled: ['opencode'] }) + '\n',

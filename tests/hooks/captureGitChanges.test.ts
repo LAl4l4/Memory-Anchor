@@ -1,10 +1,10 @@
 import { afterEach, beforeEach, expect, test } from '@jest/globals';
-import { execSync } from 'node:child_process';
+import { execFileSync, execSync } from 'node:child_process';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
-import { captureGitChanges } from '../../dist/utils/captureGitChanges.js';
+import { acknowledgeGitChanges, captureGitChanges } from '../../dist/utils/captureGitChanges.js';
 import { UNTRACKED_FILE_WATCH_FILE_NAME } from '../../dist/constant.js';
 
 const originalCwd = process.cwd();
@@ -77,10 +77,56 @@ test('reports deletion of a previously observed untracked file', async () => {
 
   await rm(path.join(tempDir, watchedPath));
 
-  expect(captureGitChanges()).toEqual(expect.arrayContaining([
-    { status: 'D', file: watchedPath }
-  ]));
+  const deletion = [{ status: 'D', file: watchedPath }];
+  expect(captureGitChanges()).toEqual(deletion);
+  // Capture is not a successful refresh: keep reporting until acknowledged.
+  expect(captureGitChanges()).toEqual(deletion);
+  await expect(readFile(watchPath, 'utf8')).resolves.toContain(watchedPath);
+  acknowledgeGitChanges(deletion);
+  expect(captureGitChanges()).toBeNull();
   await expect(readFile(watchPath, 'utf8')).rejects.toMatchObject({ code: 'ENOENT' });
+});
+
+test('preserves whitespace, Unicode, quotes and literal backslashes in Git paths', async () => {
+  initGitRepo();
+  const files = ['with space.ts', '中文.ts', 'tab\tname.ts', 'line\nbreak.ts', '"quoted".ts'];
+  if (process.platform !== 'win32') files.push('back\\slash.ts');
+  for (const file of files) await writeFile(path.join(tempDir, file), 'export const value = 1;');
+  expect(captureGitChanges()).toEqual(expect.arrayContaining(
+    files.map(file => ({ status: '??', file })),
+  ));
+  execFileSync('git', ['add', '--all']);
+  execFileSync('git', ['commit', '-qm', 'initial']);
+  for (const file of files) await writeFile(path.join(tempDir, file), 'export const value = 2;');
+  const changes = captureGitChanges();
+  expect(changes).toHaveLength(files.length);
+  expect(changes).toEqual(expect.arrayContaining(files.map(file => ({ status: 'M', file }))));
+});
+
+test('captures both sides of a rename without consuming the following change', async () => {
+  initGitRepo();
+  await writeFile('old 中文.ts', 'export const value = 1;');
+  execFileSync('git', ['add', '--all']);
+  execFileSync('git', ['commit', '-qm', 'initial']);
+  execFileSync('git', ['mv', '--', 'old 中文.ts', 'new name.ts']);
+  await writeFile('z.ts', 'export const z = 1;');
+  expect(captureGitChanges()).toEqual(expect.arrayContaining([
+    { status: 'R', file: 'new name.ts' },
+    { status: 'D', file: 'old 中文.ts' },
+    { status: '??', file: 'z.ts' },
+  ]));
+});
+
+test('acknowledging a deletion does not forget a file recreated before acknowledgement', async () => {
+  initGitRepo();
+  await writeFile('recreated.ts', 'export const value = 1;');
+  captureGitChanges();
+  await rm('recreated.ts');
+  const deletion = captureGitChanges()!;
+  await writeFile('recreated.ts', 'export const value = 2;');
+  acknowledgeGitChanges(deletion);
+  await rm('recreated.ts');
+  expect(captureGitChanges()).toEqual([{ status: 'D', file: 'recreated.ts' }]);
 });
 
 test('stops watching an untracked file after it enters the Git index', async () => {

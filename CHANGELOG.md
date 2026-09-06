@@ -1,7 +1,16 @@
 ## Update log
 
+- `2026/09/07`:
+    - [Fixed] Git change capture now reads NUL-delimited porcelain output, preserving spaces, Unicode, quotes, literal backslashes, and both endpoints of a rename. Observed untracked deletions remain retryable until the chart refresh succeeds.
+    - [Improved] Added `.memoryanchor/refresh-checkpoint.json` to record successful-refresh file metadata and chart-state identity. Stop, session-end, and OpenCode idle hooks now skip unchanged dirty files, still detect reverts and deletions, batch tracked-file checks, and perform one follow-up refresh when a file changes during rendering. Failed refreshes do not advance the checkpoint.
+    - [Changed] Guardrail maintenance is advisory during lifecycle hooks. Source edits no longer automatically mark rules as stale or rewrite `guardrails.md`; `anchor maintain` reports budget and legacy-marker notices, while `anchor maintain --normalize` performs explicit formatting.
+    - [Improved] Native hooks and the OpenCode plugin now share context rendering, maintenance notices, prompt reminders, and diagnostics. The OpenCode entry is bundled with its shared modules into a standalone ESM artifact during builds.
+    - [Added] Regression coverage for special Git paths, renames, deletion retries, refresh checkpoints, maintenance behavior, bundled plugin loading, and lifecycle integration.
+
 - `2026/08/30`:
     - [Changed] Renamed persistent memory files to `guardrails.md` and `project-state.md`; session context, CLI status, generated guidance, and OpenCode injection now use the clearer names. `anchor init` migrates legacy `ballast.md` and `manifest.md` files when their canonical replacements are absent.
+    - [Changed] Split architectural decisions into `.memoryanchor/decisions.md`; initialization migrates an existing `## Key Decisions` section without changing its order, repairs missing spacing, and removes it from `project-state.md`. Native hooks and OpenCode continue to inject every decision without filtering.
+    - [Fixed] Decision migration and subsequent initialization preserve existing spacing and insert a blank line only between adjacent top-level decisions that were previously compacted.
 
 - `2026/08/29`:
     - [Added] Session-start context now enforces advisory memory-size limits: guardrails above 5 KiB or the project-state `Module Status` section above 8 KiB triggers an explicit compaction mission for the model. The complete memory remains injected, and both native hooks and the OpenCode plugin request semantic merging instead of truncating rules or module records.

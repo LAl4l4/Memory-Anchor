@@ -18,7 +18,8 @@ Memory Anchor is initialized in this repository. Follow these rules to ensure it
 ### File Roles
 - ./.memoryanchor/index.md: Auto-generated project chart index. Its entries point to directory-level architecture maps under ./.memoryanchor/chart/.
 - ./.memoryanchor/chart/.../chart.md: Directory-level architecture map. Read the root chart at the start of every task for project-wide context, then use index.md and Child Charts to find the chart closest to the task.
-- ./.memoryanchor/project-state.md: Current project state — Module Status (functionality/status/known_issues/notes) and Key Decisions (architectural choices and rationale).
+- ./.memoryanchor/project-state.md: Current Module Status (functionality/status/known_issues/notes).
+- ./.memoryanchor/decisions.md: Architectural choices and their rationale; all decisions are injected until a selection policy is configured.
 - ./.memoryanchor/guardrails.md: Persistent repository guardrails, one per line.
 - ./.memoryanchor/prompt-hooks.json: Optional UserPrompt hook selection; missing or empty means disabled.
 
@@ -33,7 +34,7 @@ Memory Anchor is initialized in this repository. Follow these rules to ensure it
 - At the start of every task, read ./.memoryanchor/chart/.../chart.md to establish a project-wide view before working on repository files.
 - If the agent has any uncertainty about the overall project structure, immediately read ./.memoryanchor/index.md again, then read the closest matching directory chart listed there.
 - Must follow all rules in ./.memoryanchor/guardrails.md. After solving a bug, first merge the lesson into an existing rule when possible. Add a new rule under "Repository-specific Guardrails" only when it represents a distinct, durable repository constraint.
-- After any of features implemented, update Module Status (and Key Decisions, if applicable) in ./.memoryanchor/project-state.md.
+- After any feature is implemented, update Module Status in ./.memoryanchor/project-state.md and, for significant architectural changes, update ./.memoryanchor/decisions.md.
 
 ### guardrails.md format
 - Keep only valid rules. Delete obsolete ones.

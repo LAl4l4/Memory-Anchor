@@ -45,6 +45,7 @@ export const INDEX_FILE_NAME = 'index.md';
 export const CHART_FILE_NAME = INDEX_FILE_NAME;
 export const GUARDRAILS_FILE_NAME = 'guardrails.md';
 export const PROJECT_STATE_FILE_NAME = 'project-state.md';
+export const DECISIONS_FILE_NAME = 'decisions.md';
 export const LEGACY_BALLAST_FILE_NAME = 'ballast.md';
 export const LEGACY_MANIFEST_FILE_NAME = 'manifest.md';
 export const DEBUG_CONFIG_FILE_NAME = 'debug.json';
@@ -66,7 +67,7 @@ export const GUARDRAILS_DEFAULT_RULES: string[] = [
   '- [ ] Do not change ./.memoryanchor/index.md or ./.memoryanchor/chart/ by yourself. Only do it when user explicitly instructs you to.',
   '- [ ] Follow ./.memoryanchor/AGENTS.md rules.',
   '- [ ] Do not rebuild a function that already exists and used by others, instead, pull it out to a separate file and import it',
-  '- [ ] After implementing a feature, update the Module Status in ./.memoryanchor/project-state.md. If it is a significant architectural change, also update Key Decisions.',
+  '- [ ] After implementing a feature, update the Module Status in ./.memoryanchor/project-state.md. If it is a significant architectural change, also update ./.memoryanchor/decisions.md.',
 ];
 
 export const GUARDRAILS_DEFAULT_TITLE = '# Default Guardrails (do not modify)';
@@ -86,8 +87,11 @@ export const PROJECT_STATE_DEFAULT_CONTENT = `
 - dependencies: dependented modules(e.g. sample.ts)
 - known_issues: Any known issues or limitations with this module.
 - notes: Any additional notes or comments about this module.
+`;
 
-## Key Decisions
+export const DECISIONS_DEFAULT_CONTENT = `
+# Key Decisions
+
 - sample decision: The explanation of this decision(e.g. Use jest to do automated testing because it is the most popular).
 
 - sample decision 2: Remember to keep /n/n after each decision.
@@ -100,7 +104,8 @@ Memory Anchor is initialized in this repository. Follow these rules to ensure it
 ### File Roles
 - ./.memoryanchor/index.md: Auto-generated project chart index. Its entries point to directory-level architecture maps under ./.memoryanchor/chart/.
 - ./.memoryanchor/chart/.../chart.md: Directory-level architecture map. Read the root chart at the start of every task for project-wide context, then use index.md and Child Charts to find the chart closest to the task.
-- ./.memoryanchor/project-state.md: Current project state — Module Status (functionality/status/known_issues/notes) and Key Decisions (architectural choices and rationale).
+- ./.memoryanchor/project-state.md: Current Module Status (functionality/status/known_issues/notes).
+- ./.memoryanchor/decisions.md: Architectural choices and their rationale; all decisions are injected until a selection policy is configured.
 - ./.memoryanchor/guardrails.md: Persistent repository guardrails, one per line.
 - ./.memoryanchor/prompt-hooks.json: Optional UserPrompt hook selection; missing or empty means disabled.
 
@@ -115,7 +120,7 @@ Memory Anchor is initialized in this repository. Follow these rules to ensure it
 - At the start of every task, read ./.memoryanchor/chart/.../chart.md to establish a project-wide view before working on repository files.
 - If the agent has any uncertainty about the overall project structure, immediately read ./.memoryanchor/index.md again, then read the closest matching directory chart listed there.
 - Must follow all rules in ./.memoryanchor/guardrails.md. After solving a bug, first merge the lesson into an existing rule when possible. Add a new rule under "Repository-specific Guardrails" only when it represents a distinct, durable repository constraint.
-- After any of features implemented, update Module Status (and Key Decisions, if applicable) in ./.memoryanchor/project-state.md.
+- After any feature is implemented, update Module Status in ./.memoryanchor/project-state.md and, for significant architectural changes, update ./.memoryanchor/decisions.md.
 
 ### guardrails.md format
 - Keep only valid rules. Delete obsolete ones.
@@ -199,7 +204,7 @@ export const OPENCODE_SCHEMA_URL = 'https://opencode.ai/config.json';
 
 export const REQUIRED_INSTRUCTION_ENTRIES = [
   './AGENTS.md',
-  // The plugin injects index.md, guardrails.md, and project-state.md together.
+  // The plugin injects index.md, guardrails.md, project-state.md, and decisions.md together.
 ] as const;
 
 // =============================================================================

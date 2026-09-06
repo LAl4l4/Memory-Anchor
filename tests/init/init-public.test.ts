@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 import {
   ANCHOR_DIR_NAME,
   CHART_FILE_NAME,
+  DECISIONS_FILE_NAME,
   GITIGNORE_ENTRY,
   GUARDRAILS_DEFAULT_RULES,
   GUARDRAILS_FILE_NAME,
@@ -71,12 +72,14 @@ test('creates guardrails.md with default rules', async () => {
   expect(guardrails).toContain('Do not rebuild a function');
 });
 
-test('creates project-state.md with module status and key decisions', async () => {
+test('creates separate project-state.md and decisions.md files', async () => {
   await runInitPublic(tempDir);
 
   const projectState = await readFile(path.join(tempDir, ANCHOR_DIR_NAME, PROJECT_STATE_FILE_NAME), 'utf8');
+  const decisions = await readFile(path.join(tempDir, ANCHOR_DIR_NAME, DECISIONS_FILE_NAME), 'utf8');
   expect(projectState).toContain('## Module Status');
-  expect(projectState).toContain('## Key Decisions');
+  expect(projectState).not.toContain('Key Decisions');
+  expect(decisions).toContain('# Key Decisions');
 });
 
 test('migrates legacy ballast and manifest files without losing their content', async () => {
@@ -88,7 +91,7 @@ test('migrates legacy ballast and manifest files without losing their content', 
   );
   await writeFile(
     path.join(anchorDir, 'manifest.md'),
-    '## Module Status\n### migrated\n- status: Stable\n',
+    '## Module Status\n### migrated\n- status: Stable\n\n## Key Decisions\n- first decision\n- second decision\n',
   );
 
   await runInitPublic(tempDir);
@@ -99,8 +102,46 @@ test('migrates legacy ballast and manifest files without losing their content', 
     .rejects.toMatchObject({ code: 'ENOENT' });
   await expect(readFile(path.join(anchorDir, GUARDRAILS_FILE_NAME), 'utf8'))
     .resolves.toContain('Preserve this repository-specific rule.');
-  await expect(readFile(path.join(anchorDir, PROJECT_STATE_FILE_NAME), 'utf8'))
-    .resolves.toContain('### migrated');
+  const projectState = await readFile(path.join(anchorDir, PROJECT_STATE_FILE_NAME), 'utf8');
+  const decisions = await readFile(path.join(anchorDir, DECISIONS_FILE_NAME), 'utf8');
+  expect(projectState).toContain('### migrated');
+  expect(projectState).not.toContain('Key Decisions');
+  expect(decisions).toContain('- first decision\n\n- second decision');
+});
+
+test('re-running splits embedded Key Decisions and preserves their spacing', async () => {
+  const anchorDir = path.join(tempDir, ANCHOR_DIR_NAME);
+  await import('node:fs/promises').then((fs) => fs.mkdir(anchorDir, { recursive: true }));
+  const projectStatePath = path.join(anchorDir, PROJECT_STATE_FILE_NAME);
+  await writeFile(
+    projectStatePath,
+    '## Module Status\n### core\n- status: Stable\n\n## Key Decisions\n- first decision\n- second decision\n- third decision\n',
+  );
+
+  await runInitPublic(tempDir);
+
+  await expect(readFile(projectStatePath, 'utf8')).resolves.not.toContain('Key Decisions');
+  await expect(readFile(path.join(anchorDir, DECISIONS_FILE_NAME), 'utf8')).resolves.toContain(
+    '- first decision\n\n- second decision\n\n- third decision',
+  );
+});
+
+test('re-running an interrupted decision migration does not duplicate decisions', async () => {
+  const anchorDir = path.join(tempDir, ANCHOR_DIR_NAME);
+  await import('node:fs/promises').then((fs) => fs.mkdir(anchorDir, { recursive: true }));
+  await writeFile(
+    path.join(anchorDir, PROJECT_STATE_FILE_NAME),
+    '## Module Status\n### core\n- status: Stable\n\n## Key Decisions\n- keep this decision\n',
+  );
+  await writeFile(
+    path.join(anchorDir, DECISIONS_FILE_NAME),
+    '# Key Decisions\n\n- keep this decision\n',
+  );
+
+  await runInitPublic(tempDir);
+
+  const decisions = await readFile(path.join(anchorDir, DECISIONS_FILE_NAME), 'utf8');
+  expect(decisions.match(/- keep this decision/g)).toHaveLength(1);
 });
 
 test('creates AGENTS.md with memory anchor rules', async () => {

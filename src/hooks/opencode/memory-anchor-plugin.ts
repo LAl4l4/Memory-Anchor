@@ -1,7 +1,13 @@
-// This module is compiled by tsc and copied verbatim to
+// This module and its shared imports are bundled at build time and copied to
 // .opencode/plugins/memory-anchor.js by init-opencode.
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { buildMemoryCore } from '../public/memoryCore.js';
+import { logHookTriggered, logHookSucceeded, logHookFailed } from '../public/hookDebug.js';
+import { USER_PROMPT_APPENDIX } from '../public/userPromptAppend.js';
+import { HOOK_COMMANDS } from '../../constant.js';
+
+const HOOK_BIN = HOOK_COMMANDS.OPENCODE;
 
 interface QuietCommand {
   quiet(): Promise<unknown>;
@@ -46,76 +52,6 @@ interface EventOutput {
   event: RuntimeEvent;
 }
 
-// This file is copied as a standalone plugin, so it cannot import the CLI's
-// HOOK_COMMANDS constant. Keep the public bin name in sync with it.
-const HOOK_BIN = 'memoryanchor-opencode';
-const USER_PROMPT_APPENDIX =
-  '[IMPORTANT!] Must read ./.memoryanchor/chart/.../chart.md before any works and glob/grep.';
-// This plugin is copied standalone, so keep these values in sync with constant.ts.
-const GUARDRAILS_MAX_BYTES = 5 * 1024;
-const PROJECT_STATE_MODULE_STATUS_MAX_BYTES = 8 * 1024;
-
-type DebugLogLevel = 'debug' | 'error';
-
-function isDebugModeEnabled(workspaceRoot: string): boolean {
-  try {
-    const config = JSON.parse(
-      fs.readFileSync(path.join(workspaceRoot, '.memoryanchor', 'debug.json'), 'utf8'),
-    ) as { enabled?: unknown };
-    return config.enabled === true;
-  } catch {
-    return false;
-  }
-}
-
-function appendDebugLog(workspaceRoot: string, level: DebugLogLevel, message: string): void {
-  if (!isDebugModeEnabled(workspaceRoot)) return;
-  try {
-    const prefix = `[${new Date().toISOString()}] [${level.toUpperCase()}] `;
-    const lines = message.replace(/\r\n/g, '\n').split('\n');
-    fs.appendFileSync(
-      path.join(workspaceRoot, '.memoryanchor', 'debug.log'),
-      `${lines.map((line) => `${prefix}${line}`).join('\n')}\n`,
-      'utf8',
-    );
-  } catch {
-    // OpenCode diagnostics must not interfere with the agent loop.
-  }
-}
-
-function logHookTriggered(workspaceRoot: string, event: string): void {
-  appendDebugLog(
-    workspaceRoot,
-    'debug',
-    `Hook triggered | agent=opencode | event=${event} | workdir=${workspaceRoot}`,
-  );
-}
-
-function logHookSucceeded(workspaceRoot: string, event: string, result: string): void {
-  appendDebugLog(
-    workspaceRoot,
-    'debug',
-    `Hook result | agent=opencode | event=${event} | workdir=${workspaceRoot} | status=success | result=${result}`,
-  );
-}
-
-function logHookFailed(workspaceRoot: string, event: string, error: unknown): void {
-  const detail = error instanceof Error ? error.stack ?? error.message : String(error);
-  appendDebugLog(
-    workspaceRoot,
-    'error',
-    `Hook result | agent=opencode | event=${event} | workdir=${workspaceRoot} | status=failed\n${detail}`,
-  );
-}
-
-function readFileSafe(filePath: string, fallback: string): string {
-  try {
-    return fs.existsSync(filePath) ? fs.readFileSync(filePath, 'utf-8').trim() : fallback;
-  } catch {
-    return fallback;
-  }
-}
-
 function resolveWorkspaceRoot(directory?: string, worktree?: string | null): string {
   const candidates = [worktree, directory, process.cwd()]
     .filter((candidate): candidate is string => Boolean(candidate))
@@ -126,101 +62,10 @@ function resolveWorkspaceRoot(directory?: string, worktree?: string | null): str
   return anchoredRoot ?? path.resolve(directory ?? worktree ?? process.cwd());
 }
 
-function extractProjectStateModuleStatus(projectState: string): string {
-  const moduleHeading = /^##\s+Module Status\s*$/m;
-  const headingMatch = moduleHeading.exec(projectState);
-  if (!headingMatch) return '';
-
-  const sectionStart = headingMatch.index;
-  const afterHeading = sectionStart + headingMatch[0].length;
-  const nextSectionMatch = /^##\s+Key Decisions\s*$/m.exec(projectState.slice(afterHeading));
-  const sectionEnd = nextSectionMatch
-    ? afterHeading + nextSectionMatch.index
-    : projectState.length;
-  return projectState.slice(sectionStart, sectionEnd).trim();
-}
-
-function buildMemoryCompactionMission(guardrails: string, projectState: string): string {
-  const guardrailsBytes = Buffer.byteLength(guardrails, 'utf8');
-  const moduleStatusBytes = Buffer.byteLength(extractProjectStateModuleStatus(projectState), 'utf8');
-  const guardrailsOverLimit = guardrailsBytes > GUARDRAILS_MAX_BYTES;
-  const moduleStatusOverLimit = moduleStatusBytes > PROJECT_STATE_MODULE_STATUS_MAX_BYTES;
-  if (!guardrailsOverLimit && !moduleStatusOverLimit) return '';
-
-  const exceeded: string[] = [];
-  const actions: string[] = [];
-  if (guardrailsOverLimit) {
-    exceeded.push(
-      `- \`.memoryanchor/guardrails.md\` is ${guardrailsBytes} UTF-8 bytes; limit: ${GUARDRAILS_MAX_BYTES} bytes.`,
-    );
-    actions.push(
-      '- Shorten `guardrails.md`: preserve every default rule, remove obsolete or duplicate repository-specific rules, merge into existing rules first, and add a rule only for a distinct durable repository constraint.',
-    );
-  }
-  if (moduleStatusOverLimit) {
-    exceeded.push(
-      `- The \`## Module Status\` section of \`.memoryanchor/project-state.md\` is ${moduleStatusBytes} UTF-8 bytes; limit: ${PROJECT_STATE_MODULE_STATUS_MAX_BYTES} bytes.`,
-    );
-    actions.push(
-      '- Shorten only the `## Module Status` section: merge duplicate modules and replace historical detail with concise current state while preserving functionality, status, dependencies, known issues, and essential notes.',
-    );
-  }
-
-  return `
-[TRIGGERED MISSION: MEMORY COMPACTION]
-- Urgent Status: Persistent memory exceeded its configured injection length limit.
-${exceeded.join('\n')}
-- Your Action Required: During this session, edit the over-limit file sections and bring them within their limits before completing the current task.
-${actions.join('\n')}
-`;
-}
-
-function buildMemoryCore(workspaceRoot: string): string {
-  const anchorDir = path.join(workspaceRoot, '.memoryanchor');
-  const indexPath = path.join(anchorDir, 'index.md');
-  const rootChartPath = path.join(anchorDir, 'chart', 'chart.md');
-  const guardrailsPath = path.join(anchorDir, 'guardrails.md');
-  const projectStatePath = path.join(anchorDir, 'project-state.md');
-  const index = readFileSafe(indexPath, 'No project chart available.');
-  const rootChart = fs.existsSync(rootChartPath) ? readFileSafe(rootChartPath, '') : '';
-  const chart = rootChart
-    ? '[INDEX ROUTING RULES — ALWAYS INJECTED]\n' +
-      index +
-      '\n\n[ROOT CHART ALREADY INJECTED — DO NOT READ IT AGAIN]\n' +
-      rootChart
-    : '[INDEX ROUTING RULES — ALWAYS INJECTED]\n' + index;
-  const guardrails = readFileSafe(
-    guardrailsPath,
-    'No active coding constraints or lessons-learned enforced.',
-  );
-  const projectState = readFileSafe(projectStatePath, 'No active cross-session tasks found.');
-  let taskSection = buildMemoryCompactionMission(guardrails, projectState);
-  taskSection += guardrails.includes('[STALE]')
-    ? "\n[TRIGGERED MISSION: MEMORY PRUNING]\n- Urgent Status: Some developer-enforced limits inside the [2. GUARDRAILS] section are currently flagged with '[STALE]'.\n- Your Action Required: These rules are likely obsolete due to recent code changes. You MUST evaluate and directly rewrite '.memoryanchor/guardrails.md' to DELETE any invalid stale rules during this session.\n"
-    : '';
-
-  return [
-    '==================================================',
-    '[MEMORY ANCHOR: CONTEXT INJECTED]',
-    'Target: Assist the developer by ensuring all generated code aligns with local repository constraints.',
-    '',
-    taskSection,
-    '[1. CHART (project structure & architectural symbols)]',
-    chart,
-    '',
-    '[2. GUARDRAILS (rules must follow)]',
-    guardrails,
-    '',
-    '[3. PROJECT STATE (module status & key decisions)]',
-    projectState,
-    '==================================================',
-  ].join('\n');
-}
-
 function isPromptHookEnabled(workspaceRoot: string): boolean {
   try {
     const configPath = path.join(workspaceRoot, '.memoryanchor', 'prompt-hooks.json');
-    const config = JSON.parse(readFileSafe(configPath, '{}')) as {
+    const config = JSON.parse(fs.readFileSync(configPath, 'utf8')) as {
       enabled?: unknown;
     };
     return Array.isArray(config.enabled) && config.enabled.includes('opencode');
@@ -243,13 +88,13 @@ export const MemoryAnchorPlugin = async ({ $, directory, worktree }: PluginInput
     output: SystemTransformOutput,
   ): Promise<void> => {
     const event = 'experimental.chat.system.transform';
-    logHookTriggered(workspaceRoot, event);
+    logHookTriggered({ agent: 'opencode', event, workdir: workspaceRoot });
     try {
       const memoryCore = buildMemoryCore(workspaceRoot);
       output.system.push(memoryCore);
-      logHookSucceeded(workspaceRoot, event, `memory context injected (${memoryCore.length} chars)`);
+      logHookSucceeded({ agent: 'opencode', event, workdir: workspaceRoot }, `memory context injected (${memoryCore.length} chars)`);
     } catch (error) {
-      logHookFailed(workspaceRoot, event, error);
+      logHookFailed({ agent: 'opencode', event, workdir: workspaceRoot }, error);
       // Hooks must never break the agent loop.
     }
   },
@@ -262,34 +107,34 @@ export const MemoryAnchorPlugin = async ({ $, directory, worktree }: PluginInput
     output: ChatMessagesTransformOutput,
   ): Promise<void> => {
     const event = 'experimental.chat.messages.transform';
-    logHookTriggered(workspaceRoot, event);
+    logHookTriggered({ agent: 'opencode', event, workdir: workspaceRoot });
     try {
       if (!isPromptHookEnabled(workspaceRoot)) {
-        logHookSucceeded(workspaceRoot, event, 'skipped: UserPrompt hook disabled');
+        logHookSucceeded({ agent: 'opencode', event, workdir: workspaceRoot }, 'skipped: UserPrompt hook disabled');
         return;
       }
       const userMessage = [...output.messages]
         .reverse()
         .find((message) => message.info.role === 'user');
       if (!userMessage) {
-        logHookSucceeded(workspaceRoot, event, 'skipped: no user message');
+        logHookSucceeded({ agent: 'opencode', event, workdir: workspaceRoot }, 'skipped: no user message');
         return;
       }
 
       const textPart = [...userMessage.parts].reverse().find(isTextPartWithText);
       if (!textPart) {
-        logHookSucceeded(workspaceRoot, event, 'skipped: no text message part');
+        logHookSucceeded({ agent: 'opencode', event, workdir: workspaceRoot }, 'skipped: no text message part');
         return;
       }
       if (textPart.text.includes(USER_PROMPT_APPENDIX)) {
-        logHookSucceeded(workspaceRoot, event, 'skipped: prompt already contains the reminder');
+        logHookSucceeded({ agent: 'opencode', event, workdir: workspaceRoot }, 'skipped: prompt already contains the reminder');
         return;
       }
 
       textPart.text = `${textPart.text}\n\n${USER_PROMPT_APPENDIX}`;
-      logHookSucceeded(workspaceRoot, event, 'prompt reminder appended');
+      logHookSucceeded({ agent: 'opencode', event, workdir: workspaceRoot }, 'prompt reminder appended');
     } catch (error) {
-      logHookFailed(workspaceRoot, event, error);
+      logHookFailed({ agent: 'opencode', event, workdir: workspaceRoot }, error);
       // Hooks must never break the agent loop.
     }
   },
@@ -302,12 +147,12 @@ export const MemoryAnchorPlugin = async ({ $, directory, worktree }: PluginInput
     // event, so use `session.idle` as the Codex-style fallback for session-end
     // maintenance instead.
     if (event.type !== 'session.idle') return;
-    logHookTriggered(workspaceRoot, event.type);
+    logHookTriggered({ agent: 'opencode', event: event.type, workdir: workspaceRoot });
     try {
       await $`cd ${workspaceRoot} && ${HOOK_BIN}-post`.quiet();
-      logHookSucceeded(workspaceRoot, event.type, `executed ${HOOK_BIN}-post`);
+      logHookSucceeded({ agent: 'opencode', event: event.type, workdir: workspaceRoot }, `executed ${HOOK_BIN}-post`);
     } catch (error) {
-      logHookFailed(workspaceRoot, event.type, error);
+      logHookFailed({ agent: 'opencode', event: event.type, workdir: workspaceRoot }, error);
       // Hooks must never break the agent loop.
     }
   },

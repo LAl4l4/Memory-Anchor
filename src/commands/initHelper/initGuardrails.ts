@@ -3,7 +3,7 @@ import {
   GUARDRAILS_DEFAULT_RULES,
   GUARDRAILS_DEFAULT_TITLE,
   GUARDRAILS_SPECIFIC_TITLE,
-} from '../constant.js';
+} from '../../constant.js';
 
 const LEGACY_SPECIFIC_TITLE =
   '# Specific Rules For This Repository(Change this after solve bugs or user add specific rules)';

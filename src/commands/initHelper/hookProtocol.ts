@@ -21,7 +21,7 @@
  * Axes
  * ----
  *   1. eventNameStyle      — how event identifiers are cased / namespaced.
- *   2. injectionMechanism  — how the (pre) hook delivers guardrails and project state
+ *   2. injectionMechanism  — how the pre hook delivers persistent project memory
  *                            to the agent's prompt.
  *   3. hookConfig          — the on-disk shape of a hook registration.
  *   4. needsContextMd      — whether a `<AGENT>.md` anchor file is required
@@ -182,7 +182,7 @@ export interface AgentHookProtocol<E extends string = string> {
   readonly label: string;
   /** Casing / namespacing convention for this platform's event names. */
   readonly eventNameStyle: EventNameStyle;
-  /** How the pre hook delivers guardrails and project state to the agent's prompt. */
+  /** How the pre hook delivers persistent project memory to the agent's prompt. */
   readonly injectionMechanism: InjectionMechanism;
   /** On-disk shape of a hook registration. */
   readonly hookConfigShape: HookConfigShape;

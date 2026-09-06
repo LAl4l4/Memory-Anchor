@@ -44,16 +44,18 @@ with the CLI.
 | `.memoryanchor/chart/**/chart.md` | Generated architecture charts, partitioned by directory topology. |
 | `.memoryanchor/dirTree.json` | Persisted directory sizes, split states, and virtual chart-tree routes. |
 | `.memoryanchor/dependencyGraph.json` | Persisted file-import candidate and function-level forward/reverse dependency edges for incremental chart refreshes. |
+| `.memoryanchor/refresh-checkpoint.json` | Successful-refresh file metadata fingerprints and chart-state identity used to skip unchanged dirty paths. |
 | `.memoryanchor/untracked-files.json` | Observed Git-untracked paths whose existence is checked on future lifecycle refreshes. |
 | `.memoryanchor/guardrails.md` | Durable default and repository-specific implementation guardrails. |
-| `.memoryanchor/project-state.md` | Module status, dependencies, known issues, and key decisions. |
+| `.memoryanchor/project-state.md` | Current module status, dependencies, and known issues. |
+| `.memoryanchor/decisions.md` | Architectural decisions and their rationale. |
 | `.memoryanchor/debug.json` | Opt-in, workspace-local diagnostic logging setting. |
 | `.memoryanchor/debug.log` | Append-only diagnostics emitted while debug mode is enabled. |
 | `AGENTS.md` | Managed instructions that tell supported agents how to traverse and use the memory. |
 
-Charts are generated artifacts and must not be edited manually. `guardrails.md` and
-`project-state.md` are durable project memory and are intentionally maintained over
-time.
+Charts are generated artifacts and must not be edited manually. `guardrails.md`,
+`project-state.md`, and `decisions.md` are durable project memory and are intentionally
+maintained over time. Session-start hooks currently inject all three files in full.
 
 ## 4. Full initialization
 
@@ -169,6 +171,8 @@ incremental reconciliation. A path is removed from the watch set once it enters
 Git's index. The legacy
 `updateChartIncrementally` API remains a compatibility alias.
 
+Lifecycle capture reads NUL-delimited Git porcelain records and includes both rename endpoints. It batches tracked-file queries for the untracked watch set. A successful-refresh checkpoint compares file metadata (device, inode, mode, size, mtime and ctime at nanosecond resolution), keeping capture-time fingerprints only after refresh succeeds and retaining pending markers for files that changed during rendering. Previously refreshed paths are checked even when absent from Git status, covering reverts and commits. Replaced chart-state artifacts invalidate the checkpoint. Pending untracked deletions are acknowledged only after successful refresh.
+
 Each deduplicated change batch follows one ordered pipeline:
 
 1. **Incremental parse** — parse the changed files and one direct-file view
@@ -241,6 +245,10 @@ with no Memory Anchor side effect. The plugin resolves workspace state from the 
 `worktree`, `directory`, or process directory containing `.memoryanchor`; this
 also anchors lifecycle commands when OpenCode reports a non-Git worktree.
 
+Native and OpenCode hooks use the same context builder, maintenance notices, prompt reminder and diagnostic implementation. The build bundles the OpenCode entry and its shared modules into one standalone ESM file; initialization continues to copy that artifact verbatim.
+
+Memory limits and legacy `[STALE]` markers produce optional review notices, never a mission that must be completed before the user's task. Stop and session-end hooks do not rewrite guardrails or infer obsolescence from source filenames. `anchor maintain` reports notices without editing files; `anchor maintain --normalize` explicitly normalizes guardrail formatting while retaining rules for semantic review.
+
 Hermes Agent has no project-scoped hook config: shell hooks are registered in
 the global `$HERMES_HOME/config.yaml` (default `~/.hermes/config.yaml`), so
 they fire in every project the agent runs in and must no-op outside a Memory
@@ -263,7 +271,8 @@ JavaScript, JSON, Python, Ruby, Rust, Scala, Swift, TypeScript, and TSX.
 ## 11. Acceptance criteria
 
 - `anchor init` creates a valid index, chart tree, directory registry, guardrails,
-  project state, and configured integrations without duplicate managed hooks.
+  project state, decisions, and configured integrations without duplicate managed
+  hooks; existing `## Key Decisions` content is migrated out of project-state.md.
 - Every generated chart follows the content contract and identifies its own
   path.
 - The index and Child Chart routes reach the nearest valid chart partition.

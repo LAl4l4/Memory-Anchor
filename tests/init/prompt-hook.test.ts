@@ -83,7 +83,7 @@ test('selects exact agents and enables all agents when no selection is supplied'
   expect((await readJson('.github', 'hooks', 'memory-anchor.json')).hooks.userPromptTransformed[0].bash)
     .toBe(HOOK_COMMANDS.COPILOT_PROMPT);
   expect(await readFile(path.join(tempDir, '.opencode', 'plugins', 'memory-anchor.js'), 'utf8'))
-    .toContain("config.enabled.includes('opencode')");
+    .toMatch(/config\.enabled\.includes\(['"]opencode['"]\)/);
 
   const hermesConfig = parseDocument(
     await readFile(path.join(tempDir, 'hermes-home', 'config.yaml'), 'utf8'),

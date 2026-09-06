@@ -25,15 +25,17 @@ Memory Anchor keeps its generated state under `.memoryanchor/`:
 | --- | --- |
 | `.memoryanchor/index.md` | Small repository-level index that routes an agent to the closest chart partition. |
 | `.memoryanchor/chart/**/chart.md` | Directory-scoped architecture charts containing a dependency skeleton, extracted symbols, and in-chart reverse symbol dependencies. |
+| `.memoryanchor/refresh-checkpoint.json` | File metadata fingerprints recorded after successful refreshes; skips unchanged dirty files. |
 | `.memoryanchor/dirTree.json` | Internal directory topology, aggregate character counts, and split state used by incremental updates. |
 | `.memoryanchor/guardrails.md` | Durable default and repository-specific guardrails. |
-| `.memoryanchor/project-state.md` | Module status, known issues, dependencies, and architectural decisions. |
+| `.memoryanchor/project-state.md` | Current module status, known issues, and dependencies. |
+| `.memoryanchor/decisions.md` | Architectural decisions and rationale. |
 | `.memoryanchor/prompt-hooks.json` | Optional UserPrompt hook selection; absent or empty means disabled. |
 | `.memoryanchor/debug.json` | Opt-in persistent diagnostic logging setting, managed by `anchor debug`. |
 | `.memoryanchor/debug.log` | Append-only CLI and lifecycle diagnostics while debug mode is enabled. |
-| `AGENTS.md` | Workflow instructions telling agents how to use the index, charts, guardrails, and project state. |
+| `AGENTS.md` | Workflow instructions telling agents how to use the index, charts, guardrails, project state, and decisions. |
 
-Charts are generated output and should not be edited manually. Guardrails and project state are intentionally readable project memory.
+Charts are generated output and should not be edited manually. Guardrails, project state, and decisions are intentionally readable project memory.
 
 ## Why partition the chart?
 
@@ -55,6 +57,7 @@ The output mirrors the source tree. For example:
 ├── dirTree.json
 ├── guardrails.md
 ├── project-state.md
+├── decisions.md
 └── chart/
     ├── src/
     │   ├── chartBuild/chart.md
@@ -63,7 +66,7 @@ The output mirrors the source tree. For example:
     └── tests/chart.md
 ```
 
-At session start, Memory Anchor injects the index, guardrails, and project state. The index tells the agent which directory chart to open, so unrelated architecture does not need to occupy the initial context.
+At session start, Memory Anchor injects the index, guardrails, project state, and the complete decisions file. Decision selection is intentionally deferred; no entries are filtered or truncated. The index tells the agent which directory chart to open, so unrelated architecture does not need to occupy the initial context.
 
 ## Incremental updates
 
@@ -111,10 +114,10 @@ A representative `anchor init` run on the Next.js repository parsed 24,602 sourc
 ```text
 anchor init
     │  full directory scan → dirTree registry → partition charts + index
-    │  create guardrails/project state and configure agent integrations
+    │  create guardrails/project state/decisions and configure integrations
     ▼
 Session starts
-    │  inject index + guardrails + project state
+    │  inject index + guardrails + project state + all decisions
     ▼
 Agent works
     │  index routes the agent to the closest directory chart
@@ -165,11 +168,19 @@ When an integration needs investigation, run `anchor debug`. This enables a work
 | `anchor init-hermes` | Initialize the Hermes Agent hooks in `$HERMES_HOME/config.yaml`. |
 | `anchor prompt-hook [agents...]` | Enable or disable optional UserPrompt reminders (`--off` disables). |
 | `anchor debug` | Enable persistent diagnostics in `.memoryanchor/debug.log` (`--off` disables without deleting the log). |
+| `anchor maintain` | Read-only review of memory budget and legacy `[STALE]` notices. |
+| `anchor maintain --normalize` | Explicitly normalize `guardrails.md` formatting while preserving rules for semantic review. |
 | `anchor status` | Show the version, workspace, and core Memory Anchor file status. |
 | `anchor version` | Print the installed version. |
 | `anchor help` | Show CLI help. |
 
 Initialization is safe to rerun. Memory Anchor repairs missing managed entries and refreshes generated chart output without duplicating matching hooks.
+
+Repeated lifecycle hooks skip files whose metadata fingerprint matches the last successful refresh, even while those files remain uncommitted. Previously refreshed paths are also checked after they disappear from Git status, so reverting a change still refreshes its chart. Failed refreshes do not advance the checkpoint, and pending untracked deletions remain retryable.
+
+Memory budget and legacy `[STALE]` notices are advisory. Hooks do not mark rules obsolete or rewrite guardrails after source edits. Use `anchor maintain` to inspect notices and `anchor maintain --normalize` to explicitly normalize formatting; rule validity and semantic compaction remain human/agent review tasks. Existing OpenCode installations receive the shared, bundled runtime when `anchor init-opencode` is rerun.
+
+`anchor maintain` does not change project files. It reports when `guardrails.md` exceeds 5 KiB, the `Module Status` section of `project-state.md` exceeds 8 KiB, or legacy `[STALE]` markers are present. Add `--normalize` only when you want to rewrite `guardrails.md` into its standard two-section and checkbox format; it keeps stale rules in place for review rather than deciding whether they are still valid.
 
 ## Supported languages
 
@@ -234,7 +245,7 @@ make chart-partitions
 
 ## Contributing
 
-Keep changes focused, add regression tests for behavior changes, and preserve the generated-memory workflow. Feature work should update `.memoryanchor/project-state.md`; resolved repository-specific bugs should add a valid prevention rule to `.memoryanchor/guardrails.md`.
+Keep changes focused, add regression tests for behavior changes, and preserve the generated-memory workflow. Feature work should update `.memoryanchor/project-state.md`, significant architectural changes should update `.memoryanchor/decisions.md`, and resolved repository-specific bugs should add a valid prevention rule to `.memoryanchor/guardrails.md`.
 
 ## License
 

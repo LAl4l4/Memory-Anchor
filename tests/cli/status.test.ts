@@ -9,6 +9,7 @@ import { fileURLToPath } from 'node:url';
 import {
   ANCHOR_DIR_NAME,
   CHART_FILE_NAME,
+  DECISIONS_FILE_NAME,
   GUARDRAILS_FILE_NAME,
   PROJECT_STATE_FILE_NAME,
 } from '../../dist/constant.js';
@@ -61,6 +62,7 @@ test('shows Active status when all anchor files exist', async () => {
   await writeFile(path.join(anchorDir, CHART_FILE_NAME), '# chart');
   await writeFile(path.join(anchorDir, GUARDRAILS_FILE_NAME), '- [ ] rule');
   await writeFile(path.join(anchorDir, PROJECT_STATE_FILE_NAME), '## Todo');
+  await writeFile(path.join(anchorDir, DECISIONS_FILE_NAME), '# Key Decisions');
 
   const stdout = await runStatus(tempDir);
   expect(stdout).toContain('Status:     Active');
@@ -86,7 +88,7 @@ test('shows dataDir and indexDir from config', async () => {
   expect(stdout).toContain(`Index Dir:  ${ANCHOR_DIR_NAME}/index`);
 });
 
-test('shows index.md, guardrails.md, and project-state.md with check/cross marks', async () => {
+test('shows every persistent Markdown memory file with check/cross marks', async () => {
   const anchorDir = path.join(tempDir, ANCHOR_DIR_NAME);
   await mkdir(anchorDir, { recursive: true });
   await writeFile(path.join(anchorDir, CHART_FILE_NAME), '# chart');
@@ -96,7 +98,8 @@ test('shows index.md, guardrails.md, and project-state.md with check/cross marks
   // index.md should have a check mark (exists)
   expect(stdout).toMatch(/index\.md\s+✓/);
 
-  // guardrails.md and project-state.md should have cross marks (missing)
+  // Persistent memory files should have cross marks when missing.
   expect(stdout).toMatch(/guardrails\.md\s+✗/);
   expect(stdout).toMatch(/project-state\.md\s+✗/);
+  expect(stdout).toMatch(/decisions\.md\s+✗/);
 });

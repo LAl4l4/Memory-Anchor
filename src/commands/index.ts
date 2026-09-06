@@ -5,6 +5,7 @@ import { initCommand } from './init.js';
 import { promptHookCommand } from './promptHook.js';
 import { statusCommand } from './status.js';
 import { versionCommand } from './version.js';
+import { maintainCommand } from './maintain.js';
 
 export function registerBuiltInCommands(cli: CAC, context: CommandContext): void {
   debugCommand(cli, context);
@@ -12,4 +13,5 @@ export function registerBuiltInCommands(cli: CAC, context: CommandContext): void
   initCommand(cli, context);
   promptHookCommand(cli, context);
   statusCommand(cli, context);
+  maintainCommand(cli, context);
 }

@@ -6,16 +6,17 @@ import { fileURLToPath } from 'node:url';
 import { buildChartFull, destroyPool } from '../../chartBuild/buildChart.js';
 import {
   AGENTS_CONTENT,
+  DECISIONS_FILE_NAME,
   GITIGNORE_ENTRY,
   GUARDRAILS_FILE_NAME,
   INDEX_FILE_NAME,
   LEGACY_BALLAST_FILE_NAME,
   LEGACY_MANIFEST_FILE_NAME,
-  PROJECT_STATE_DEFAULT_CONTENT,
   PROJECT_STATE_FILE_NAME,
 } from '../../constant.js';
-import { ensureGuardrailsFile } from '../../chartBuild/init-guardrails.js';
 import { scanAvailableParsers } from '../../chartBuild/scan-parsers.js';
+import { ensureGuardrailsFile } from './initGuardrails.js';
+import { ensureProjectMemoryFiles } from './initProjectState.js';
 import { ensurePromptHookConfig } from './promptHookConfig.js';
 
 // =============================================================================
@@ -188,13 +189,17 @@ export async function ensureAnchorFiles(memoryAnchorDir: string): Promise<boolea
   const guardrailsCreated = await ensureGuardrailsFile(
     path.join(memoryAnchorDir, GUARDRAILS_FILE_NAME)
   );
-  const projectStateCreated = await ensureFile(
+  const projectMemoryCreatedOrMigrated = await ensureProjectMemoryFiles(
     path.join(memoryAnchorDir, PROJECT_STATE_FILE_NAME),
-    PROJECT_STATE_DEFAULT_CONTENT
+    path.join(memoryAnchorDir, DECISIONS_FILE_NAME),
   );
   const promptHookConfigCreated = await ensurePromptHookConfig(memoryAnchorDir);
 
-  return migrated || chartCreated || guardrailsCreated || projectStateCreated || promptHookConfigCreated;
+  return migrated
+    || chartCreated
+    || guardrailsCreated
+    || projectMemoryCreatedOrMigrated
+    || promptHookConfigCreated;
 }
 
 export async function ensureAgentsFile(agentsPath: string): Promise<boolean> {
@@ -242,6 +247,7 @@ export interface BasePaths {
   chartPath: string;
   guardrailsPath: string;
   projectStatePath: string;
+  decisionsPath: string;
   gitignorePath: string;
   agentsPath: string;
 }
@@ -253,6 +259,7 @@ export function getBasePaths(cwd: string): BasePaths {
     chartPath: path.join(memoryAnchorDir, INDEX_FILE_NAME),
     guardrailsPath: path.join(memoryAnchorDir, GUARDRAILS_FILE_NAME),
     projectStatePath: path.join(memoryAnchorDir, PROJECT_STATE_FILE_NAME),
+    decisionsPath: path.join(memoryAnchorDir, DECISIONS_FILE_NAME),
     gitignorePath: path.join(cwd, '.gitignore'),
     agentsPath: path.join(cwd, 'AGENTS.md'),
   };

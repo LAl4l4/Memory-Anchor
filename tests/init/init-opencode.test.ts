@@ -3,7 +3,7 @@ import { execFile } from 'node:child_process';
 import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import { GUARDRAILS_MAX_BYTES, HOOK_COMMANDS, OPENCODE_SCHEMA_URL, REQUIRED_INSTRUCTION_ENTRIES } from '../../dist/constant.js';
 
@@ -46,36 +46,26 @@ test('creates .opencode/plugins/memory-anchor.js', async () => {
     path.join(tempDir, '.opencode', 'plugins', 'memory-anchor.js'),
     'utf8',
   );
-  expect(plugin).toContain('export const MemoryAnchorPlugin');
   expect(plugin).toContain(HOOK_COMMANDS.OPENCODE);
-  // Context injection must go through the documented system-transform hook,
-  // NOT through a (non-existent) "session.start" event.
   expect(plugin).toContain('experimental.chat.system.transform');
   expect(plugin).toContain('experimental.chat.messages.transform');
-  expect(plugin).not.toContain("'chat.message':");
-  expect(plugin).toContain('[IMPORTANT!] Must read ./.memoryanchor/chart/.../chart.md before any works and glob/grep.');
-  expect(plugin).toContain('function resolveWorkspaceRoot(directory, worktree)');
-  expect(plugin).toContain("fs.existsSync(path.join(candidate, '.memoryanchor'))");
-  expect(plugin).toContain("const anchorDir = path.join(workspaceRoot, '.memoryanchor');");
-  expect(plugin).toContain('[INDEX ROUTING RULES — ALWAYS INJECTED]');
-  expect(plugin).toContain('[ROOT CHART ALREADY INJECTED — DO NOT READ IT AGAIN]');
-  expect(plugin).toContain('readFileSafe(indexPath');
-  expect(plugin).toContain('fs.existsSync(rootChartPath)');
-  expect(plugin).toContain('cd ${workspaceRoot} && ${HOOK_BIN}-post');
-  expect(plugin).toContain('[1. CHART (project structure & architectural symbols)]');
-  expect(plugin).toContain('[2. GUARDRAILS (rules must follow)]');
-  expect(plugin).toContain('[3. PROJECT STATE (module status & key decisions)]');
-  expect(plugin).not.toContain('session.start');
-  expect(plugin).not.toContain('memoryanchor-opencode-pre');
-  // session.idle is the Codex-style session-end fallback. session.deleted
-  // means a stored conversation was deleted, not that the OpenCode CLI exited.
   expect(plugin).toContain('session.idle');
-  expect(plugin).not.toContain("&& event.type !== 'session.deleted'");
-  expect(plugin).toContain('${HOOK_BIN}-post');
-  expect(plugin).not.toContain('${HOOK_BIN}-stop');
+  expect(plugin).toContain('[MEMORY MAINTENANCE NOTICE]');
+  expect(plugin).not.toContain('[TRIGGERED MISSION:');
+  // The copied artifact must work outside the package, without relative imports.
+  await writeFile(path.join(tempDir, 'standalone.mjs'), plugin);
+  const { MemoryAnchorPlugin } = await import(pathToFileURL(
+    path.join(tempDir, 'standalone.mjs'),
+  ).href);
+  const hooks = await MemoryAnchorPlugin({ directory: tempDir, $: () => ({ quiet: async () => {} }) });
+  const output = { system: [] as string[] };
+  await hooks['experimental.chat.system.transform']({}, output);
+  const { buildMemoryCore } = await import('../../dist/hooks/public/memoryCore.js');
+  expect(output.system).toEqual([buildMemoryCore(tempDir)]);
+
 });
 
-test('copies the TypeScript-compiled plugin verbatim', async () => {
+test('copies the bundled plugin verbatim', async () => {
   await runInitOpencode(tempDir);
 
   const [plugin, compiledPlugin] = await Promise.all([
@@ -137,7 +127,7 @@ test('does not add the OpenCode reminder when the hook is disabled', async () =>
   expect(output.messages[0].parts[0].text).toBe('Inspect this.');
 });
 
-test('OpenCode requests memory compaction when guardrails exceed their byte limit', async () => {
+test('OpenCode reports optional memory maintenance when guardrails exceed their byte limit', async () => {
   const anchorDir = path.join(tempDir, '.memoryanchor');
   await mkdir(anchorDir, { recursive: true });
   await writeFile(path.join(anchorDir, 'guardrails.md'), `- [ ] ${'x'.repeat(GUARDRAILS_MAX_BYTES)}`);
@@ -152,8 +142,27 @@ test('OpenCode requests memory compaction when guardrails exceed their byte limi
 
   await hooks['experimental.chat.system.transform']({}, output);
 
-  expect(output.system.join('\n')).toContain('[TRIGGERED MISSION: MEMORY COMPACTION]');
-  expect(output.system.join('\n')).toContain('Shorten `guardrails.md`');
+  expect(output.system.join('\n')).toContain('[MEMORY MAINTENANCE NOTICE]');
+  expect(output.system.join('\n')).toContain('do not require action during the current task');
+});
+
+test('OpenCode injects the complete decisions file independently of project state', async () => {
+  const anchorDir = path.join(tempDir, '.memoryanchor');
+  await mkdir(anchorDir, { recursive: true });
+  const decisions = '# Key Decisions\n\n- newest decision\n\n- older decision';
+  await writeFile(path.join(anchorDir, 'project-state.md'), '## Module Status\n### core');
+  await writeFile(path.join(anchorDir, 'decisions.md'), decisions);
+
+  const { MemoryAnchorPlugin } = await import('../../dist/hooks/opencode/memory-anchor-plugin.js');
+  const hooks = await MemoryAnchorPlugin({
+    directory: tempDir,
+    $: () => ({ quiet: async () => undefined }),
+  });
+  const output = { system: [] };
+
+  await hooks['experimental.chat.system.transform']({}, output);
+
+  expect(output.system.join('\n')).toContain(decisions);
 });
 
 test('uses OpenCode worktree for context and lifecycle commands', async () => {

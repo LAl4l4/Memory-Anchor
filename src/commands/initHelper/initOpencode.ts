@@ -18,8 +18,8 @@ import { HOOK_PROTOCOLS } from './hookProtocol.js';
 // Single-source-of-truth sanity check
 // =============================================================================
 //
-// The standalone OpenCode plugin is authored as TypeScript, compiled with the
-// rest of this package, then copied verbatim by this initializer. Verify its
+// The standalone OpenCode plugin is authored as TypeScript, bundled with its shared
+// modules during the package build, then copied verbatim by this initializer. Verify its
 // emitted event names against the registry before copying it so a future
 // protocol/template mismatch fails loudly instead of silently shipping a
 // broken plugin.

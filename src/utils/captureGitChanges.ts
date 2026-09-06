@@ -1,6 +1,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { execFileSync, execSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
+import { acknowledgeRefresh, selectChangesSinceRefresh } from './refreshCheckpoint.js';
 import { ANCHOR_DIR_NAME, UNTRACKED_FILE_WATCH_FILE_NAME } from '../constant.js';
 
 interface GitChange {
@@ -14,7 +15,9 @@ interface UntrackedFileWatch {
 }
 
 function normalizeRelativePath(file: string): string {
-    return file.split(/[\\/]/).join('/').replace(/^\.\//, '');
+    // Git already uses '/' separators, even on Windows. A backslash may be
+    // part of a real POSIX filename and must not be rewritten.
+    return file.replace(/^\.\//, '');
 }
 
 function isAnchorInternalPath(file: string): boolean {
@@ -57,18 +60,6 @@ function persistUntrackedWatch(workdir: string, files: ReadonlySet<string>): voi
     fs.writeFileSync(watchPath, `${JSON.stringify(watch, null, 2)}\n`, 'utf-8');
 }
 
-function isTrackedFile(workdir: string, file: string): boolean {
-    try {
-        execFileSync('git', ['ls-files', '--error-unmatch', '--', file], {
-            cwd: workdir,
-            stdio: 'ignore',
-        });
-        return true;
-    } catch {
-        return false;
-    }
-}
-
 /**
  * Keep untracked paths visible long enough to report a later deletion that
  * Git cannot describe after a never-tracked file disappears.
@@ -85,16 +76,21 @@ function reconcileUntrackedWatch(
         }
     }
 
+    // One Git process for the whole watch set, instead of one per file.
+    const trackedFiles = watchedFiles.size > 0
+        ? new Set(execFileSync('git', ['ls-files', '-z'], {
+            cwd: workdir, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024,
+        }).split('\0'))
+        : new Set<string>();
     const reportedPaths = new Set(changes.map(change => normalizeRelativePath(change.file)));
     for (const file of watchedFiles) {
         // A staged or committed path no longer needs repeated existence scans.
-        if (isTrackedFile(workdir, file)) {
+        if (trackedFiles.has(file)) {
             watchedFiles.delete(file);
             continue;
         }
 
         if (!fs.existsSync(path.resolve(workdir, file))) {
-            watchedFiles.delete(file);
             if (!reportedPaths.has(file)) {
                 changes.push({ status: 'D', file });
                 reportedPaths.add(file);
@@ -106,27 +102,49 @@ function reconcileUntrackedWatch(
     return changes;
 }
 
+/** Confirm deletions only after the corresponding chart refresh succeeds. */
+function acknowledgeGitChanges(changes: readonly GitChange[], workdir = process.cwd()): void {
+    acknowledgeRefresh(changes, workdir);
+    const watchedFiles = loadUntrackedWatch(workdir);
+    let updated = false;
+    for (const change of changes) {
+        const file = normalizeRelativePath(change.file);
+        if (change.status === 'D' && !fs.existsSync(path.resolve(workdir, file))) {
+            updated = watchedFiles.delete(file) || updated;
+        }
+    }
+    if (updated) persistUntrackedWatch(workdir, watchedFiles);
+}
+
 function captureGitChanges(): GitChange[] | null {
     try {
-        const gitStatus = execSync(
-            'git status --porcelain --untracked-files=all',
-            { encoding: 'utf-8' }
-        ).trim();
+        const gitStatus = execFileSync(
+            'git', ['status', '--porcelain=v1', '-z', '--untracked-files=all'],
+            { encoding: 'utf-8', maxBuffer: 64 * 1024 * 1024 }
+        );
 
-        const changes = gitStatus ? gitStatus.split('\n').map((line): GitChange => {
-            const trimmed = line.trim();
-            const parts = trimmed.split(/\s+/);
-            return {
-                status: parts[0],
-                file: parts[1]
-            };
-        }).filter(change => !isAnchorInternalPath(change.file)) : [];
+        const records = gitStatus.split('\0');
+        const parsed: GitChange[] = [];
+        for (let index = 0; index < records.length; index++) {
+            const record = records[index];
+            if (!record) continue;
+            const status = record.slice(0, 2);
+            parsed.push({ status: status.trim(), file: record.slice(3) });
+            // In -z format the destination comes first, followed by a separate
+            // source record. Copies retain their source; renames remove it.
+            if (/[RC]/.test(status)) {
+                const source = records[++index];
+                if (!source) throw new Error('Missing Git rename/copy source path');
+                if (status.includes('R')) parsed.push({ status: 'D', file: source });
+            }
+        }
+        const changes = parsed.filter(change => !isAnchorInternalPath(change.file));
 
         const reconciled = reconcileUntrackedWatch(changes, process.cwd());
-        return reconciled.length > 0 ? reconciled : null;
+        return selectChangesSinceRefresh(reconciled, process.cwd());
     } catch (e) {
         return null;
     }
 }
 
-export { captureGitChanges, GitChange };
+export { captureGitChanges, acknowledgeGitChanges, GitChange };
