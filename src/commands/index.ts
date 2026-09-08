@@ -6,6 +6,7 @@ import { promptHookCommand } from './promptHook.js';
 import { statusCommand } from './status.js';
 import { versionCommand } from './version.js';
 import { maintainCommand } from './maintain.js';
+import { mcpCommand } from './mcp.js';
 
 export function registerBuiltInCommands(cli: CAC, context: CommandContext): void {
   debugCommand(cli, context);
@@ -14,4 +15,5 @@ export function registerBuiltInCommands(cli: CAC, context: CommandContext): void
   promptHookCommand(cli, context);
   statusCommand(cli, context);
   maintainCommand(cli, context);
+  mcpCommand(cli);
 }

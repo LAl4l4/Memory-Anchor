@@ -49,10 +49,13 @@
     "build:plugin": "node ./node_modules/esbuild-wasm/bin/esbuild src/hooks/opencode/memory-anchor-plugin.ts --bundle --platform=node --format=esm --target=node18 --outfile=dist/hooks/opencode/memory-anchor-plugin.js"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0",
     "cac": "^6.7.14",
     "glob": "^13.0.6",
+    "smol-toml": "^1.8.0",
     "web-tree-sitter": "0.26.9",
-    "yaml": "^2.9.0"
+    "yaml": "^2.9.0",
+    "zod": "^3.25.76"
   },
   "devDependencies": {
     "@types/glob": "^8.1.0",

@@ -1,5 +1,12 @@
 ## Update log
 
+- `2026/09/09` — `1.8.0`:
+    - [Added] `anchor mcp` exposes read-only `get_chart` and `get_file` tools over stdio. Directory queries resolve existing partition ownership and child-chart routes; file queries return the exact architecture entry and optionally current source with bounded, 1-based line ranges.
+    - [Added] `anchor init` and platform-specific initializers register MCP for Claude Code, Codex, CodeBuddy, Qoder CLI, Copilot CLI, OpenCode, and Hermes. Registration preserves existing same-name servers and client trust policies; project entries pin the executable and workspace, while global Hermes configuration uses the server's startup directory.
+    - [Improved] Session context and MCP initialization share tool-use guidance covering directory/file queries, source paging, freshness uncertainty, and direct-file fallback. OpenCode injects the same guidance through its system-transform plugin; UserPrompt reminders remain opt-in.
+    - [Improved] MCP reads current chart artifacts on every request without starting parsers or rebuilding charts. Queries enforce workspace containment including symlink resolution, reject binary source, cap text reads at 2 MiB and source ranges at 500 lines, and report possible staleness without claiming a synchronized snapshot.
+    - [Added] Regression coverage for MCP protocol calls, partition routing, file extraction, path boundaries, registration preservation and idempotence, all seven initialization entry points, and OpenCode system-context injection. Initialization subprocess tests explicitly isolate Hermes configuration; all 38 suites and 252 tests pass.
+
 - `2026/09/07`:
     - [Fixed] Git change capture now reads NUL-delimited porcelain output, preserving spaces, Unicode, quotes, literal backslashes, and both endpoints of a rename. Observed untracked deletions remain retryable until the chart refresh succeeds.
     - [Improved] Added `.memoryanchor/refresh-checkpoint.json` to record successful-refresh file metadata and chart-state identity. Stop, session-end, and OpenCode idle hooks now skip unchanged dirty files, still detect reverts and deletions, batch tracked-file checks, and perform one follow-up refresh when a file changes during rendering. Failed refreshes do not advance the checkpoint.

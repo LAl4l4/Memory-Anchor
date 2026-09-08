@@ -25,6 +25,7 @@ export const IGNORED_FILE_NAMES = new Set([
 export const GITIGNORE_ENTRY = [
   '.memoryanchor',
   'CLAUDE.md',
+  '.mcp.json',
   '.codex',
   'CODEBUDDY.md',
   '.codebuddy',

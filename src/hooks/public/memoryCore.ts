@@ -1,6 +1,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { memoryMaintenanceNotice } from './memoryMaintenance.js';
+import { MCP_USAGE_INSTRUCTIONS } from '../../mcp/instructions.js';
 
 function readFileSafe(filePath: string, fallback: string): string {
   try {
@@ -41,6 +42,8 @@ export function buildMemoryCore(workspaceRoot: string): string {
     '',
     maintenanceNotice,
     '[1. CHART (project structure & architectural symbols)]',
+    MCP_USAGE_INSTRUCTIONS,
+    '',
     chart,
     '',
     '[2. GUARDRAILS (rules must follow)]',

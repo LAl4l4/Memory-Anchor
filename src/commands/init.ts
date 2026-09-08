@@ -31,6 +31,8 @@ import { qodercnSetup } from './initHelper/initQodercn.js';
 import { initQodercnCommand } from './initHelper/initQodercn.js';
 import { hermesSetup } from './initHelper/initHermes.js';
 import { initHermesCommand } from './initHelper/initHermes.js';
+import { registerMcp } from './initHelper/initMcp.js';
+import { PROMPT_HOOK_AGENTS } from '../constant.js';
 
 export function initCommand(cli: CAC, context: CommandContext): void {
   // Combined init — runs public + Copilot + Claude + Codex CLI + CodeBuddy + OpenCode + QoderCLI CN + Hermes
@@ -45,9 +47,13 @@ export function initCommand(cli: CAC, context: CommandContext): void {
     const opencode = await opencodeSetup(cwd);
     const qodercn = await qodercnSetup(cwd);
     const hermes = await hermesSetup(cwd);
+    let mcpUpdated = false;
+    for (const agent of PROMPT_HOOK_AGENTS) {
+      mcpUpdated = await registerMcp(cwd, agent) || mcpUpdated;
+    }
 
     const anythingUpdated =
-      common.gitignoreUpdated ||
+      mcpUpdated || common.gitignoreUpdated ||
       common.anchorFilesCreated ||
       common.agentsCreated ||
       copilot.hooksUpdated ||

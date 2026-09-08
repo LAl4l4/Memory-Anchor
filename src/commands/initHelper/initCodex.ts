@@ -1,4 +1,5 @@
 import { CAC } from 'cac';
+import { registerMcp } from './initMcp.js';
 import path from 'node:path';
 import { mkdir } from 'node:fs/promises';
 import type { CommandContext } from '../../types.js';
@@ -234,9 +235,10 @@ export function initCodexCommand(cli: CAC, context: CommandContext): void {
 
       const common = await initPublic(cwd);
       const specific = await codexSetup(cwd);
+      const mcpUpdated = await registerMcp(cwd, 'codex');
 
       if (
-        common.gitignoreUpdated ||
+        mcpUpdated || common.gitignoreUpdated ||
         common.anchorFilesCreated ||
         specific.hooksUpdated ||
         common.agentsCreated

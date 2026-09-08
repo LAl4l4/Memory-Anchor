@@ -1,4 +1,5 @@
 import { CAC } from 'cac';
+import { registerMcp } from './initMcp.js';
 import path from 'node:path';
 import { appendFile, mkdir } from 'node:fs/promises';
 import type { CommandContext } from '../../types.js';
@@ -240,9 +241,10 @@ export function initCopilotCommand(cli: CAC, context: CommandContext): void {
 
     const common = await initPublic(cwd);
     const specific = await copilotSetup(cwd);
+    const mcpUpdated = await registerMcp(cwd, 'copilot');
 
     if (
-      common.gitignoreUpdated ||
+      mcpUpdated || common.gitignoreUpdated ||
       common.anchorFilesCreated ||
       specific.hooksUpdated ||
       common.agentsCreated ||

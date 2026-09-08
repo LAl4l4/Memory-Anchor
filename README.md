@@ -92,6 +92,113 @@ Each incremental batch also keeps a temporary Set of rebuilt directories. If a l
 
 If the partition registry or required output topology is missing, the compatibility entry safely falls back to a full partitioned build.
 
+## MCP chart queries
+
+`anchor init` now registers the Memory Anchor MCP server alongside the existing
+agent integrations. The platform-specific `anchor init-claude`, `init-codex`,
+`init-codebuddy`, `init-qodercn`, `init-copilot`, `init-opencode`, and `init-hermes`
+commands register it for that platform. `init-public` remains common-files-only.
+
+| Client | Registration location |
+| --- | --- |
+| Claude Code, CodeBuddy, Qoder CLI, Copilot CLI | Project `.mcp.json` → `mcpServers.memory-anchor` |
+| Codex | Project `.codex/config.toml` → `[mcp_servers.memory-anchor]` |
+| OpenCode | Project `opencode.json` → `mcp.memory-anchor` |
+| Hermes | `$HERMES_HOME/config.yaml` (default `~/.hermes/config.yaml`) → `mcp_servers.memory-anchor` |
+
+Registration pins the current Node executable and installed `dist/cli.js`, so it
+also works from a source checkout after `npm run build`. Project registrations
+pass an absolute `--workspace`. Hermes has global configuration, so its entry
+uses the server's startup working directory instead; launch Hermes from the
+initialized project root. Initializing another project does not retarget that
+global entry. Outside an initialized workspace, tool discovery works but queries
+return a workspace error.
+
+Existing same-name entries are left unchanged, including custom commands,
+environment variables, and disabled settings. Other servers are preserved;
+Codex TOML is validated and appended without rewriting existing text, and Hermes
+YAML editing preserves comments. If the installation moves and an existing entry
+points to an old executable, update that entry explicitly. `.mcp.json` is added
+to the generated gitignore because registrations include machine-local paths.
+
+Restart or reload your client after initialization. Client trust, project-server
+approval and tool policies still apply; initialization does not auto-approve
+servers or override those policies. See the official configuration references
+for [Codex](https://learn.chatgpt.com/docs/extend/mcp?surface=cli),
+[Claude Code](https://code.claude.com/docs/en/mcp),
+[Copilot CLI](https://docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/add-mcp-servers),
+[Qoder](https://docs.qoder.com/cli/mcp-reference),
+[OpenCode](https://opencode.ai/docs/mcp-servers/), and
+[Hermes](https://hermes-agent.nousresearch.com/docs/user-guide/features/mcp).
+
+Tool-use guidance is injected through the existing shared session-context path
+(OpenCode uses its system-transform plugin), and is also advertised in MCP's
+initialize response `instructions`. It explains which tool to choose, scoped
+charts, bounded source reads, freshness uncertainty and direct-file fallback when
+MCP is unavailable. The root chart, routing index and memory rules remain in the
+normal context. Optional UserPrompt reminders stay opt-in.
+
+For manual setup, run `anchor mcp --workspace /absolute/path/to/project` to expose an initialized
+workspace over MCP stdio. Without `--workspace`, the current working directory is
+used. The client starts and stops the process; stdout is reserved for MCP messages.
+The server does not open a network port or rebuild charts.
+
+Example configuration for clients using the `mcpServers` JSON convention:
+
+```json
+{
+  "mcpServers": {
+    "memory-anchor": {
+      "command": "anchor",
+      "args": ["mcp", "--workspace", "/absolute/path/to/project"]
+    }
+  }
+}
+```
+
+When running from a source checkout, build with `npm run build`, use `node` as the
+command and prepend `/absolute/path/to/MemoryAnchor/dist/cli.js` to `args`.
+This manual configuration is optional when using an initializer listed above.
+
+Two read-only tools are available:
+
+| Tool | Arguments | Result |
+| --- | --- | --- |
+| `get_chart` | `path` (default `.`) | Covering chart, actual scope/mode, child chart routes and artifact timestamps. |
+| `get_file` | `path`, optional `include_source`, `start_line`, `end_line` | Exact file architecture block, chart location, timestamps and optional current source. |
+
+Paths are relative to the configured workspace; absolute paths inside it are also
+accepted. Directory queries resolve persisted partition ownership: a nested
+directory may return its ancestor's recursive chart. A split directory with no
+direct files returns `chart: null` and routes to its nearest child charts.
+File queries preserve generated symbols, multiline signatures, line ranges,
+dependencies and callers, without returning unrelated file entries.
+
+Example tool arguments:
+
+```json
+{"path":"src/hooks"}
+```
+
+```json
+{"path":"src/hooks/public/stopPublic.ts","include_source":true,"start_line":1,"end_line":80}
+```
+
+Source ranges are 1-based and inclusive, default to 200 lines and allow at most
+500 lines per request. `hasMore` and `totalLines` support paging. Text reads are
+limited to 2 MiB per file; binary source and paths resolving outside the workspace
+(including symlinks) are rejected. File entries absent from the chart return
+`indexed: false`; current source can still be requested if the registry and any
+covering chart are readable.
+
+Every request rereads the registry and relevant chart. This sees subsequent
+refreshes without restarting the MCP process, but does not verify that all source
+and dependency changes have been indexed. `freshness` is `possibly_stale` when the
+requested source is newer than its chart, and `unknown` otherwise. Chart and
+registry timestamps are filesystem modification times, not a build revision.
+Continue using the existing Memory Anchor refresh workflow. Missing or invalid
+artifacts produce tool errors instead of triggering a rebuild.
+
 ## Parser performance
 
 Architecture extraction runs through a lazy `worker_threads` pool:

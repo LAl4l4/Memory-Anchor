@@ -31,6 +31,7 @@ import {
     DirectoryTreeRegistryNode,
     ensureDirectoryTreeNode,
     findDirectoryTreeNode,
+    findPartitionForFile,
     fromDirectoryTreeRegistry,
     getDirectDirectoryChars,
     pruneEmptyDirectoryTreeNodes,
@@ -64,28 +65,7 @@ export function getUniqueChangedDirectories(relativeFiles: readonly string[]): s
     )];
 }
 
-/** Find the threshold-frontier chart or shallow split ancestor owning a file. */
-export function findPartitionForFile(
-    root: DirectoryTreeNode,
-    relativeFile: string
-): DirectoryTreeNode | null {
-    if (!root.isSplit) return root;
-
-    const directory = path.posix.dirname(normalizeRelativePath(relativeFile));
-    if (directory === '.') return root.hasDirectFiles ? root : null;
-
-    let current = root;
-    let currentPath = '';
-    for (const segment of directory.split('/')) {
-        currentPath = currentPath ? `${currentPath}/${segment}` : segment;
-        const child = current.children.find(node => node.directory === currentPath);
-        if (!child) return null;
-        current = child;
-        if (!current.isSplit) return current;
-    }
-
-    return current.hasDirectFiles ? current : null;
-}
+export { findPartitionForFile } from './directoryTree.js';
 
 /**
  * Apply one pre-rendered direct-chart delta up the physical directory chain.

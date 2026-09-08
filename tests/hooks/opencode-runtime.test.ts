@@ -420,6 +420,8 @@ runtimeTest(
 
     const chatRequest = backend.requests.find(isChatCompletionRequest);
     if (!chatRequest) throw new Error('Expected a chat-completions request');
+    expect(JSON.stringify(chatRequest.body.messages)).toContain('[MEMORY ANCHOR MCP]');
+    expect(JSON.stringify(chatRequest.body.messages)).toContain('get_chart');
     expect(JSON.stringify(chatRequest.body.messages)).toContain(
       '[MEMORY ANCHOR: CONTEXT INJECTED]',
     );

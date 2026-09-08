@@ -1,5 +1,6 @@
 import { CAC } from 'cac';
-import os from 'node:os';
+import { registerMcp } from './initMcp.js';
+import { getHermesHome } from './hermesPaths.js';
 import path from 'node:path';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { type Document, Scalar, YAMLMap, YAMLSeq, parseDocument } from 'yaml';
@@ -65,10 +66,6 @@ const MANAGED_HERMES_COMMANDS = new Set<string>([
 // =============================================================================
 // Hermes Paths ($HERMES_HOME/config.yaml, default ~/.hermes/config.yaml)
 // =============================================================================
-
-function getHermesHome(): string {
-  return process.env.HERMES_HOME || path.join(os.homedir(), '.hermes');
-}
 
 function getHermesPaths(cwd: string): HermesPaths {
   const base = getBasePaths(cwd);
@@ -252,10 +249,11 @@ export function initHermesCommand(cli: CAC, context: CommandContext): void {
 
       const common = await initPublic(cwd);
       const specific = await hermesSetup(cwd);
+      const mcpUpdated = await registerMcp(cwd, 'hermes');
       const configPath = getHermesPaths(cwd).configPath;
 
       if (
-        common.gitignoreUpdated ||
+        mcpUpdated || common.gitignoreUpdated ||
         common.anchorFilesCreated ||
         common.agentsCreated ||
         specific.configUpdated

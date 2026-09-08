@@ -1,4 +1,5 @@
 import { CAC } from 'cac';
+import { registerMcp } from './initMcp.js';
 import path from 'node:path';
 import { mkdir } from 'node:fs/promises';
 import type { CommandContext } from '../../types.js';
@@ -192,9 +193,10 @@ export function initQodercnCommand(cli: CAC, context: CommandContext): void {
 
       const common = await initPublic(cwd);
       const specific = await qodercnSetup(cwd);
+      const mcpUpdated = await registerMcp(cwd, 'qodercn');
 
       if (
-        common.gitignoreUpdated ||
+        mcpUpdated || common.gitignoreUpdated ||
         common.anchorFilesCreated ||
         specific.settingsUpdated ||
         common.agentsCreated

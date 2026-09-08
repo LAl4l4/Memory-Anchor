@@ -1,3 +1,5 @@
+import * as path from 'node:path';
+
 export interface DirectoryCharThresholds {
     splitAt: number;
     mergeAt: number;
@@ -39,6 +41,23 @@ export interface DirectoryTreeRegistryNode {
     chartTopologyVersion: number;
     thisDirectoryChars: number;
     isSplit: boolean;
+}
+
+/** Find the recursive frontier or shallow chart owning a workspace-relative file. */
+export function findPartitionForFile(root: DirectoryTreeNode, relativeFile: string): DirectoryTreeNode | null {
+    if (!root.isSplit) return root;
+    const directory = path.posix.dirname(relativeFile.split(/[\\/]/).join('/').replace(/^\.\//, ''));
+    if (directory === '.') return root.hasDirectFiles ? root : null;
+    let current = root;
+    let currentPath = '';
+    for (const segment of directory.split('/')) {
+        currentPath = currentPath ? `${currentPath}/${segment}` : segment;
+        const child = current.children.find(node => node.directory === currentPath);
+        if (!child) return null;
+        current = child;
+        if (!current.isSplit) return current;
+    }
+    return current.hasDirectFiles ? current : null;
 }
 
 export function validateDirectoryThresholds(thresholds: DirectoryCharThresholds): void {

@@ -1,4 +1,5 @@
 import { CAC } from 'cac';
+import { registerMcp } from './initMcp.js';
 import path from 'node:path';
 import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
@@ -293,9 +294,10 @@ export function initOpencodeCommand(cli: CAC, context: CommandContext): void {
 
       const common = await initPublic(cwd);
       const specific = await opencodeSetup(cwd);
+      const mcpUpdated = await registerMcp(cwd, 'opencode');
 
       if (
-        common.gitignoreUpdated ||
+        mcpUpdated || common.gitignoreUpdated ||
         common.anchorFilesCreated ||
         common.agentsCreated ||
         specific.pluginWritten ||
