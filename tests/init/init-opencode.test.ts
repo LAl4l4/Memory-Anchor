@@ -6,6 +6,7 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import { GUARDRAILS_MAX_BYTES, HOOK_COMMANDS, OPENCODE_SCHEMA_URL, REQUIRED_INSTRUCTION_ENTRIES } from '../../dist/constant.js';
+import { USER_PROMPT_APPENDIX } from '../../dist/hooks/public/userPromptAppend.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -101,9 +102,7 @@ test('adds the reminder to the outbound OpenCode message copy without changing m
 
   expect(output.messages[0].parts).toHaveLength(2);
   expect(output.messages[0].parts[1].id).toBe('prt_text');
-  expect(output.messages[0].parts[1].text).toBe(
-    'Inspect this.\n\n[IMPORTANT!] Must read ./.memoryanchor/chart/.../chart.md before any works and glob/grep.',
-  );
+  expect(output.messages[0].parts[1].text).toBe(`Inspect this.\n\n${USER_PROMPT_APPENDIX}`);
 });
 
 test('does not add the OpenCode reminder when the hook is disabled', async () => {
@@ -169,7 +168,7 @@ test('uses OpenCode worktree for context and lifecycle commands', async () => {
   const nestedDirectory = path.join(tempDir, 'nested');
   await mkdir(nestedDirectory);
   await mkdir(path.join(tempDir, '.memoryanchor'), { recursive: true });
-  await writeFile(path.join(tempDir, '.memoryanchor', 'index.md'), '# worktree index\n');
+  await writeFile(path.join(tempDir, '.memoryanchor', 'guardrails.md'), '- [ ] worktree rule\n');
 
   const commands: Array<{ strings: string[]; values: unknown[] }> = [];
   const { MemoryAnchorPlugin } = await import('../../dist/hooks/opencode/memory-anchor-plugin.js');
@@ -184,7 +183,7 @@ test('uses OpenCode worktree for context and lifecycle commands', async () => {
 
   const systemOutput = { system: [] };
   await hooks['experimental.chat.system.transform']({}, systemOutput);
-  expect(systemOutput.system.join('\n')).toContain('# worktree index');
+  expect(systemOutput.system.join('\n')).toContain('worktree rule');
 
   await hooks.event({ event: { type: 'session.idle' } });
   expect(commands).toHaveLength(1);
@@ -200,7 +199,7 @@ test('uses OpenCode directory when worktree does not contain the Memory Anchor s
   const nestedDirectory = path.join(tempDir, 'nested');
   await mkdir(nestedDirectory);
   await mkdir(path.join(tempDir, '.memoryanchor'), { recursive: true });
-  await writeFile(path.join(tempDir, '.memoryanchor', 'index.md'), '# directory index\n');
+  await writeFile(path.join(tempDir, '.memoryanchor', 'guardrails.md'), '- [ ] directory rule\n');
 
   const { MemoryAnchorPlugin } = await import('../../dist/hooks/opencode/memory-anchor-plugin.js');
   const hooks = await MemoryAnchorPlugin({
@@ -211,7 +210,7 @@ test('uses OpenCode directory when worktree does not contain the Memory Anchor s
 
   const systemOutput = { system: [] };
   await hooks['experimental.chat.system.transform']({}, systemOutput);
-  expect(systemOutput.system.join('\n')).toContain('# directory index');
+  expect(systemOutput.system.join('\n')).toContain('directory rule');
 });
 
 test('creates opencode.json with schema and instructions', async () => {

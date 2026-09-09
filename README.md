@@ -23,17 +23,16 @@ Memory Anchor keeps its generated state under `.memoryanchor/`:
 
 | Path | Purpose |
 | --- | --- |
-| `.memoryanchor/index.md` | Small repository-level index that routes an agent to the closest chart partition. |
 | `.memoryanchor/chart/**/chart.md` | Directory-scoped architecture charts containing a dependency skeleton, extracted symbols, and in-chart reverse symbol dependencies. |
 | `.memoryanchor/refresh-checkpoint.json` | File metadata fingerprints recorded after successful refreshes; skips unchanged dirty files. |
 | `.memoryanchor/dirTree.json` | Internal directory topology, aggregate character counts, and split state used by incremental updates. |
-| `.memoryanchor/guardrails.md` | Durable default and repository-specific guardrails. |
+| `.memoryanchor/guardrails.md` | Durable repository-specific guardrails; managed defaults are removed during migration. |
 | `.memoryanchor/project-state.md` | Current module status, known issues, and dependencies. |
 | `.memoryanchor/decisions.md` | Architectural decisions and rationale. |
 | `.memoryanchor/prompt-hooks.json` | Optional UserPrompt hook selection; absent or empty means disabled. |
 | `.memoryanchor/debug.json` | Opt-in persistent diagnostic logging setting, managed by `anchor debug`. |
 | `.memoryanchor/debug.log` | Append-only CLI and lifecycle diagnostics while debug mode is enabled. |
-| `AGENTS.md` | Workflow instructions telling agents how to use the index, charts, guardrails, project state, and decisions. |
+| `AGENTS.md` | Workflow instructions telling agents how to query architecture through MCP and maintain project memory. |
 
 Charts are generated output and should not be edited manually. Guardrails, project state, and decisions are intentionally readable project memory.
 
@@ -47,13 +46,12 @@ During a full build it:
 2. Generates architecture content with tree-sitter and records aggregate character counts.
 3. Splits directory subtrees above `18000` characters.
 4. Writes one chart for every first non-split directory on each branch.
-5. Writes `.memoryanchor/index.md` as the routing layer for those charts.
+5. Persists chart ownership in `dirTree.json` for MCP queries and incremental updates.
 
 The output mirrors the source tree. For example:
 
 ```text
 .memoryanchor/
-├── index.md
 ├── dirTree.json
 ├── guardrails.md
 ├── project-state.md
@@ -66,7 +64,7 @@ The output mirrors the source tree. For example:
     └── tests/chart.md
 ```
 
-At session start, Memory Anchor injects the index, guardrails, project state, and the complete decisions file. Decision selection is intentionally deferred; no entries are filtered or truncated. The index tells the agent which directory chart to open, so unrelated architecture does not need to occupy the initial context.
+At session start, Memory Anchor injects concise MCP guidance, repository guardrails, project state, and decisions in full. Query `get_chart({path})` or `get_file({path})` for the task directly; no routing index or root chart is injected. Re-running initialization removes the legacy index and managed default rules while preserving custom rules.
 
 ## Incremental updates
 
@@ -135,7 +133,7 @@ Tool-use guidance is injected through the existing shared session-context path
 (OpenCode uses its system-transform plugin), and is also advertised in MCP's
 initialize response `instructions`. It explains which tool to choose, scoped
 charts, bounded source reads, freshness uncertainty and direct-file fallback when
-MCP is unavailable. The root chart, routing index and memory rules remain in the
+MCP is unavailable. Repository guardrails, project state, decisions and this guidance occupy the
 normal context. Optional UserPrompt reminders stay opt-in.
 
 For manual setup, run `anchor mcp --workspace /absolute/path/to/project` to expose an initialized
@@ -224,7 +222,7 @@ anchor init
     │  create guardrails/project state/decisions and configure integrations
     ▼
 Session starts
-    │  inject index + guardrails + project state + all decisions
+    │  inject MCP guidance + guardrails + project state + decisions
     ▼
 Agent works
     │  index routes the agent to the closest directory chart
@@ -287,7 +285,7 @@ Repeated lifecycle hooks skip files whose metadata fingerprint matches the last 
 
 Memory budget and legacy `[STALE]` notices are advisory. Hooks do not mark rules obsolete or rewrite guardrails after source edits. Use `anchor maintain` to inspect notices and `anchor maintain --normalize` to explicitly normalize formatting; rule validity and semantic compaction remain human/agent review tasks. Existing OpenCode installations receive the shared, bundled runtime when `anchor init-opencode` is rerun.
 
-`anchor maintain` does not change project files. It reports when `guardrails.md` exceeds 5 KiB, the `Module Status` section of `project-state.md` exceeds 8 KiB, or legacy `[STALE]` markers are present. Add `--normalize` only when you want to rewrite `guardrails.md` into its standard two-section and checkbox format; it keeps stale rules in place for review rather than deciding whether they are still valid.
+`anchor maintain` does not change project files. It reports when `guardrails.md` exceeds 5 KiB, the `Module Status` section of `project-state.md` exceeds 8 KiB, or legacy `[STALE]` markers are present. Add `--normalize` only when you want to rewrite `guardrails.md` into its repository-only checkbox format, removing recognized legacy managed defaults; it keeps stale rules in place for review rather than deciding whether they are still valid.
 
 ## Supported languages
 

@@ -7,7 +7,7 @@ import {
 
 /** The instruction appended to every submitted user prompt. */
 export const USER_PROMPT_APPENDIX =
-  '[IMPORTANT!] Must read ./.memoryanchor/chart/.../chart.md before any works and glob/grep.';
+  '[IMPORTANT!] Must call the memory-anchor MCP get_chart tool on the task directory before any works and glob/grep.';
 
 /** Return the prompt reminder while recording the native hook result. */
 export function getUserPromptAppendix(): string {

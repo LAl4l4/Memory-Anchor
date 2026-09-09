@@ -66,8 +66,9 @@ test.each(PROMPT_HOOK_AGENTS)('init-%s registers a launchable server and injects
   expect(context).toContain('[MEMORY ANCHOR MCP]');
   expect(context).toContain('get_chart');
   expect(context).toContain('get_file');
-  expect(context).toContain('If MCP tools are unavailable');
-  expect(context).toContain('[ROOT CHART ALREADY INJECTED');
+  expect(context).toContain('If MCP is unavailable');
+  expect(context).not.toContain('[ROOT CHART ALREADY INJECTED');
+  expect(context).not.toContain('index.md');
 }, 20000);
 
 test('combined init registers each format and rerunning registration is byte-idempotent', async () => {

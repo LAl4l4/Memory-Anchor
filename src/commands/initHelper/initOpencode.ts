@@ -115,9 +115,8 @@ export interface OpencodeSetupResult {
 //
 //   1. Context injection — the "${""}experimental.chat.system.transform"
 //      hook is the only documented way for a plugin to extend opencode's
-//      system prompt. On every LLM turn it always reads index.md as routing
-//      rules, additionally includes ./.memoryanchor/chart/chart.md when that
-//      root chart exists, then reads guardrails.md and project-state.md from disk and
+//      system prompt. On every LLM turn it reads repository guardrails
+//      project state, decisions, and concise MCP guidance, then
 //      pushes the memory-core payload into output.system. This replaces the
 //      previous "session.start → fire-and-forget pre hook" design, which
 //      never worked: (a) opencode has no "session.start" event, (b) hooks
@@ -241,8 +240,8 @@ function mergeOpencodeConfig(config: OpencodeConfig): boolean {
     updated = true;
   }
 
-  // Older versions listed chart.md/index.md separately. The index is now part of the unified
-  // plugin payload, so remove the managed legacy entry to avoid duplication.
+  // Older versions listed chart.md/index.md separately. Remove those legacy
+  // managed entries; architecture is now queried through MCP.
   const originalInstructionCount = config.instructions!.length;
   config.instructions = config.instructions!.filter(
     (entry) => !['.memoryanchor/chart.md', '.memoryanchor/index.md'].includes(entry.replace(/^\.\//, '')),

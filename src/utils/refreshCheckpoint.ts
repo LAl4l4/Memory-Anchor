@@ -33,7 +33,7 @@ function fingerprint(file: string): string {
 }
 
 function artifactFingerprint(workdir: string): string {
-    return ['dirTree.json', 'dependencyGraph.json', 'index.md']
+    return ['dirTree.json', 'dependencyGraph.json']
         .map(file => fingerprint(path.join(workdir, '.memoryanchor', file))).join('|');
 }
 

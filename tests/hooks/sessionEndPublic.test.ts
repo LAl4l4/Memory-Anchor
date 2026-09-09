@@ -7,10 +7,11 @@ import path from 'node:path';
 
 import {
   ANCHOR_DIR_NAME,
-  GUARDRAILS_DEFAULT_RULES as BALLAST_DEFAULT_RULES,
+  LEGACY_GUARDRAILS_RULES as BALLAST_DEFAULT_RULES,
   GUARDRAILS_DEFAULT_TITLE as BALLAST_DEFAULT_TITLE,
   GUARDRAILS_FILE_NAME as BALLAST_FILE_NAME,
   GUARDRAILS_SPECIFIC_TITLE as BALLAST_SPECIFIC_TITLE,
+  LEGACY_GUARDRAILS_RULES,
 } from '../../dist/constant.js';
 import type { GitChange } from '../../dist/utils/captureGitChanges.js';
 
@@ -139,28 +140,26 @@ test('updateManifest does NOT log when changes is empty array', () => {
 
 // ── sanitizeBallast ─────────────────────────────────────────────────
 
-test('sanitizeBallast preserves the two-section structure', async () => {
+test('sanitizeBallast removes the default section', async () => {
   await writeFile(ballastPath, SAMPLE_BALLAST);
 
   sanitizeBallast();
   const result = await readFile(ballastPath, 'utf8');
 
-  expect(result).toContain(BALLAST_DEFAULT_TITLE);
+  expect(result).not.toContain(BALLAST_DEFAULT_TITLE);
   expect(result).toContain(BALLAST_SPECIFIC_TITLE);
 
-  const defaultIdx = result.indexOf(BALLAST_DEFAULT_TITLE);
-  const specificIdx = result.indexOf(BALLAST_SPECIFIC_TITLE);
-  expect(defaultIdx).toBeLessThan(specificIdx);
+
 });
 
-test('sanitizeBallast keeps all default rules intact', async () => {
+test('sanitizeBallast removes managed default rules', async () => {
   await writeFile(ballastPath, SAMPLE_BALLAST);
 
   sanitizeBallast();
   const result = await readFile(ballastPath, 'utf8');
 
   for (const rule of BALLAST_DEFAULT_RULES) {
-    expect(result).toContain(rule);
+    expect(result).not.toContain(rule);
   }
 });
 
@@ -172,6 +171,21 @@ test('sanitizeBallast keeps specific rules intact', async () => {
 
   expect(result).toContain('Never use eval() in production code.');
   expect(result).toContain('Always add tests for sample.ts helpers.');
+});
+
+test('sanitizeBallast drops retired default rules instead of keeping them as specific', async () => {
+  await writeFile(
+    ballastPath,
+    `${SAMPLE_BALLAST}\n${LEGACY_GUARDRAILS_RULES.join('\n')}\n`,
+  );
+
+  sanitizeBallast();
+  const result = await readFile(ballastPath, 'utf8');
+
+  for (const rule of LEGACY_GUARDRAILS_RULES) {
+    expect(result).not.toContain(rule);
+  }
+  expect(result).toContain('Never use eval() in production code.');
 });
 
 test('sanitizeBallast deduplicates duplicate rules', async () => {

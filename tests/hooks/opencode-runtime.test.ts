@@ -6,6 +6,7 @@ import { createServer as createNetServer, type AddressInfo } from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { USER_PROMPT_APPENDIX } from '../../dist/hooks/public/userPromptAppend.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -330,7 +331,7 @@ runtimeTest(
 
     await copyFile(pluginSourcePath, path.join(pluginDir, 'memory-anchor.js'));
     await writeFile(path.join(tempDir, 'AGENTS.md'), '# OpenCode runtime test\n');
-    await writeFile(path.join(anchorDir, 'index.md'), '# test index\n');
+    await writeFile(path.join(anchorDir, 'guardrails.md'), '- [ ] test rule\n');
     await writeFile(path.join(chartDir, 'chart.md'), '# test root chart\n');
     await writeFile(path.join(anchorDir, 'guardrails.md'), '# test guardrails\n');
     await writeFile(path.join(anchorDir, 'project-state.md'), '# test project state\n');
@@ -425,9 +426,7 @@ runtimeTest(
     expect(JSON.stringify(chatRequest.body.messages)).toContain(
       '[MEMORY ANCHOR: CONTEXT INJECTED]',
     );
-    expect(JSON.stringify(chatRequest.body.messages)).toContain(
-      '[IMPORTANT!] Must read ./.memoryanchor/chart/.../chart.md before any works and glob/grep.',
-    );
+    expect(JSON.stringify(chatRequest.body.messages)).toContain(USER_PROMPT_APPENDIX);
 
     const events = await readFile(eventsPath, 'utf8');
     expect(events).toContain('post\n');

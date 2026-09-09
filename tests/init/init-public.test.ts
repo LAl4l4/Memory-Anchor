@@ -7,11 +7,10 @@ import { fileURLToPath } from 'node:url';
 
 import {
   ANCHOR_DIR_NAME,
-  CHART_FILE_NAME,
   DECISIONS_FILE_NAME,
   GITIGNORE_ENTRY,
-  GUARDRAILS_DEFAULT_RULES,
   GUARDRAILS_FILE_NAME,
+  LEGACY_GUARDRAILS_RULES,
   PROJECT_STATE_FILE_NAME,
 } from '../../dist/constant.js';
 
@@ -62,14 +61,26 @@ test('creates .gitignore with .memoryanchor entry', async () => {
   expect(gitignore).toContain(ANCHOR_DIR_NAME);
 });
 
-test('creates guardrails.md with default rules', async () => {
+test('creates only repository guardrails', async () => {
+  await runInitPublic(tempDir);
+  const guardrails = await readFile(path.join(tempDir, ANCHOR_DIR_NAME, GUARDRAILS_FILE_NAME), 'utf8');
+  expect(guardrails.trim()).toBe('# Repository-specific Guardrails (maintain as the repository evolves)');
+});
+
+test('drops retired default rules instead of keeping them as repository-specific', async () => {
+  const anchorDir = path.join(tempDir, ANCHOR_DIR_NAME);
+  await import('node:fs/promises').then((fs) => fs.mkdir(anchorDir, { recursive: true }));
+  await writeFile(
+    path.join(anchorDir, GUARDRAILS_FILE_NAME),
+    `# Default Guardrails (do not modify)\n${LEGACY_GUARDRAILS_RULES.join('\n')}\n`,
+  );
+
   await runInitPublic(tempDir);
 
-  const guardrails = await readFile(path.join(tempDir, ANCHOR_DIR_NAME, GUARDRAILS_FILE_NAME), 'utf8');
-  expect(guardrails).toContain(GUARDRAILS_DEFAULT_RULES[3]);
-  expect(guardrails).toContain('At the start of every task, read ./.memoryanchor/chart/.../chart.md');
-  expect(guardrails).toContain('If the agent has any uncertainty about the overall project structure');
-  expect(guardrails).toContain('Do not rebuild a function');
+  const guardrails = await readFile(path.join(anchorDir, GUARDRAILS_FILE_NAME), 'utf8');
+  for (const rule of LEGACY_GUARDRAILS_RULES) {
+    expect(guardrails).not.toContain(rule);
+  }
 });
 
 test('creates separate project-state.md and decisions.md files', async () => {
@@ -150,10 +161,11 @@ test('creates AGENTS.md with memory anchor rules', async () => {
   const agents = await readFile(path.join(tempDir, 'AGENTS.md'), 'utf8');
   expect(agents).toContain('## Memory Anchor Rules');
   expect(agents).toContain('## Memory Anchor Ends');
-  expect(agents).toContain('./.memoryanchor/chart/.../chart.md: Directory-level architecture map.');
-  expect(agents).toContain('At the start of every task, read ./.memoryanchor/chart/.../chart.md');
+  expect(agents).toContain('./.memoryanchor/chart/.../chart.md: Directory-level architecture map, normally read through get_chart.');
+  expect(agents).toContain('Memory Anchor MCP tools: get_chart({path}) reads the chart covering a directory');
+  expect(agents).toContain('Use get_chart on the task directory');
   expect(agents).toContain('If the agent has any uncertainty about the overall project structure');
-  expect(agents).toContain('read the closest matching directory chart listed there');
+  expect(agents).toContain('If the MCP tools are unavailable, disabled, or fail');
   expect(agents).toContain('## Chart Relationship Notation');
   expect(agents).toContain("'+' marks an exported symbol; '-' marks the default/internal symbol");
   expect(agents).toContain("'->' lists parseable repository files referenced by a file, including targets in full repository.");
@@ -182,28 +194,26 @@ Preserve this too.
   const agents = await readFile(agentsPath, 'utf8');
   expect(agents).toContain('Keep this custom instruction.');
   expect(agents).toContain('Preserve this too.');
-  expect(agents).toContain('At the start of every task, read ./.memoryanchor/chart/.../chart.md');
+  expect(agents).toContain('Use get_chart on the task directory');
   expect(agents).toContain('If the agent has any uncertainty about the overall project structure');
   expect(agents.match(/## Memory Anchor Rules/g)).toHaveLength(1);
 });
 
-test('creates and populates the partitioned chart index', async () => {
+test('initialization removes legacy index and preserves custom rules across repeated migrations', async () => {
+  const anchorDir = path.join(tempDir, ANCHOR_DIR_NAME);
+  await import('node:fs/promises').then(fs => fs.mkdir(anchorDir, { recursive: true }));
+  await writeFile(path.join(anchorDir, 'index.md'), '# old index');
+  await writeFile(path.join(anchorDir, GUARDRAILS_FILE_NAME),
+    `# Default Guardrails (do not modify)\n${LEGACY_GUARDRAILS_RULES.join('\n')}\n- [ ] Custom rule in default section.\n\n# Repository-specific Guardrails (maintain as the repository evolves)\n- [ ] Keep this rule.\n`);
   await runInitPublic(tempDir);
-
-  const chart = await readFile(path.join(tempDir, ANCHOR_DIR_NAME, CHART_FILE_NAME), 'utf8');
-  expect(chart).toContain('# Project Chart Index');
-  expect(chart).toContain('## Entry Charts');
-  expect(chart).toContain('Start with the entry chart closest to the task');
-  expect(chart).toContain('Listed chart paths are authoritative');
-});
-
-test('re-running does not duplicate guardrails', async () => {
+  const first = await readFile(path.join(anchorDir, GUARDRAILS_FILE_NAME), 'utf8');
   await runInitPublic(tempDir);
-  await runInitPublic(tempDir);
-
-  const guardrails = await readFile(path.join(tempDir, ANCHOR_DIR_NAME, GUARDRAILS_FILE_NAME), 'utf8');
-  const matches = guardrails.split('\n').filter(l => l === GUARDRAILS_DEFAULT_RULES[3]);
-  expect(matches).toHaveLength(1);
+  expect(await readFile(path.join(anchorDir, GUARDRAILS_FILE_NAME), 'utf8')).toBe(first);
+  expect(first).toContain('Custom rule in default section.');
+  expect(first).toContain('Keep this rule.');
+  expect(first).not.toContain('Default Guardrails');
+  await expect(readFile(path.join(anchorDir, 'index.md'))).rejects.toMatchObject({ code: 'ENOENT' });
+  await expect(readFile(path.join(anchorDir, 'dirTree.json'), 'utf8')).resolves.toContain('directory');
 });
 
 test('re-running does not duplicate .gitignore entries', async () => {

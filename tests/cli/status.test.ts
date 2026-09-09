@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 
 import {
   ANCHOR_DIR_NAME,
-  CHART_FILE_NAME,
+  DIRECTORY_REGISTRY_FILE_NAME,
   DECISIONS_FILE_NAME,
   GUARDRAILS_FILE_NAME,
   PROJECT_STATE_FILE_NAME,
@@ -59,7 +59,7 @@ test('shows Not initialized status when no anchor files exist', async () => {
 test('shows Active status when all anchor files exist', async () => {
   const anchorDir = path.join(tempDir, ANCHOR_DIR_NAME);
   await mkdir(anchorDir, { recursive: true });
-  await writeFile(path.join(anchorDir, CHART_FILE_NAME), '# chart');
+  await writeFile(path.join(anchorDir, DIRECTORY_REGISTRY_FILE_NAME), '# chart');
   await writeFile(path.join(anchorDir, GUARDRAILS_FILE_NAME), '- [ ] rule');
   await writeFile(path.join(anchorDir, PROJECT_STATE_FILE_NAME), '## Todo');
   await writeFile(path.join(anchorDir, DECISIONS_FILE_NAME), '# Key Decisions');
@@ -71,7 +71,7 @@ test('shows Active status when all anchor files exist', async () => {
 test('shows Partial status when only some anchor files exist', async () => {
   const anchorDir = path.join(tempDir, ANCHOR_DIR_NAME);
   await mkdir(anchorDir, { recursive: true });
-  await writeFile(path.join(anchorDir, CHART_FILE_NAME), '# chart');
+  await writeFile(path.join(anchorDir, DIRECTORY_REGISTRY_FILE_NAME), '# chart');
 
   const stdout = await runStatus(tempDir);
   expect(stdout).toContain('Status:     Partial');
@@ -91,12 +91,12 @@ test('shows dataDir and indexDir from config', async () => {
 test('shows every persistent Markdown memory file with check/cross marks', async () => {
   const anchorDir = path.join(tempDir, ANCHOR_DIR_NAME);
   await mkdir(anchorDir, { recursive: true });
-  await writeFile(path.join(anchorDir, CHART_FILE_NAME), '# chart');
+  await writeFile(path.join(anchorDir, DIRECTORY_REGISTRY_FILE_NAME), '# chart');
 
   const stdout = await runStatus(tempDir);
 
-  // index.md should have a check mark (exists)
-  expect(stdout).toMatch(/index\.md\s+✓/);
+  // dirTree.json should have a check mark (exists)
+  expect(stdout).toMatch(/dirTree\.json\s+✓/);
 
   // Persistent memory files should have cross marks when missing.
   expect(stdout).toMatch(/guardrails\.md\s+✗/);

@@ -35,7 +35,7 @@ test('records the missing persistent state that requires an incremental fallback
   await expect(updatePartitionedChartsIncrementally(['src/example.ts'])).resolves.toBe(false);
 
   const log = await readFile(path.join(tempDir, '.memoryanchor', 'debug.log'), 'utf8');
-  expect(log).toContain('Incremental topology unavailable: missing dirTree.json, index.md.');
+  expect(log).toContain('Incremental topology unavailable: missing dirTree.json.');
 });
 
 test('reports the actual rendered and removed chart counts', async () => {

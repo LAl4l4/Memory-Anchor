@@ -7,7 +7,7 @@ import {
     persistDependencyGraph,
 } from './reverse/persistentDependencyGraph.js';
 import { partition } from './partition/runPartitioner.js';
-import { PARTITIONED_CHART_INDEX_NAME, runRender } from './render/runRender.js';
+import { runRender } from './render/runRender.js';
 import { destroyPool } from './parse/ASTParser.js';
 import { logToUser } from './shared/utils.js';
 import { appendDebugLog, formatError } from '../utils/logger.js';
@@ -20,7 +20,6 @@ export interface BuildChartResult {
     root: DirectoryTreeNode;
     directories: string[];
     chartPaths: string[];
-    indexPath: string;
 }
 
 const BUILD_STAGE_COUNT = 4;
@@ -82,13 +81,7 @@ export async function buildChart(
     );
     logStageEnd(4, 'render', renderStartedAt);
 
-    const indexPath = path.join(
-        parsed.projectRoot,
-        '.memoryanchor',
-        PARTITIONED_CHART_INDEX_NAME
-    );
-
-    return { root: topology.root, directories: topology.directories, chartPaths, indexPath };
+    return { root: topology.root, directories: topology.directories, chartPaths };
 }
 
 /** Full-build compatibility entry used by initialization and CLI hooks. */
@@ -98,7 +91,7 @@ export async function buildChartFull(): Promise<void> {
     try {
         const result = await buildChart();
         logToUser(
-            `Partitioned chart index rendered to: .memoryanchor/index.md (${result.chartPaths.length} charts)`,
+            `Partitioned charts rendered to: .memoryanchor/chart/ (${result.chartPaths.length} charts)`,
             "32"
         );
     } catch (error: any) {

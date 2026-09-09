@@ -77,7 +77,7 @@ export function getShallowPartitionDirectories(root: DirectoryTreeNode): Set<str
     return directories;
 }
 
-/** Return the first chart layer exposed by index.md. */
+/** Return the first virtual chart layer. */
 export function getRootChartDirectories(root: DirectoryTreeNode): string[] {
     const directories: string[] = [];
     const visit = (node: DirectoryTreeNode): void => {

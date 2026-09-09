@@ -1,8 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
 
-const ANCHOR_INDEX_PATH = path.join(process.cwd(), '.memoryanchor', 'index.md');
-
 /**
  * Hermes registers shell hooks in the global $HERMES_HOME/config.yaml, so
  * they fire in every project the agent runs in. Outside a Memory Anchor
@@ -10,5 +8,5 @@ const ANCHOR_INDEX_PATH = path.join(process.cwd(), '.memoryanchor', 'index.md');
  * or running incremental updates.
  */
 export function isMemoryAnchorWorkspace(): boolean {
-  return fs.existsSync(ANCHOR_INDEX_PATH);
+  return fs.existsSync(path.join(process.cwd(), '.memoryanchor', 'dirTree.json'));
 }

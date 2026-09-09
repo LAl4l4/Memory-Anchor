@@ -4,7 +4,6 @@ const updatePartitionedChartsIncrementally = jest.fn(async () => true);
 const buildPartitionedCharts = jest.fn(async () => ({
   directories: ['.'],
   chartPaths: ['.memoryanchor/chart/chart.md'],
-  indexPath: '.memoryanchor/index.md'
 }));
 
 jest.unstable_mockModule(

@@ -7,7 +7,6 @@ import {
     createPartitionedCharts,
     PARTITIONED_CHART_DIRECTORY_NAME,
     writeChartSet,
-    writePartitionIndex,
 } from '../render/runRender.js';
 import type { CreatePartitionedChartsOptions } from '../render/runRender.js';
 import { listParseableProjectFiles, resolveWorkspacePaths } from '../shared/utils.js';
@@ -21,10 +20,9 @@ import {
 } from './partitioner.js';
 
 // Render entry points moved to the render stage; kept here for compat.
-export { createPartitionedCharts, buildPartitionedChartIndex } from '../render/runRender.js';
+export { createPartitionedCharts } from '../render/runRender.js';
 export {
     PARTITIONED_CHART_DIRECTORY_NAME,
-    PARTITIONED_CHART_INDEX_NAME,
 } from '../render/runRender.js';
 export type { CreatePartitionedChartsOptions } from '../render/runRender.js';
 
@@ -160,8 +158,7 @@ function getTopologyRebuildDirectories(
     }
 
     // Parent changes alter rendered chart metadata even when the chart's own
-    // files and children are unchanged. Root-directory changes still affect
-    // index.md without requiring unrelated chart bodies to be regenerated.
+    // files and children are unchanged.
     return next.directories.filter(directory => directories.has(directory));
 }
 
@@ -265,7 +262,6 @@ export async function rebuildChangedPartitionCharts(
             })
         );
 
-    writePartitionIndex(projectRoot, nextTopology.rootDirectories);
     return { chartPaths, renderedDirectories, removedDirectories };
 }
 
@@ -322,7 +318,6 @@ export async function rebuildPartitionBoundary(
         }
     );
 
-    writePartitionIndex(projectRoot, nextTopology.rootDirectories);
     return chartPaths;
 }
 

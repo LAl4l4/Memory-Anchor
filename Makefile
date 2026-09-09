@@ -65,4 +65,4 @@ chart-registry:
 # 调试完整目录分区：生成 registry，并写入镜像目录 chart
 chart-partitions:
 	@npm run build
-	@node -e "Promise.all([import('./dist/chartBuild/partition/partitionedChartBuilder.js'), import('./dist/utils/logger.js')]).then(async ([{ buildPartitionedChartsForDebug }, { logger }]) => { const result = await buildPartitionedChartsForDebug(); logger.info('[Memory Anchor] Partition directories: ' + result.directories.join(', ')); logger.info('[Memory Anchor] Partitioned charts written: ' + result.chartPaths.length); logger.info('[Memory Anchor] Chart index written to: ' + result.indexPath); })"
+	@node -e "Promise.all([import('./dist/chartBuild/partition/partitionedChartBuilder.js'), import('./dist/utils/logger.js')]).then(async ([{ buildPartitionedChartsForDebug }, { logger }]) => { const result = await buildPartitionedChartsForDebug(); logger.info('[Memory Anchor] Partition directories: ' + result.directories.join(', ')); logger.info('[Memory Anchor] Partitioned charts written: ' + result.chartPaths.length); })"

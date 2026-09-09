@@ -1,7 +1,7 @@
 import { CAC } from 'cac';
 import path from 'node:path';
 import type { CommandContext } from '../types.js';
-import { INDEX_FILE_NAME, type PromptHookAgent } from '../constant.js';
+import { DIRECTORY_REGISTRY_FILE_NAME, type PromptHookAgent } from '../constant.js';
 import { claudeSetup } from './initHelper/initClaude.js';
 import { codebuddySetup } from './initHelper/initCodebuddy.js';
 import { codexSetup } from './initHelper/initCodex.js';
@@ -78,9 +78,9 @@ export function promptHookCommand(cli: CAC, context: CommandContext): void {
     .option('--off', 'Disable the selected UserPrompt hooks instead of enabling them')
     .action(async (agents: string[] = [], options: PromptHookOptions = {}) => {
       const cwd = process.cwd();
-      const indexPath = path.join(cwd, '.memoryanchor', INDEX_FILE_NAME);
+      const registryPath = path.join(cwd, '.memoryanchor', DIRECTORY_REGISTRY_FILE_NAME);
 
-      if (!(await fileExists(indexPath))) {
+      if (!(await fileExists(registryPath))) {
         await initPublic(cwd);
       } else {
         await ensurePromptHookConfig(path.join(cwd, '.memoryanchor'));

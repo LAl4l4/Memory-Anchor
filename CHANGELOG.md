@@ -1,5 +1,11 @@
 ## Update log
 
+- `2026/09/09` — `1.8.1`:
+    - [Changed] Removed `.memoryanchor/index.md` generation and runtime dependencies. Architecture queries resolve chart ownership through MCP; full builds remove the legacy index, and initialization checks and incremental refreshes use the directory registry.
+    - [Changed] Initialization creates repository-only guardrails without a Default Guardrails section. Migration and explicit normalization remove recognized managed defaults while preserving custom rules, including rules in legacy default sections.
+    - [Improved] Session context includes concise MCP guidance, repository guardrails, full project state, and all decisions without injecting the routing index or root chart. Native hooks and OpenCode share the same payload; memory budget notices remain advisory.
+    - [Updated] Agent instructions, documentation, and regression tests reflect MCP-first architecture queries and index-free initialization.
+
 - `2026/09/09` — `1.8.0`:
     - [Added] `anchor mcp` exposes read-only `get_chart` and `get_file` tools over stdio. Directory queries resolve existing partition ownership and child-chart routes; file queries return the exact architecture entry and optionally current source with bounded, 1-based line ranges.
     - [Added] `anchor init` and platform-specific initializers register MCP for Claude Code, Codex, CodeBuddy, Qoder CLI, Copilot CLI, OpenCode, and Hermes. Registration preserves existing same-name servers and client trust policies; project entries pin the executable and workspace, while global Hermes configuration uses the server's startup directory.

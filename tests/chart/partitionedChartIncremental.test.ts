@@ -61,7 +61,7 @@ test('deleting a final direct file removes only its obsolete chart branch', asyn
     .rejects.toMatchObject({ code: 'ENOENT' });
   await expect(readFile(betaChartPath, 'utf8')).resolves.toBe(betaBefore);
   await expect(readFile(path.join(tempDir, '.memoryanchor', 'index.md'), 'utf8'))
-    .resolves.not.toContain('.memoryanchor/chart/alpha/chart.md');
+    .rejects.toMatchObject({ code: 'ENOENT' });
 });
 
 test('root direct files use the uniform shallow chart and update incrementally', async () => {
@@ -100,9 +100,7 @@ test('root direct files use the uniform shallow chart and update incrementally',
   );
   await expect(readFile(srcChartPath, 'utf8')).resolves.toContain('workerFunction');
   await expect(readFile(srcChartPath, 'utf8')).resolves.not.toContain('rootFunction');
-  const index = await readFile(indexPath, 'utf8');
-  expect(index).toContain('.memoryanchor/chart/chart.md');
-  expect(index).not.toContain('.memoryanchor/chart/src/chart.md');
+  await expect(readFile(indexPath, 'utf8')).rejects.toMatchObject({ code: 'ENOENT' });
 
   await writeFile(
     rootFile,
@@ -244,9 +242,7 @@ test('adding the first root file creates a root chart and reparents child charts
     .resolves.toContain('.memoryanchor/chart/src/chart.md');
   await expect(readFile(path.join(outputRoot, 'src', 'chart.md'), 'utf8'))
     .resolves.toContain('workerFunction');
-  const index = await readFile(path.join(tempDir, '.memoryanchor', 'index.md'), 'utf8');
-  expect(index).toContain('.memoryanchor/chart/chart.md');
-  expect(index).not.toContain('.memoryanchor/chart/src/chart.md');
+  await expect(readFile(path.join(tempDir, '.memoryanchor', 'index.md'), 'utf8')).rejects.toMatchObject({ code: 'ENOENT' });
   const registry = JSON.parse(await readFile(registryPath, 'utf8'));
   expect(registry.isSplit).toBe(true);
   expect(registry.hasDirectFiles).toBe(true);

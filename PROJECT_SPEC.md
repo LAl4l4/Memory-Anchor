@@ -16,7 +16,7 @@ with the CLI.
 ### Goals
 
 - Give an agent a small, useful starting context for a large repository.
-- Route the agent from a repository index to the chart closest to its task.
+- Resolve task architecture directly through MCP directory and file queries.
 - Extract architecture-level symbols and repository relationships from source
   with Tree-sitter.
 - Preserve durable rules, known issues, and technical decisions alongside
@@ -40,13 +40,12 @@ with the CLI.
 
 | Artifact | Responsibility |
 | --- | --- |
-| `.memoryanchor/index.md` | Small routing index that identifies the root chart partitions. |
 | `.memoryanchor/chart/**/chart.md` | Generated architecture charts, partitioned by directory topology. |
 | `.memoryanchor/dirTree.json` | Persisted directory sizes, split states, and virtual chart-tree routes. |
 | `.memoryanchor/dependencyGraph.json` | Persisted file-import candidate and function-level forward/reverse dependency edges for incremental chart refreshes. |
 | `.memoryanchor/refresh-checkpoint.json` | Successful-refresh file metadata fingerprints and chart-state identity used to skip unchanged dirty paths. |
 | `.memoryanchor/untracked-files.json` | Observed Git-untracked paths whose existence is checked on future lifecycle refreshes. |
-| `.memoryanchor/guardrails.md` | Durable default and repository-specific implementation guardrails. |
+| `.memoryanchor/guardrails.md` | Durable repository-specific implementation guardrails. |
 | `.memoryanchor/project-state.md` | Current module status, dependencies, and known issues. |
 | `.memoryanchor/decisions.md` | Architectural decisions and their rationale. |
 | `.memoryanchor/debug.json` | Opt-in, workspace-local diagnostic logging setting. |
@@ -55,7 +54,7 @@ with the CLI.
 
 Charts are generated artifacts and must not be edited manually. `guardrails.md`,
 `project-state.md`, and `decisions.md` are durable project memory and are intentionally
-maintained over time. Session-start hooks currently inject all three files in full.
+maintained over time. Session-start hooks inject MCP guidance, repository guardrails, module status and decisions in full.
 
 ## 4. Full initialization
 
@@ -67,8 +66,7 @@ The primary operation is:
 anchor init
 ```
 
-It scans supported source files, compiles a partitioned chart tree, writes the
-routing index, ensures the shared memory documents exist, and configures all
+It scans supported source files, compiles a partitioned chart tree, ensures the shared memory documents exist, and configures all
 supported agent integrations. Targeted `init-<agent>` commands configure one
 agent integration, while `init-public` creates only the shared repository
 memory and public instructions.
@@ -85,8 +83,8 @@ A full chart build has four observable stages:
    `.memoryanchor/dependencyGraph.json` after rendering succeeds.
 3. **Partition sizing** — aggregate directory character counts establish the
    physical and virtual chart topology.
-4. **Render** — chart-local file nodes are rendered to `chart.md` files and
-   `.memoryanchor/index.md` is written.
+4. **Render** — chart-local file nodes are rendered to `chart.md` files;
+   any legacy `.memoryanchor/index.md` is removed.
 
 The full build owns a temporary parse cache keyed by absolute path, so each
 source file is parsed once even though parsing, reverse indexing, and rendering
@@ -111,12 +109,12 @@ For each branch below a split directory, Memory Anchor selects the first
 non-split directory as a **recursive frontier** and emits one chart covering
 its full subtree. It emits no charts below that frontier. Split ancestors that
 own direct source files receive **shallow charts** for those direct files and
-link to child charts. The index lists the first virtual chart layer; each chart
+link to child charts. The registry stores virtual chart ownership; each chart
 lists only its immediate child chart routes.
 
-Agents must read the index first, then follow the closest route through Child
-Charts. Each generated chart identifies its own workspace-relative path so its
-scope is explicit.
+Agents query get_chart or get_file for the task path directly. MCP resolves
+chart ownership from the registry. Each generated chart identifies its own
+workspace-relative path and scope.
 
 ## 6. Chart content contract
 
@@ -188,7 +186,7 @@ Each deduplicated change batch follows one ordered pipeline:
    importer, and topology-boundary chart from disk, then render it using the
    updated global dependency registry.
 6. **Persist** — commit the dependency graph and directory registry after the
-   final chart render succeeds; refresh the index only when routing changes.
+   final chart render succeeds.
 
 Incremental graph maintenance never performs a repository-wide traversal of
 reverse edges. A changed or removed caller supplies every reverse mutation
@@ -222,10 +220,12 @@ their hook contract.
 
 At session start, the common context payload must provide, in order:
 
-1. Index routing rules.
-2. The root chart when one exists.
-3. Guardrails.
-4. Project state and decisions.
+1. Concise MCP guidance for direct directory/file queries and source fallback.
+2. Repository-specific guardrails, with advisory notices when needed.
+3. Full project state and decisions.
+
+Do not inject charts, a routing index, or managed default rules. Initialization and explicit normalization remove known legacy
+default rules, preserving custom rules even inside the old default section.
 
 Per-turn reinforcement is opt-in and controlled by
 `.memoryanchor/prompt-hooks.json`. The file stores an `enabled` array of agent
@@ -270,12 +270,12 @@ JavaScript, JSON, Python, Ruby, Rust, Scala, Swift, TypeScript, and TSX.
 
 ## 11. Acceptance criteria
 
-- `anchor init` creates a valid index, chart tree, directory registry, guardrails,
+- `anchor init` creates a valid chart tree, directory registry, guardrails,
   project state, decisions, and configured integrations without duplicate managed
   hooks; existing `## Key Decisions` content is migrated out of project-state.md.
 - Every generated chart follows the content contract and identifies its own
   path.
-- The index and Child Chart routes reach the nearest valid chart partition.
+- MCP queries resolve the correct chart without an index file.
 - A full build parses each supported file no more than once within its
   build-scoped cache.
 - Incremental updates refresh the correct owning chart and only rebuild broader

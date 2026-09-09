@@ -51,7 +51,7 @@ function getHookCommands(document: ReturnType<typeof parseDocument>): unknown[] 
 beforeEach(async () => {
   tempDir = await mkdtemp(path.join(os.tmpdir(), 'memory-anchor-prompt-hook-'));
   await mkdir(path.join(tempDir, '.memoryanchor'), { recursive: true });
-  await writeFile(path.join(tempDir, '.memoryanchor', 'index.md'), '# test index\n');
+  await writeFile(path.join(tempDir, '.memoryanchor', 'dirTree.json'), '# test index\n');
   process.chdir(tempDir);
 });
 

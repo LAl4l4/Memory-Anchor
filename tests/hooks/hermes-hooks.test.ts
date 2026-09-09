@@ -42,13 +42,14 @@ afterEach(async () => {
 
 test('pre-llm-call injects the memory core as context in a workspace', async () => {
   await mkdir(path.join(tempDir, '.memoryanchor', 'chart'), { recursive: true });
-  await writeFile(path.join(tempDir, '.memoryanchor', 'index.md'), '# chart index\n');
+  await writeFile(path.join(tempDir, '.memoryanchor', 'dirTree.json'), '# chart index\n');
 
   const output = JSON.parse(await runHook('hooks/hermes/pre-llm-call.js', tempDir)) as {
     context: string;
   };
   expect(output.context).toContain('[MEMORY ANCHOR: CONTEXT INJECTED]');
-  expect(output.context).toContain('# chart index');
+  expect(output.context).toContain('[MEMORY ANCHOR MCP]');
+  expect(output.context).not.toContain('# chart index');
 });
 
 test('pre-llm-call is a silent no-op outside a Memory Anchor workspace', async () => {
@@ -57,7 +58,7 @@ test('pre-llm-call is a silent no-op outside a Memory Anchor workspace', async (
 
 test('user-prompt appends the reminder as context in a workspace', async () => {
   await mkdir(path.join(tempDir, '.memoryanchor'), { recursive: true });
-  await writeFile(path.join(tempDir, '.memoryanchor', 'index.md'), '# chart index\n');
+  await writeFile(path.join(tempDir, '.memoryanchor', 'dirTree.json'), '# chart index\n');
 
   const output = JSON.parse(await runHook('hooks/hermes/user-prompt.js', tempDir)) as {
     context: string;

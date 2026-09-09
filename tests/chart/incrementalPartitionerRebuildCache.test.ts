@@ -20,7 +20,6 @@ test('missing durable dependency state requests the public full-build fallback',
   const anchorDir = path.join(tempDir, '.memoryanchor');
   const chartDir = path.join(anchorDir, 'chart');
   await mkdir(chartDir, { recursive: true });
-  await writeFile(path.join(anchorDir, 'index.md'), '# index\n', 'utf8');
   await writeFile(path.join(chartDir, 'chart.md'), '# chart\n', 'utf8');
   await writeFile(
     path.join(anchorDir, 'dirTree.json'),

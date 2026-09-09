@@ -1,6 +1,6 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { GUARDRAILS_DEFAULT_RULES, GUARDRAILS_DEFAULT_TITLE, GUARDRAILS_SPECIFIC_TITLE } from '../../constant.js';
+import { GUARDRAILS_MANAGED_RULE_SET, GUARDRAILS_SPECIFIC_TITLE } from '../../constant.js';
 import { logToUser } from '../../chartBuild/shared/utils.js';
 
 function normalizeRuleLine(line: string): string {
@@ -30,52 +30,18 @@ function normalizeLine(line: string): string | null {
   return normalizeRuleLine(trimmed)
 }
 
-export function sanitizeGuardrails(workdir = process.cwd()): void {
-  const GUARDRAILS_PATH = path.join(workdir, '.memoryanchor', 'guardrails.md');
-  if (!fs.existsSync(GUARDRAILS_PATH)) return;
-
-  const content = fs.readFileSync(GUARDRAILS_PATH, 'utf8');
-  const defaultSet = new Set(GUARDRAILS_DEFAULT_RULES.map((r) => r.trim()));
-
-  const specificIndex = content.indexOf(GUARDRAILS_SPECIFIC_TITLE);
-
-  let defaultRules: string[] = [];
-  let specificRules: string[] = [];
-
-  if (specificIndex !== -1) {
-    const defaultSection = content.slice(0, specificIndex);
-    const specificSection = content.slice(specificIndex);
-
-    defaultRules = defaultSection
-      .split('\n')
-      .map(normalizeLine)
-      .filter((l): l is string => l !== null)
-      .filter((l) => !l.startsWith('#') && defaultSet.has(l));
-
-    specificRules = specificSection
-      .split('\n')
-      .map(normalizeLine)
-      .filter((l): l is string => l !== null)
-      .filter((l) => !l.startsWith('#') && !defaultSet.has(l));
-  } else {
-    const allRules = content
-      .split('\n')
-      .map(normalizeLine)
-      .filter((l): l is string => l !== null)
-      .filter((l) => !l.startsWith('#'));
-
-    defaultRules = allRules.filter((l) => defaultSet.has(l));
-    specificRules = allRules.filter((l) => !defaultSet.has(l));
-  }
-
-  defaultRules = [...new Set(defaultRules)];
-  specificRules = [...new Set(specificRules)];
-
-  const defaultBlock = GUARDRAILS_DEFAULT_RULES.join('\n');
-  const specificBlock = specificRules.length > 0 ? specificRules.join('\n') : '';
-
-  const output = `${GUARDRAILS_DEFAULT_TITLE}\n${defaultBlock}\n\n${GUARDRAILS_SPECIFIC_TITLE}\n${specificBlock}\n`;
-  fs.writeFileSync(GUARDRAILS_PATH, output, 'utf8');
-  logToUser(`Guardrails normalized (${defaultRules.length} default, ${specificRules.length} specific)`, '35');
+/** Remove only recognized managed defaults, preserving custom rules in any section. */
+export function extractRepositoryRules(content: string): string[] {
+  return [...new Set(content.split('\n')
+    .map(normalizeLine)
+    .filter((line): line is string => line !== null && !line.startsWith('#'))
+    .filter(line => !GUARDRAILS_MANAGED_RULE_SET.has(line)))];
 }
 
+export function sanitizeGuardrails(workdir = process.cwd()): void {
+  const guardrailsPath = path.join(workdir, '.memoryanchor', 'guardrails.md');
+  if (!fs.existsSync(guardrailsPath)) return;
+  const rules = extractRepositoryRules(fs.readFileSync(guardrailsPath, 'utf8'));
+  fs.writeFileSync(guardrailsPath, `${GUARDRAILS_SPECIFIC_TITLE}\n${rules.join('\n')}\n`, 'utf8');
+  logToUser(`Guardrails normalized (${rules.length} repository rules)`, '35');
+}

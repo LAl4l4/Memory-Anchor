@@ -11,7 +11,7 @@ beforeEach(async () => {
   await mkdir(anchorDir, { recursive: true });
   await Promise.all([
     writeFile(path.join(anchorDir, 'debug.json'), '{\n  "enabled": true\n}\n'),
-    writeFile(path.join(anchorDir, 'index.md'), '# test index\n'),
+    writeFile(path.join(anchorDir, 'guardrails.md'), '- [ ] test rule\n'),
   ]);
 });
 

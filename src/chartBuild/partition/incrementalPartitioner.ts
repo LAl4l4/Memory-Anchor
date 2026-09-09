@@ -123,7 +123,6 @@ function normalizeChangedFiles(changedFiles: readonly string[]): string[] {
 interface IncrementalWorkspace {
     projectRoot: string;
     registryPath: string;
-    indexPath: string;
     dependencyGraphPath: string;
     thresholds: DirectoryCharThresholds;
 }
@@ -140,14 +139,13 @@ function resolveIncrementalWorkspace(
         projectRoot,
         thresholds,
         registryPath: path.join(anchorDirectory, 'dirTree.json'),
-        indexPath: path.join(anchorDirectory, 'index.md'),
         dependencyGraphPath: path.join(anchorDirectory, DEPENDENCY_GRAPH_FILE_NAME),
     };
 }
 
 function loadDirectoryTree(workspace: IncrementalWorkspace): DirectoryTreeNode | null {
-    if (!fs.existsSync(workspace.registryPath) || !fs.existsSync(workspace.indexPath)) {
-        const missing = [workspace.registryPath, workspace.indexPath]
+    if (!fs.existsSync(workspace.registryPath)) {
+        const missing = [workspace.registryPath]
             .filter(filePath => !fs.existsSync(filePath))
             .map(filePath => path.basename(filePath));
         appendDebugLog(

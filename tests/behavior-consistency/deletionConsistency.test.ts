@@ -66,7 +66,7 @@ test('deleting the last file of a directory removes its chart and index entry', 
 
   expect(artifacts['chart/alpha/chart.md']).toBeUndefined();
   expect(artifacts['chart/beta/chart.md']).toBeDefined();
-  expect(artifacts['index.md']).not.toContain('.memoryanchor/chart/alpha/chart.md');
+  expect(artifacts).not.toHaveProperty('index.md');
 });
 
 test('deleting a nested directory removes its whole chart subtree', async () => {
@@ -171,7 +171,7 @@ test('deleting a provider directory removes its chart and drops importer edges',
 
   expect(artifacts['chart/providers/chart.md']).toBeUndefined();
   expect(artifacts['chart/consumers/chart.md']).not.toContain('-> ../providers/');
-  expect(artifacts['index.md']).not.toContain('.memoryanchor/chart/providers/chart.md');
+  expect(artifacts).not.toHaveProperty('index.md');
 });
 
 test('deleting a caller file drops its reverse annotations from target charts', async () => {
@@ -275,7 +275,7 @@ test('deleting a virtual child branch under a split ancestor removes its chart',
   expect(artifacts['chart/bench/demo-crosschart/chart.md']).toBeUndefined();
   expect(artifacts['chart/bench/another-crosschart/chart.md']).toBeDefined();
   expect(artifacts['chart/bench/chart.md']).not.toContain('demo-crosschart');
-  expect(artifacts['index.md']).not.toContain('.memoryanchor/chart/bench/demo-crosschart/chart.md');
+  expect(artifacts).not.toHaveProperty('index.md');
 });
 
 const frontendWorkspace = async (root: string): Promise<void> => {
@@ -351,8 +351,7 @@ test('deleting the last root-level file removes the root chart', async () => {
 
   expect(artifacts['chart/chart.md']).toBeUndefined();
   expect(artifacts['chart/src/chart.md']).toBeDefined();
-  expect(artifacts['index.md']).not.toContain('.memoryanchor/chart/chart.md');
-  expect(artifacts['index.md']).toContain('.memoryanchor/chart/src/chart.md');
+  expect(artifacts).not.toHaveProperty('index.md');
 });
 
 test('moving a file between directories in one batch stays consistent', async () => {

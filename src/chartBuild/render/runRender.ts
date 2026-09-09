@@ -17,7 +17,6 @@ import type {
 import { listParseableProjectFiles, listProjectFiles, logToUser, resolveWorkspacePaths } from '../shared/utils.js';
 
 export const PARTITIONED_CHART_DIRECTORY_NAME = 'chart';
-export const PARTITIONED_CHART_INDEX_NAME = 'index.md';
 
 export interface CreatePartitionedChartsOptions {
     projectRoot?: string;
@@ -26,7 +25,7 @@ export interface CreatePartitionedChartsOptions {
     shallowDirectories?: ReadonlySet<string>;
     /** Immediate virtual-chart children keyed by chart directory. */
     chartChildren?: ReadonlyMap<string, readonly string[]>;
-    /** First virtual-chart layer to expose in index.md. */
+    /** First virtual-chart layer. */
     rootDirectories?: readonly string[];
     /** Absolute paths available as forward dependency targets. */
     dependencyFiles?: readonly string[];
@@ -57,10 +56,6 @@ function validateDirectory(directory: string): void {
 function getChartWorkspacePath(directory: string): string {
     const chartDirectory = directory === '.' ? '' : `${directory}/`;
     return `.memoryanchor/chart/${chartDirectory}chart.md`;
-}
-
-function buildChartReference(directory: string): string {
-    return `- \`${getChartWorkspacePath(directory)}\``;
 }
 
 function buildChildChartsSection(directories: readonly string[]): string {
@@ -291,28 +286,6 @@ export async function writeChartSet(
     return results.map(({ chartPath }) => chartPath!);
 }
 
-export function writePartitionIndex(projectRoot: string, directories: readonly string[]): string {
-    const indexPath = path.join(projectRoot, '.memoryanchor', PARTITIONED_CHART_INDEX_NAME);
-    fs.writeFileSync(indexPath, buildPartitionedChartIndex(directories), 'utf-8');
-    return indexPath;
-}
-
-export function buildPartitionedChartIndex(directories: readonly string[]): string {
-    const partitions = directories.map(buildChartReference).join('\n');
-
-    return `# Project Chart Index
-
-> Start with the entry chart closest to the task, then follow its Child Charts until the scope matches.
-> Listed chart paths are authoritative; physical directories do not necessarily own charts.
-
-Legend: \`+\` exported · \`-\` internal · \`->\` imports · \`<-\` callers · \`[Lx-y]\` source range
-
-## Entry Charts
-
-${partitions}
-`;
-}
-
 /**
  * Mirror selected project directories under .memoryanchor/chart. Frontier
  * charts scan recursively; split ancestor owners scan direct files only.
@@ -343,10 +316,8 @@ export async function createPartitionedCharts(
         { ...options, dependencyFiles }
     );
 
-    const indexStartedAt = process.hrtime.bigint();
     fs.rmSync(legacyChartPath, { force: true });
-    writePartitionIndex(projectRoot, options.rootDirectories ?? selectedDirectories);
-    logToUser(`[Render] wrote chart index in ${elapsedMilliseconds(indexStartedAt).toFixed(2)}ms`, '36');
+    fs.rmSync(path.join(anchorDirectory, 'index.md'), { force: true });
 
     return chartPaths;
 }
@@ -363,7 +334,7 @@ export interface RenderStageOptions {
 }
 
 /**
- * Stage 4: render every partition chart (and the index) from the topology
+ * Stage 4: render every partition chart from the topology
  * produced by the partition stage.
  */
 export async function runRender(options: RenderStageOptions): Promise<string[]> {

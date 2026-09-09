@@ -41,9 +41,7 @@ export const GITIGNORE_ENTRY = [
 // =============================================================================
 
 export const ANCHOR_DIR_NAME = '.memoryanchor';
-export const INDEX_FILE_NAME = 'index.md';
-/** @deprecated Use INDEX_FILE_NAME. Retained for compatibility with integrations. */
-export const CHART_FILE_NAME = INDEX_FILE_NAME;
+export const DIRECTORY_REGISTRY_FILE_NAME = 'dirTree.json';
 export const GUARDRAILS_FILE_NAME = 'guardrails.md';
 export const PROJECT_STATE_FILE_NAME = 'project-state.md';
 export const DECISIONS_FILE_NAME = 'decisions.md';
@@ -62,22 +60,26 @@ export const PROJECT_STATE_MODULE_STATUS_MAX_BYTES = 8 * 1024;
 // Default File Contents
 // =============================================================================
 
-export const GUARDRAILS_DEFAULT_RULES: string[] = [
-  '- [ ] At the start of every task, read ./.memoryanchor/chart/.../chart.md to establish a project-wide view before working on repository files.',
-  '- [ ] If the agent has any uncertainty about the overall project structure, immediately read ./.memoryanchor/index.md again. Then open partition chart files when index.md identifies the relevant directory.',
+export const LEGACY_GUARDRAILS_RULES: string[] = [
+  '- [ ] At the start of every task, call the memory-anchor MCP get_chart tool on the task directory to establish context before working on repository files. The injected root chart already covers the project-wide view, so do not fetch it again.',
+  '- [ ] If the agent has any uncertainty about the overall project structure, call get_chart again for the relevant directory, then get_file on candidate files. Without the MCP tools, re-read ./.memoryanchor/index.md and open the nearest chart file it lists.',
   '- [ ] Do not change ./.memoryanchor/index.md or ./.memoryanchor/chart/ by yourself. Only do it when user explicitly instructs you to.',
   '- [ ] Follow ./.memoryanchor/AGENTS.md rules.',
   '- [ ] Do not rebuild a function that already exists and used by others, instead, pull it out to a separate file and import it',
   '- [ ] After implementing a feature, update the Module Status in ./.memoryanchor/project-state.md. If it is a significant architectural change, also update ./.memoryanchor/decisions.md.',
+  '- [ ] At the start of every task, read ./.memoryanchor/chart/.../chart.md to establish a project-wide view before working on repository files.',
+  '- [ ] If the agent has any uncertainty about the overall project structure, immediately read ./.memoryanchor/index.md again. Then open partition chart files when index.md identifies the relevant directory.',
+  '- [ ] If the agent has any uncertainty about the overall project structure, immediately read ./.memoryanchor/index.md again. Only open partition chart files when index.md identifies the relevant directory.',
 ];
+
+/** Rules owned by Memory Anchor: never preserved as repository-specific rules. */
+export const GUARDRAILS_MANAGED_RULE_SET: ReadonlySet<string> = new Set(
+  LEGACY_GUARDRAILS_RULES.map((r) => r.trim()),
+);
 
 export const GUARDRAILS_DEFAULT_TITLE = '# Default Guardrails (do not modify)';
 
 export const GUARDRAILS_SPECIFIC_TITLE = '# Repository-specific Guardrails (maintain as the repository evolves)';
-
-export const GUARDRAILS_DEFAULT_RULE = GUARDRAILS_DEFAULT_RULES.join('\n');
-
-export const GUARDRAILS_DEFAULT_CONTENT = `${GUARDRAILS_DEFAULT_RULE}\n`;
 
 export const PROJECT_STATE_DEFAULT_CONTENT = `
 ## Module Status
@@ -103,10 +105,10 @@ export const AGENTS_CONTENT = `
 Memory Anchor is initialized in this repository. Follow these rules to ensure it works effectively.
 
 ### File Roles
-- ./.memoryanchor/index.md: Auto-generated project chart index. Its entries point to directory-level architecture maps under ./.memoryanchor/chart/.
-- ./.memoryanchor/chart/.../chart.md: Directory-level architecture map. Read the root chart at the start of every task for project-wide context, then use index.md and Child Charts to find the chart closest to the task.
-- ./.memoryanchor/project-state.md: Current Module Status (functionality/status/known_issues/notes).
-- ./.memoryanchor/decisions.md: Architectural choices and their rationale; all decisions are injected until a selection policy is configured.
+- Memory Anchor MCP tools: get_chart({path}) reads the chart covering a directory; get_file({path}) reads one file's symbols, signatures, ranges, dependencies and callers. Prefer them over opening chart or source files directly.
+- ./.memoryanchor/chart/.../chart.md: Directory-level architecture map, normally read through get_chart. Backing artifacts are located by MCP; do not manually traverse charts when MCP is available.
+- ./.memoryanchor/project-state.md: Current Module Status (functionality/status/known_issues/notes); injected into session context.
+- ./.memoryanchor/decisions.md: Architectural choices and their rationale; injected in full into session context.
 - ./.memoryanchor/guardrails.md: Persistent repository guardrails, one per line.
 - ./.memoryanchor/prompt-hooks.json: Optional UserPrompt hook selection; missing or empty means disabled.
 
@@ -118,8 +120,9 @@ Memory Anchor is initialized in this repository. Follow these rules to ensure it
 - A missing '->' means no parseable repository target was resolved; package and other unresolved imports are omitted.
 
 ### Workflow
-- At the start of every task, read ./.memoryanchor/chart/.../chart.md to establish a project-wide view before working on repository files.
-- If the agent has any uncertainty about the overall project structure, immediately read ./.memoryanchor/index.md again, then read the closest matching directory chart listed there.
+- Use get_chart on the task directory for architecture context and get_file for specific files; charts are not injected into the session.
+- If the agent has any uncertainty about the overall project structure, call get_chart for the relevant directory again, then get_file on candidate files before reading their source.
+- If the MCP tools are unavailable, disabled, or fail, inspect relevant source files directly. Do not rebuild charts merely to answer a query.
 - Must follow all rules in ./.memoryanchor/guardrails.md. After solving a bug, first merge the lesson into an existing rule when possible. Add a new rule under "Repository-specific Guardrails" only when it represents a distinct, durable repository constraint.
 - After any feature is implemented, update Module Status in ./.memoryanchor/project-state.md and, for significant architectural changes, update ./.memoryanchor/decisions.md.
 
@@ -205,7 +208,7 @@ export const OPENCODE_SCHEMA_URL = 'https://opencode.ai/config.json';
 
 export const REQUIRED_INSTRUCTION_ENTRIES = [
   './AGENTS.md',
-  // The plugin injects index.md, guardrails.md, project-state.md, and decisions.md together.
+  // The plugin injects MCP guidance, repository guardrails, project state, and decisions.
 ] as const;
 
 // =============================================================================

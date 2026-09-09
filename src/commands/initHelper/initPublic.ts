@@ -9,7 +9,7 @@ import {
   DECISIONS_FILE_NAME,
   GITIGNORE_ENTRY,
   GUARDRAILS_FILE_NAME,
-  INDEX_FILE_NAME,
+  DIRECTORY_REGISTRY_FILE_NAME,
   LEGACY_BALLAST_FILE_NAME,
   LEGACY_MANIFEST_FILE_NAME,
   PROJECT_STATE_FILE_NAME,
@@ -185,7 +185,6 @@ export async function migrateLegacyAnchorFiles(memoryAnchorDir: string): Promise
 
 export async function ensureAnchorFiles(memoryAnchorDir: string): Promise<boolean> {
   const migrated = await migrateLegacyAnchorFiles(memoryAnchorDir);
-  const chartCreated = await ensureFile(path.join(memoryAnchorDir, INDEX_FILE_NAME));
   const guardrailsCreated = await ensureGuardrailsFile(
     path.join(memoryAnchorDir, GUARDRAILS_FILE_NAME)
   );
@@ -196,7 +195,6 @@ export async function ensureAnchorFiles(memoryAnchorDir: string): Promise<boolea
   const promptHookConfigCreated = await ensurePromptHookConfig(memoryAnchorDir);
 
   return migrated
-    || chartCreated
     || guardrailsCreated
     || projectMemoryCreatedOrMigrated
     || promptHookConfigCreated;
@@ -244,7 +242,7 @@ export async function ensureWorkspaceDirectories(memoryAnchorDir: string): Promi
 
 export interface BasePaths {
   memoryAnchorDir: string;
-  chartPath: string;
+  registryPath: string;
   guardrailsPath: string;
   projectStatePath: string;
   decisionsPath: string;
@@ -256,7 +254,7 @@ export function getBasePaths(cwd: string): BasePaths {
   const memoryAnchorDir = path.join(cwd, '.memoryanchor');
   return {
     memoryAnchorDir,
-    chartPath: path.join(memoryAnchorDir, INDEX_FILE_NAME),
+    registryPath: path.join(memoryAnchorDir, DIRECTORY_REGISTRY_FILE_NAME),
     guardrailsPath: path.join(memoryAnchorDir, GUARDRAILS_FILE_NAME),
     projectStatePath: path.join(memoryAnchorDir, PROJECT_STATE_FILE_NAME),
     decisionsPath: path.join(memoryAnchorDir, DECISIONS_FILE_NAME),

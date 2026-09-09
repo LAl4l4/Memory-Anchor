@@ -27,11 +27,10 @@ afterAll(async () => {
 test('buildChartFull renders every fixture once in one architecture tree', async () => {
   await context.buildChartFull();
 
-  const indexContent = await readFile(context.indexPath, 'utf8');
+  await expect(readFile(context.indexPath, 'utf8')).rejects.toMatchObject({ code: 'ENOENT' });
   const chartContent = await readFile(context.chartPath, 'utf8');
   const normalizedChart = chartContent.replace(/\\/g, '/');
 
-  expect(indexContent).toContain('- `.memoryanchor/chart/chart.md`');
   expect(normalizedChart).toContain('## Architecture');
   expect(normalizedChart).toContain('### tests/chart/test-src/');
   for (const { file } of fixtures) {
