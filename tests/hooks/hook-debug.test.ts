@@ -57,6 +57,19 @@ test('native hooks record their agent, event, workdir, and successful result', a
   );
 });
 
+test('Codex SessionStart emits complete JSON context without debug output on stdout', async () => {
+  const decisions = '[Decision] Preserve "quotes", backslashes \\ and 中文.\n'.repeat(3000);
+  await writeFile(path.join(tempDir, '.memoryanchor', 'decisions.md'), decisions);
+
+  const output = JSON.parse(await runHook('hooks/codex/session-start.js'));
+  expect(output.hookSpecificOutput.hookEventName).toBe('SessionStart');
+  expect(output.hookSpecificOutput.additionalContext).toContain('[MEMORY ANCHOR: CONTEXT INJECTED]');
+  expect(output.hookSpecificOutput.additionalContext).toContain(decisions.trim());
+  expect(output.hookSpecificOutput.additionalContext).not.toContain('Hook triggered |');
+  const log = await readFile(path.join(tempDir, '.memoryanchor', 'debug.log'), 'utf8');
+  expect(log).toContain('agent=codex | event=SessionStart');
+});
+
 test('hook invocation inference preserves Codex Stop despite its shared session-end handler', async () => {
   const { getHookInvocation } = await import('../../dist/hooks/public/hookDebug.js');
 

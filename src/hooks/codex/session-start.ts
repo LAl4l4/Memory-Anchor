@@ -2,8 +2,12 @@
 import { loadMemoryCore } from '../public/sessionStartPublic.js';
 
 try {
-  process.stdout.write(loadMemoryCore());
+  process.stdout.write(JSON.stringify({
+    hookSpecificOutput: {
+      hookEventName: 'SessionStart',
+      additionalContext: loadMemoryCore(),
+    },
+  }));
 } catch (err) {
-  process.stdout.write('Failed to load memory.');
+  process.stdout.write(JSON.stringify({ systemMessage: 'Failed to load memory.' }));
 }
-process.exit(0);
