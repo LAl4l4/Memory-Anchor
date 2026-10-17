@@ -18,7 +18,7 @@ Memory Anchor is initialized in this repository. Follow these rules to ensure it
 ### File Roles
 - Memory Anchor MCP tools: get_chart({path}) reads the chart covering a directory; get_file({path}) reads one file's symbols, signatures, ranges, dependencies and callers. Prefer them over opening chart or source files directly.
 - ./.memoryanchor/chart/.../chart.md: Directory-level architecture map, normally read through get_chart. Backing artifacts are located by MCP; do not manually traverse charts when MCP is available.
-- ./.memoryanchor/project-state.md: Current Module Status (functionality/status/known_issues/notes); injected into session context.
+- ./.memoryanchor/project-state.md: Current Module Status (functionality/status/known_issues/notes); only module names are injected. Use get_project_state({}) for the directory and get_project_state({module}) for full module details.
 - ./.memoryanchor/decisions.md: Architectural choices and their rationale; injected in full into session context.
 - ./.memoryanchor/guardrails.md: Persistent repository guardrails, one per line.
 - ./.memoryanchor/prompt-hooks.json: Optional UserPrompt hook selection; missing or empty means disabled.
@@ -31,7 +31,7 @@ Memory Anchor is initialized in this repository. Follow these rules to ensure it
 - A missing '->' means no parseable repository target was resolved; package and other unresolved imports are omitted.
 
 ### Workflow
-- Use get_chart on the task directory for architecture context and get_file for specific files; charts are not injected into the session.
+- Use get_chart on the task directory for architecture context and get_file for specific files; only a bounded root chart directory is injected; chart details are read on demand.
 - If the agent has any uncertainty about the overall project structure, call get_chart for the relevant directory again, then get_file on candidate files before reading their source.
 - If the MCP tools are unavailable, disabled, or fail, inspect relevant source files directly. Do not rebuild charts merely to answer a query.
 - Must follow all rules in ./.memoryanchor/guardrails.md. After solving a bug, first merge the lesson into an existing rule when possible. Add a new rule under "Repository-specific Guardrails" only when it represents a distinct, durable repository constraint.

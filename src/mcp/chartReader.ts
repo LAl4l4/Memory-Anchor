@@ -5,6 +5,8 @@ import {
   type DirectoryTreeNode,
 } from '../chartBuild/partition/directoryTree.js';
 
+import { projectStateModules } from './memoryCatalog.js';
+
 const MAX_TEXT_BYTES = 2 * 1024 * 1024;
 const relative = (root: string, target: string): string => path.relative(root, target).split(path.sep).join('/') || '.';
 
@@ -102,6 +104,17 @@ export class ChartReader {
       childCharts: node.chartChildren.map(child => ({ directory: child.directory,
         path: path.posix.join('.memoryanchor/chart', child.directory, 'chart.md') })),
     };
+  }
+
+  async getProjectState(module?: string) {
+    const text = await readText(this.root, '.memoryanchor/project-state.md');
+    const modules = projectStateModules(text.content);
+    const base = { path: '.memoryanchor/project-state.md', modifiedAt: text.modifiedAt };
+    if (module === undefined) return { ...base, modules: modules.map(item => item.name) };
+    const matches = modules.filter(item => item.name === module);
+    if (!matches.length) throw new Error('Unknown module; call get_project_state({}) for available names.');
+    if (matches.length > 1) throw new Error('Duplicate module headings; use unique names in project-state.md.');
+    return { ...base, module, content: matches[0].content };
   }
 
   async getChart(input: string) {

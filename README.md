@@ -64,7 +64,7 @@ The output mirrors the source tree. For example:
     └── tests/chart.md
 ```
 
-At session start, Memory Anchor injects concise MCP guidance, repository guardrails, project state, and decisions in full. Query `get_chart({path})` or `get_file({path})` for the task directly; no routing index or root chart is injected. Re-running initialization removes the legacy index and managed default rules while preserving custom rules.
+At session start, Memory Anchor injects MCP guidance, repository guardrails, a compact chart entry directory, a module-name directory, and decisions. The chart directory contains the root entry and its first chart children from the existing partition registry, without recursive expansion. Each injected directory is capped at 20 entries and 1,600 characters, with an explicit notice for omitted entries. Query `get_chart({path})` or `get_file({path})` for architecture details. Use `get_project_state({})` to list all module names and `get_project_state({module: "exact name"})` to read one complete module. Stored memory is never truncated. Re-running initialization removes the legacy index and managed default rules while preserving custom rules.
 
 ## Incremental updates
 
@@ -133,7 +133,7 @@ Tool-use guidance is injected through the existing shared session-context path
 (OpenCode uses its system-transform plugin), and is also advertised in MCP's
 initialize response `instructions`. It explains which tool to choose, scoped
 charts, bounded source reads, freshness uncertainty and direct-file fallback when
-MCP is unavailable. Repository guardrails, project state, decisions and this guidance occupy the
+MCP is unavailable. Repository guardrails, chart/module directories, decisions and this guidance occupy the
 normal context. Optional UserPrompt reminders stay opt-in.
 
 For manual setup, run `anchor mcp --workspace /absolute/path/to/project` to expose an initialized
@@ -222,7 +222,7 @@ anchor init
     │  create guardrails/project state/decisions and configure integrations
     ▼
 Session starts
-    │  inject MCP guidance + guardrails + project state + decisions
+    │  inject MCP guidance + guardrails + chart/module directories + decisions
     ▼
 Agent works
     │  index routes the agent to the closest directory chart

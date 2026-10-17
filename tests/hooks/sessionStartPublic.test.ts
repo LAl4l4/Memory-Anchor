@@ -41,7 +41,8 @@ test('session injects only repository rules and does not mutate legacy memory', 
   for (const marker of ['ROOT-CHART-MARKER', 'INDEX-MARKER']) {
     expect(result).not.toContain(marker);
   }
-  expect(result).toContain('MODULE-STATUS-MARKER');
+  expect(result).not.toContain('MODULE-STATUS-MARKER');
+  expect(result).toContain('(whole document)');
   expect(result).toContain('DECISIONS-MARKER');
   expect(await readFile(path.join(anchorDir, 'guardrails.md'), 'utf8')).toBe(guardrails);
 });
@@ -70,13 +71,14 @@ test('legacy stale markers remain advisory', async () => {
   expect(buildMemoryCore(workspace)).toContain('legacy [STALE] markers');
 });
 
-test('large state and decisions are injected in full with advisory state budget', async () => {
-  const state = `## Module Status\n${'m'.repeat(20000)}`;
+test('large state injects only module names while decisions and budget notices remain', async () => {
+  const state = `## Module Status\n### Parser\n${'m'.repeat(20000)}`;
   const decisions = `# Key Decisions\n${'d'.repeat(20000)}`;
   await writeFile(path.join(anchorDir, 'project-state.md'), state);
   await writeFile(path.join(anchorDir, 'decisions.md'), decisions);
   const result = buildMemoryCore(workspace);
-  expect(result).toContain(state);
+  expect(result).not.toContain(state);
+  expect(result).toContain('- "Parser"');
   expect(result).toContain(decisions);
   expect(result).toContain('project-state.md Module Status:');
 });
@@ -86,4 +88,25 @@ test('decisions are injected independently when state is missing', async () => {
   const result = buildMemoryCore(workspace);
   expect(result).toContain('- Independent decision');
   expect(result).not.toContain('[PROJECT STATE');
+});
+
+test('chart directory exposes one chart level and bounds large directories', async () => {
+  const { createDirectoryTree, rebuildChartTree, toDirectoryTreeRegistry } = await import('../../dist/chartBuild/partition/directoryTree.js');
+  const tree = createDirectoryTree(['.', 'src', 'src/deep', 'tests']);
+  tree.isSplit = true;
+  rebuildChartTree(tree);
+  await writeFile(path.join(anchorDir, 'dirTree.json'), JSON.stringify(toDirectoryTreeRegistry(tree)));
+  let result = buildMemoryCore(workspace);
+  expect(result).toContain('- "src"');
+  expect(result).not.toContain('src/deep');
+  tree.isSplit = false;
+  rebuildChartTree(tree);
+  await writeFile(path.join(anchorDir, 'dirTree.json'), JSON.stringify(toDirectoryTreeRegistry(tree)));
+  expect(buildMemoryCore(workspace)).not.toContain('- "src"');
+  await writeFile(path.join(anchorDir, 'project-state.md'), '## Module Status\n' + Array.from({length: 80}, (_, i) => `### Module ${i}\n- notes: private detail`).join('\n'));
+  result = buildMemoryCore(workspace);
+  expect(result).toContain('60 more entries');
+  expect(result).not.toContain('private detail');
+  const { compactDirectory } = await import('../../dist/mcp/memoryCatalog.js');
+  expect(compactDirectory(['x'.repeat(2000)], 'get_project_state({})').length).toBeLessThan(1600);
 });

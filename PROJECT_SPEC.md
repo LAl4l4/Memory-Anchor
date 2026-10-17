@@ -54,7 +54,7 @@ with the CLI.
 
 Charts are generated artifacts and must not be edited manually. `guardrails.md`,
 `project-state.md`, and `decisions.md` are durable project memory and are intentionally
-maintained over time. Session-start hooks inject MCP guidance, repository guardrails, module status and decisions in full.
+maintained over time. Session-start hooks inject MCP guidance, repository guardrails, bounded chart and module directories, and decisions. Module details are read on demand through get_project_state.
 
 ## 4. Full initialization
 
@@ -222,9 +222,13 @@ At session start, the common context payload must provide, in order:
 
 1. Concise MCP guidance for direct directory/file queries and source fallback.
 2. Repository-specific guardrails, with advisory notices when needed.
-3. Full project state and decisions.
+3. A chart directory containing the root and first descendant chart owners, derived from the existing partition registry.
+4. A project-state module-name directory; get_project_state lists names or returns one exact module in full.
+5. Full architectural decisions.
 
-Do not inject charts, a routing index, or managed default rules. Initialization and explicit normalization remove known legacy
+Each injected directory is limited to 20 entries and 1,600 characters and explicitly reports omitted entries. Missing or invalid chart registries fall back to the root query entry without rebuilding. Project-state queries do not require chart artifacts.
+
+Do not inject chart bodies, full project state, a recursive routing index, or managed default rules. Initialization and explicit normalization remove known legacy
 default rules, preserving custom rules even inside the old default section.
 
 Per-turn reinforcement is opt-in and controlled by

@@ -32,6 +32,10 @@ export async function createChartServer(workspace: string): Promise<McpServer> {
     inputSchema: { path: z.string().min(1), include_source: z.boolean().default(false),
       start_line: z.number().int().positive().optional(), end_line: z.number().int().positive().optional() }, annotations,
   }, args => result(async () => (await reader()).getFile(args.path, args)));
+  server.registerTool('get_project_state', {
+    description: 'List project-state module names, or read one complete module by its exact name. Reads current memory without requiring chart artifacts.',
+    inputSchema: { module: z.string().min(1).optional() }, annotations,
+  }, args => result(async () => (await reader()).getProjectState(args.module)));
   return server;
 }
 
