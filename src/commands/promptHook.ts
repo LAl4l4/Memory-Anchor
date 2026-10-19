@@ -1,3 +1,6 @@
+import { qwencodeSetup } from './initHelper/initQwencode.js';
+import { deepseekSetup } from './initHelper/initDeepseek.js';
+import { zcodeSetup, hasZcodeHooks } from './initHelper/initZcode.js';
 import { CAC } from 'cac';
 import path from 'node:path';
 import type { CommandContext } from '../types.js';
@@ -19,6 +22,9 @@ import {
 } from './initHelper/promptHookConfig.js';
 
 const PROMPT_HOOK_FILES: Record<PromptHookAgent, string | null> = {
+  qwencode: '.qwen/settings.json',
+  deepseek: '.memoryanchor/deepseek/hooks.json',
+  zcode: null,
   claude: '.claude/settings.json',
   codex: '.codex/hooks.json',
   codebuddy: '.codebuddy/settings.json',
@@ -49,6 +55,9 @@ function getRequestedAgents(values: string[]): PromptHookAgent[] {
 
 async function reconcilePlatformHooks(cwd: string, enabled: Set<PromptHookAgent>): Promise<void> {
   const setup = {
+    qwencode: qwencodeSetup,
+    deepseek: deepseekSetup,
+    zcode: zcodeSetup,
     claude: claudeSetup,
     codex: codexSetup,
     codebuddy: codebuddySetup,
@@ -63,7 +72,7 @@ async function reconcilePlatformHooks(cwd: string, enabled: Set<PromptHookAgent>
       const targetPath = PROMPT_HOOK_FILES[agent];
       const targetExists =
         targetPath === null
-          ? await hasHermesHooks()
+          ? agent === 'zcode' ? await hasZcodeHooks() : await hasHermesHooks()
           : await fileExists(path.join(cwd, targetPath));
       if (enabled.has(agent) || targetExists) {
         await setup[agent](cwd);
@@ -89,7 +98,7 @@ export function promptHookCommand(cli: CAC, context: CommandContext): void {
       const requested = getRequestedAgents(agents);
       const current = await readPromptHookAgents(cwd);
       const next = options.off
-        ? current.filter((agent) => !requested.includes(agent))
+        ? requested.length > 0 ? current.filter((agent) => !requested.includes(agent)) : []
         : requested.length > 0
           ? requested
           : allPromptHookAgents();

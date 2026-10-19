@@ -23,8 +23,9 @@ with the CLI.
   generated charts.
 - Refresh only affected charts after Git-visible source changes whenever the
   directory topology is still valid.
-- Support Copilot, Claude Code, Codex CLI, CodeBuddy, OpenCode, and QoderCLI
-  CN through each platform's supported configuration and lifecycle hooks.
+- Support Copilot, Claude Code, Codex CLI, CodeBuddy, OpenCode, QoderCLI CN,
+  Hermes, Qwen Code, DeepSeek Harness, and ZCode through supported configuration
+  and lifecycle hooks.
 
 ### Non-goals
 
@@ -233,8 +234,9 @@ default rules, preserving custom rules even inside the old default section.
 
 Per-turn reinforcement is opt-in and controlled by
 `.memoryanchor/prompt-hooks.json`. The file stores an `enabled` array of agent
-IDs (`claude`, `codex`, `codebuddy`, `qodercn`, `copilot`, `opencode`, and
-`hermes`); missing or empty configuration disables every UserPrompt hook. The
+IDs (`claude`, `codex`, `codebuddy`, `qodercn`, `copilot`, `opencode`,
+`hermes`, `qwencode`, `deepseek`, and `zcode`); missing or empty configuration
+disables every UserPrompt reminder. The
 `anchor prompt-hook` command manages this selection, enabling the named
 agents exactly or all agents when no names are supplied. Codex is supported
 by the same opt-in policy and still has no session-level `SessionEnd` event.
@@ -262,6 +264,33 @@ system-prompt cache; the stop handler binds to `on_session_end` and the
 session-end handler to `on_session_finalize`. Edits to the YAML config are
 round-trip safe, preserving comments and user-owned hook entries, and an
 invalid existing config aborts initialization instead of being overwritten.
+
+Each platform owns its setup and CLI command registration in a separate
+`init<Agent>.ts` module. Hook input/output adapters and registration schemas
+belong to each platform and must not be shared across agents, even when their
+current formats match. Reuse the existing public context/refresh logic and
+platform-neutral JSON file utilities. DeepSeek overlay handling belongs to its
+dedicated helper.
+
+Qwen Code registers project hooks and MCP in `.qwen/settings.json`, plus a
+`QWEN.md` reference to `AGENTS.md`. Its `SessionStart` and optional
+`UserPromptSubmit` handlers emit JSON context; `Stop` and `SessionEnd` refresh
+and clean up their subprocess workers. Existing trust/disable policies remain intact.
+
+ZCode hooks belong to `~/.zcode/cli/config.json` under `hooks.events`, using
+process commands and millisecond timeouts. Project hooks are ignored by ZCode.
+Do not overwrite explicit global disabling. Its wrappers resolve the input `cwd`,
+no-op outside initialized workspaces, and gate reminders on that workspace's
+selection. Keep an installed global prompt dispatcher when another repository
+disables its own reminders. Project MCP uses `.zcode/config.json` `mcp.servers`.
+
+DeepSeek Harness initialization produces `.memoryanchor/deepseek/hooks.json`
+and a dedicated `cordis.patch.yml` overlay for the official `dsh-hooks-codex`
+bridge and `dsh-mcp-client`. Report the required `--patch` startup step and
+compatible profile dependencies; do not claim the generated overlay is active.
+The bridge has process-level config loading and the MCP server is bound to the
+initialized repository. Both DeepSeek and ZCode use `Stop` for session-end
+maintenance because their supported hook surfaces provide no `SessionEnd`.
 
 Initialization is idempotent: it may repair or replace Memory Anchor-managed
 configuration but must preserve user-owned hook entries and unrelated agent

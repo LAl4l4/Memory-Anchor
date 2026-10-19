@@ -12,6 +12,13 @@ interface PromptHookConfig {
 }
 
 const PROMPT_HOOK_ALIASES: Record<string, PromptHookAgent> = {
+  qwencode: 'qwencode',
+  qwen: 'qwencode',
+  'qwen-code': 'qwencode',
+  deepseek: 'deepseek',
+  'deepseek-harness': 'deepseek',
+  dsh: 'deepseek',
+  zcode: 'zcode',
   claude: 'claude',
   codex: 'codex',
   codebuddy: 'codebuddy',

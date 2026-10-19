@@ -33,7 +33,10 @@ export const GITIGNORE_ENTRY = [
   'opencode.json',
   '.claude',
   '.github',
-  '.qoder'
+  '.qoder',
+  '.qwen',
+  'QWEN.md',
+  '.zcode'
 ];
 
 // =============================================================================
@@ -144,6 +147,17 @@ export const AGENTS_ANCHOR_LINE = '- Follow `AGENTS.md` for Memory Anchor rules.
 // =============================================================================
 
 export const HOOK_COMMANDS = {
+  QWENCODE_PRE: 'memoryanchor-qwencode-pre',
+  QWENCODE_STOP: 'memoryanchor-qwencode-stop',
+  QWENCODE_PROMPT: 'memoryanchor-qwencode-prompt',
+  QWENCODE_POST: 'memoryanchor-qwencode-post',
+  DEEPSEEK_PRE: 'memoryanchor-deepseek-pre',
+  DEEPSEEK_STOP: 'memoryanchor-deepseek-stop',
+  DEEPSEEK_PROMPT: 'memoryanchor-deepseek-prompt',
+  ZCODE_PRE: 'memoryanchor-zcode-pre',
+  ZCODE_STOP: 'memoryanchor-zcode-stop',
+  ZCODE_PROMPT: 'memoryanchor-zcode-prompt',
+
   CLAUDE_PRE: 'memoryanchor-claude-pre',
   CLAUDE_STOP: 'memoryanchor-claude-stop',
   CLAUDE_POST: 'memoryanchor-claude-post',
@@ -183,6 +197,9 @@ export const PROMPT_HOOK_AGENTS = [
   'copilot',
   'opencode',
   'hermes',
+  'qwencode',
+  'deepseek',
+  'zcode',
 ] as const;
 
 export type PromptHookAgent = typeof PROMPT_HOOK_AGENTS[number];

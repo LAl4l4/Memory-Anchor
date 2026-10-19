@@ -120,7 +120,8 @@ export type HookConfigShape =
    * event names to arrays of `{ matcher?, command, timeout? }` entries.
    * Used by: hermes.
    */
-  | 'yaml-hook-array';
+  | 'yaml-hook-array'
+  | 'global-process-events';
 
 // =============================================================================
 // Axis 4: Context markdown file
@@ -150,6 +151,9 @@ export type ClaudeEventName = 'SessionStart' | 'UserPromptSubmit' | 'Stop' | 'Se
 export type CodexEventName = 'SessionStart' | 'UserPromptSubmit' | 'Stop';
 export type CodebuddyEventName = ClaudeEventName;
 export type QodercnEventName = ClaudeEventName;
+export type QwencodeEventName = ClaudeEventName;
+export type DeepseekEventName = CodexEventName;
+export type ZcodeEventName = CodexEventName;
 
 export type CopilotEventName =
   | 'sessionStart'
@@ -177,7 +181,10 @@ export interface AgentHookProtocol<E extends string = string> {
     | 'qodercn'
     | 'copilot'
     | 'opencode'
-    | 'hermes';
+    | 'hermes'
+    | 'qwencode'
+    | 'deepseek'
+    | 'zcode';
   /** Human-readable label, used in logs and errors. */
   readonly label: string;
   /** Casing / namespacing convention for this platform's event names. */
@@ -216,6 +223,64 @@ export interface AgentHookProtocol<E extends string = string> {
 // =============================================================================
 
 export const HOOK_PROTOCOLS = {
+  qwencode: {
+    agentId: 'qwencode',
+    label: 'Qwen Code',
+    eventNameStyle: 'pascal-case',
+    injectionMechanism: 'stdout-json-protocol',
+    hookConfigShape: 'matcher-plus-hooks-array',
+    contextMdStrategy: 'agent-md-anchor-line',
+    hookConfigPath: '.qwen/settings.json',
+    contextMdPath: 'QWEN.md',
+    eventNames: {
+      pre: 'SessionStart' as QwencodeEventName,
+      prompt: 'UserPromptSubmit' as QwencodeEventName,
+      stop: 'Stop' as QwencodeEventName,
+      post: 'SessionEnd' as QwencodeEventName,
+    },
+    contextInjectionEvent: null,
+    canBlockUserPrompt: true,
+    canRewriteUserPrompt: false,
+  },
+  deepseek: {
+    agentId: 'deepseek',
+    label: 'DeepSeek Harness',
+    eventNameStyle: 'pascal-case',
+    injectionMechanism: 'stdout-json-protocol',
+    hookConfigShape: 'matcher-plus-hooks-array',
+    contextMdStrategy: 'none',
+    hookConfigPath: '.memoryanchor/deepseek/hooks.json',
+    contextMdPath: null,
+    eventNames: {
+      pre: 'SessionStart' as DeepseekEventName,
+      prompt: 'UserPromptSubmit' as DeepseekEventName,
+      stop: 'Stop' as DeepseekEventName,
+      post: null,
+    },
+    contextInjectionEvent: null,
+    canBlockUserPrompt: true,
+    canRewriteUserPrompt: false,
+  },
+  zcode: {
+    agentId: 'zcode',
+    label: 'ZCode',
+    eventNameStyle: 'pascal-case',
+    injectionMechanism: 'stdout-json-protocol',
+    hookConfigShape: 'global-process-events',
+    contextMdStrategy: 'none',
+    hookConfigPath: '~/.zcode/cli/config.json',
+    contextMdPath: null,
+    eventNames: {
+      pre: 'SessionStart' as ZcodeEventName,
+      prompt: 'UserPromptSubmit' as ZcodeEventName,
+      stop: 'Stop' as ZcodeEventName,
+      post: null,
+    },
+    contextInjectionEvent: null,
+    canBlockUserPrompt: true,
+    canRewriteUserPrompt: false,
+  },
+
   claude: {
     agentId: 'claude',
     label: 'Claude',

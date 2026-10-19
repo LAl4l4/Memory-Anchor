@@ -33,7 +33,17 @@
     "memoryanchor-hermes-pre": "dist/hooks/hermes/pre-llm-call.js",
     "memoryanchor-hermes-prompt": "dist/hooks/hermes/user-prompt.js",
     "memoryanchor-hermes-stop": "dist/hooks/hermes/stop.js",
-    "memoryanchor-hermes-post": "dist/hooks/hermes/session-end.js"
+    "memoryanchor-hermes-post": "dist/hooks/hermes/session-end.js",
+    "memoryanchor-qwencode-pre": "dist/hooks/qwencode/session-start.js",
+    "memoryanchor-qwencode-prompt": "dist/hooks/qwencode/user-prompt.js",
+    "memoryanchor-qwencode-stop": "dist/hooks/qwencode/stop.js",
+    "memoryanchor-qwencode-post": "dist/hooks/qwencode/session-end.js",
+    "memoryanchor-deepseek-pre": "dist/hooks/deepseek/session-start.js",
+    "memoryanchor-deepseek-prompt": "dist/hooks/deepseek/user-prompt.js",
+    "memoryanchor-deepseek-stop": "dist/hooks/deepseek/stop.js",
+    "memoryanchor-zcode-pre": "dist/hooks/zcode/session-start.js",
+    "memoryanchor-zcode-prompt": "dist/hooks/zcode/user-prompt.js",
+    "memoryanchor-zcode-stop": "dist/hooks/zcode/stop.js"
   },
   "files": [
     "dist/",

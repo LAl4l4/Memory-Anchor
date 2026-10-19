@@ -21,7 +21,7 @@ function runInitHermes(cwd: string): Promise<void> {
     execFile(
       process.execPath,
       [cliPath, 'init-hermes'],
-      { cwd, env: { ...process.env, HERMES_HOME: path.join(cwd, 'hermes-home') } },
+      { cwd, env: { ...process.env, HOME: path.join(cwd, 'user-home'), HERMES_HOME: path.join(cwd, 'hermes-home') } },
       (error) => {
         if (error) {
           reject(error);

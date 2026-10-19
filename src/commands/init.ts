@@ -12,8 +12,14 @@
  *   `init-opencode`  — OpenCode-only setup
  *   `init-qodercn`   — QoderCLI CN-only setup
  *   `init-hermes`    — Hermes Agent-only setup
+ *   `init-qwencode`  — Qwen Code-only setup
+ *   `init-deepseek`  — DeepSeek Harness overlay setup
+ *   `init-zcode`     — ZCode global hooks and project MCP
  */
 
+import { qwencodeSetup, initQwencodeCommand } from './initHelper/initQwencode.js';
+import { deepseekSetup, initDeepseekCommand, reportDeepseekSetup } from './initHelper/initDeepseek.js';
+import { zcodeSetup, initZcodeCommand, reportZcodeSetup } from './initHelper/initZcode.js';
 import { CAC } from 'cac';
 import type { CommandContext } from '../types.js';
 import { initPublic } from './initHelper/initPublic.js';
@@ -35,8 +41,8 @@ import { registerMcp } from './initHelper/initMcp.js';
 import { PROMPT_HOOK_AGENTS } from '../constant.js';
 
 export function initCommand(cli: CAC, context: CommandContext): void {
-  // Combined init — runs public + Copilot + Claude + Codex CLI + CodeBuddy + OpenCode + QoderCLI CN + Hermes
-  cli.command('init', 'Initialize Memory Anchor (Copilot + Claude + Codex CLI + CodeBuddy + OpenCode + QoderCLI CN + Hermes)').action(async () => {
+  // Combined init — common memory and every supported integration.
+  cli.command('init', 'Initialize Memory Anchor (Copilot + Claude + Codex CLI + CodeBuddy + OpenCode + QoderCLI CN + Hermes + Qwen Code + DeepSeek Harness + ZCode)').action(async () => {
     const cwd = process.cwd();
 
     const common = await initPublic(cwd);
@@ -47,6 +53,11 @@ export function initCommand(cli: CAC, context: CommandContext): void {
     const opencode = await opencodeSetup(cwd);
     const qodercn = await qodercnSetup(cwd);
     const hermes = await hermesSetup(cwd);
+    const qwencode = await qwencodeSetup(cwd);
+    const deepseek = await deepseekSetup(cwd);
+    const zcode = await zcodeSetup(cwd);
+    reportDeepseekSetup(context);
+    reportZcodeSetup(context);
     let mcpUpdated = false;
     for (const agent of PROMPT_HOOK_AGENTS) {
       mcpUpdated = await registerMcp(cwd, agent) || mcpUpdated;
@@ -66,12 +77,17 @@ export function initCommand(cli: CAC, context: CommandContext): void {
       opencode.pluginWritten ||
       opencode.configUpdated ||
       qodercn.settingsUpdated ||
-      hermes.configUpdated;
+      hermes.configUpdated ||
+      qwencode.settingsUpdated ||
+      qwencode.qwenMdUpdated ||
+      deepseek.hooksUpdated ||
+      deepseek.patchUpdated ||
+      zcode.configUpdated;
 
     if (anythingUpdated) {
-      context.logger.info('Memory anchor initialized for Copilot, Claude, Codex CLI, CodeBuddy, OpenCode, QoderCLI CN, and Hermes');
+      context.logger.info('Memory anchor initialized for Copilot, Claude, Codex CLI, CodeBuddy, OpenCode, QoderCLI CN, Hermes, Qwen Code, DeepSeek Harness, and ZCode');
     } else {
-      context.logger.info('Memory anchor already exists for Copilot, Claude, Codex CLI, CodeBuddy, OpenCode, QoderCLI CN, and Hermes');
+      context.logger.info('Memory anchor already exists for Copilot, Claude, Codex CLI, CodeBuddy, OpenCode, QoderCLI CN, Hermes, Qwen Code, DeepSeek Harness, and ZCode');
     }
   });
 
@@ -95,4 +111,7 @@ export function initCommand(cli: CAC, context: CommandContext): void {
   initOpencodeCommand(cli, context);
   initQodercnCommand(cli, context);
   initHermesCommand(cli, context);
+  initQwencodeCommand(cli, context);
+  initDeepseekCommand(cli, context);
+  initZcodeCommand(cli, context);
 }

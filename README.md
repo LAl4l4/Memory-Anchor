@@ -94,7 +94,8 @@ If the partition registry or required output topology is missing, the compatibil
 
 `anchor init` now registers the Memory Anchor MCP server alongside the existing
 agent integrations. The platform-specific `anchor init-claude`, `init-codex`,
-`init-codebuddy`, `init-qodercn`, `init-copilot`, `init-opencode`, and `init-hermes`
+`init-codebuddy`, `init-qodercn`, `init-copilot`, `init-opencode`, `init-hermes`,
+`init-qwencode`, `init-deepseek`, and `init-zcode`
 commands register it for that platform. `init-public` remains common-files-only.
 
 | Client | Registration location |
@@ -103,6 +104,9 @@ commands register it for that platform. `init-public` remains common-files-only.
 | Codex | Project `.codex/config.toml` → `[mcp_servers.memory-anchor]` |
 | OpenCode | Project `opencode.json` → `mcp.memory-anchor` |
 | Hermes | `$HERMES_HOME/config.yaml` (default `~/.hermes/config.yaml`) → `mcp_servers.memory-anchor` |
+| Qwen Code | Project `.qwen/settings.json` → `mcpServers.memory-anchor` |
+| ZCode | Project `.zcode/config.json` → `mcp.servers.memory-anchor` |
+| DeepSeek Harness | `.memoryanchor/deepseek/cordis.patch.yml` → `dsh-mcp-client` entry, loaded using `--patch` |
 
 Registration pins the current Node executable and installed `dist/cli.js`, so it
 also works from a source checkout after `npm run build`. Project registrations
@@ -247,6 +251,9 @@ Session ends
 | OpenCode | `anchor init-opencode` | `.opencode/plugins/memory-anchor.js` and `opencode.json` |
 | QoderCLI CN | `anchor init-qodercn` | `.qoder/settings.json` |
 | Hermes Agent | `anchor init-hermes` | `$HERMES_HOME/config.yaml` (default `~/.hermes/config.yaml`) |
+| Qwen Code | `anchor init-qwencode` | `.qwen/settings.json` and `QWEN.md` |
+| DeepSeek Harness | `anchor init-deepseek` | `.memoryanchor/deepseek/hooks.json` and `cordis.patch.yml` overlay |
+| ZCode | `anchor init-zcode` | User `~/.zcode/cli/config.json` hooks; project `.zcode/config.json` MCP |
 
 Platform wrappers that expose native lifecycle callbacks converge on the same public stop and session-end handlers, sharing Git capture, partitioned incremental updates, fallback behavior, and parser-pool lifecycle.
 
@@ -255,6 +262,45 @@ OpenCode uses `experimental.chat.system.transform` to append the Memory Anchor p
 Hermes registers shell hooks in the user's global `$HERMES_HOME/config.yaml`, so they fire in every project Hermes runs in; outside a Memory Anchor workspace each hook is a silent no-op. Context is delivered through `pre_llm_call` as `{"context": ...}`, which Hermes appends to the user message (never the system prompt, preserving the prompt cache). `on_session_end` runs the stop handler per turn and `on_session_finalize` runs the session-end handler at CLI teardown. Hermes asks for one-time consent per hook on first run; non-interactive runs need `hooks_auto_accept: true` or `HERMES_ACCEPT_HOOKS=1`.
 
 UserPrompt reminders are disabled by default for every integration, including Codex. Use `anchor prompt-hook <agent...>` to enable exactly the listed agents, or `anchor prompt-hook` with no agent list to enable all supported integrations. Use `anchor prompt-hook --off [agent...]` to disable selected reminders, or all reminders when no agent is supplied. The selection is persisted in `.memoryanchor/prompt-hooks.json`, and rerunning any init command reconciles only Memory Anchor's managed prompt entries while preserving user-owned hooks.
+
+Qwen Code uses `SessionStart`, `Stop`, `SessionEnd`, and opt-in
+`UserPromptSubmit`. Hook replies contain JSON `hookSpecificOutput.additionalContext`.
+Project hooks require a trusted workspace; existing `disableAllHooks` settings
+are preserved. See the [Qwen hook contract](https://qwenlm.github.io/qwen-code-docs/en/users/features/hooks/).
+
+ZCode currently ignores project-level hooks, so initialization merges hooks into
+the user config, preserving an explicit `hooks.enabled: false`. Restart the
+session after configuration changes. Global wrappers use the event's `cwd` and
+silently skip projects without `.memoryanchor`. A prompt dispatcher, once
+installed, remains global but checks each workspace's opt-in at runtime; disabling
+reminders in one repository does not disable them in another. ZCode has no
+`SessionEnd`; `Stop` refreshes charts and releases workers. See the
+[ZCode hook contract](https://zcode.z.ai/en/docs/hooks).
+
+DeepSeek Harness uses the official `@deepseek-ai/dsh-hooks-codex` bridge.
+Initialization prepares an overlay; it does not modify a selected Harness profile
+or install its dependencies. Use a profile that supplies `@deepseek-ai/dsh-hooks-codex`
+and `@deepseek-ai/dsh-mcp-client` versions compatible with that Harness installation,
+then launch from the project:
+
+```bash
+anchor init-deepseek
+dsh --profile web --patch .memoryanchor/deepseek/cordis.patch.yml
+```
+
+The overlay registers context at `SessionStart`, refresh at `Stop`, and the MCP
+server bound to this repository. Restart after changing prompt-hook selection:
+the bridge reads its configuration once at startup. There is no `SessionEnd`
+in this bridge. Use this overlay for sessions in this repository; its MCP server
+stays bound to the initialized workspace. Older bridge versions may deliver
+session-start context after the first request. Contracts were checked against
+upstream commit `687f282e8625c6b8d11ff58211a90524be2e4317`; see the
+[bridge](https://github.com/deepseek-ai/deepseek-harness/blob/687f282e8625c6b8d11ff58211a90524be2e4317/packages/experimental/hooks-codex/README.md)
+and [profile overlays](https://github.com/deepseek-ai/deepseek-harness/blob/687f282e8625c6b8d11ff58211a90524be2e4317/apps/cli/reference/README.md).
+
+For these integrations, enable reminders with
+`anchor prompt-hook qwencode deepseek zcode`; `qwen`, `qwen-code`, `dsh`, and
+`deepseek-harness` are also accepted as selection aliases.
 
 When an integration needs investigation, run `anchor debug`. This enables a workspace-local `.memoryanchor/debug.log` without changing normal console behavior. It records normal CLI output, full-build stages, incremental refresh decisions, fallback reasons, and lifecycle failures. Every supported hook additionally records its agent, event, resolved working directory, and success/failure result; OpenCode records the same fields from its standalone plugin. Use `anchor debug --off` to stop appending; the existing log is retained for inspection.
 
@@ -271,6 +317,9 @@ When an integration needs investigation, run `anchor debug`. This enables a work
 | `anchor init-opencode` | Initialize the OpenCode plugin and configuration. |
 | `anchor init-qodercn` | Initialize the QoderCLI CN integration. |
 | `anchor init-hermes` | Initialize the Hermes Agent hooks in `$HERMES_HOME/config.yaml`. |
+| `anchor init-qwencode` | Initialize Qwen Code hooks, instructions, and MCP. |
+| `anchor init-deepseek` | Prepare DeepSeek Harness hooks and its explicit startup overlay. |
+| `anchor init-zcode` | Initialize ZCode user hooks and project MCP. |
 | `anchor prompt-hook [agents...]` | Enable or disable optional UserPrompt reminders (`--off` disables). |
 | `anchor debug` | Enable persistent diagnostics in `.memoryanchor/debug.log` (`--off` disables without deleting the log). |
 | `anchor maintain` | Read-only review of memory budget and legacy `[STALE]` notices. |

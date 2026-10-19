@@ -6,6 +6,8 @@ import { parse as parseToml, stringify as stringifyToml } from 'smol-toml';
 import { parseDocument, YAMLMap } from 'yaml';
 import type { PromptHookAgent } from '../../constant.js';
 import { logger } from '../../utils/logger.js';
+import { asObject, readConfig, saveConfig } from './jsonConfig.js';
+import { addDeepseekEntry } from './deepseekPatch.js';
 
 const SERVER_NAME = 'memory-anchor';
 type Config = Record<string, unknown>;
@@ -103,7 +105,30 @@ async function registerHermes(file: string): Promise<boolean> {
 export async function registerMcp(cwd: string, agent: PromptHookAgent): Promise<boolean> {
   let updated: boolean;
   let file: string;
-  if (agent === 'codex') {
+  if (agent === 'deepseek') {
+    return addDeepseekEntry(cwd, {
+      id: 'memory-anchor-mcp', name: '@deepseek-ai/dsh-mcp-client',
+      config: { serverName: SERVER_NAME, transport: 'stdio', ...getMcpLaunch(cwd), cwd: path.resolve(cwd) },
+    });
+  } else if (agent === 'qwencode') {
+    file = path.join(cwd, '.qwen/settings.json');
+    const config = await readConfig(file);
+    const servers = asObject(config.mcpServers ?? {}, 'mcpServers');
+    if (keepExisting(servers, file)) return false;
+    servers[SERVER_NAME] = getMcpLaunch(cwd);
+    config.mcpServers = servers;
+    updated = await saveConfig(file, config);
+  } else if (agent === 'zcode') {
+    file = path.join(cwd, '.zcode/config.json');
+    const config = await readConfig(file);
+    const mcp = asObject(config.mcp ?? {}, 'mcp');
+    const servers = asObject(mcp.servers ?? {}, 'mcp.servers');
+    if (keepExisting(servers, file)) return false;
+    servers[SERVER_NAME] = getMcpLaunch(cwd);
+    mcp.servers = servers;
+    config.mcp = mcp;
+    updated = await saveConfig(file, config);
+  } else if (agent === 'codex') {
     file = path.join(cwd, '.codex', 'config.toml');
     updated = await registerCodex(file, cwd);
   } else if (agent === 'hermes') {

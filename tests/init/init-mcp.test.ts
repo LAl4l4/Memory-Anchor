@@ -36,7 +36,7 @@ async function put(file: string, content: string) {
 test.each(PROMPT_HOOK_AGENTS)('init-%s registers a launchable server and injects tool guidance', async agent => {
   await put('src/demo.ts', 'export function demo() { return 1; }\n');
   await run(process.execPath, [cliPath, `init-${agent}`], {
-    cwd: workspace, env: { ...process.env, HERMES_HOME: path.join(workspace, 'hermes-home') }, timeout: 15000,
+    cwd: workspace, env: { ...process.env, HOME: path.join(workspace, 'user-home'), HERMES_HOME: path.join(workspace, 'hermes-home') }, timeout: 15000,
   });
   let config;
   if (agent === 'codex') {
@@ -44,6 +44,13 @@ test.each(PROMPT_HOOK_AGENTS)('init-%s registers a launchable server and injects
   } else if (agent === 'hermes') {
     config = parseDocument(await readFile(path.join(workspace, 'hermes-home/config.yaml'), 'utf8')).toJS().mcp_servers['memory-anchor'];
     expect(config.args).not.toContain('--workspace');
+  } else if (agent === 'qwencode') {
+    config = JSON.parse(await readFile(path.join(workspace, '.qwen/settings.json'), 'utf8')).mcpServers['memory-anchor'];
+  } else if (agent === 'zcode') {
+    config = JSON.parse(await readFile(path.join(workspace, '.zcode/config.json'), 'utf8')).mcp.servers['memory-anchor'];
+  } else if (agent === 'deepseek') {
+    const patches = parseDocument(await readFile(path.join(workspace, '.memoryanchor/deepseek/cordis.patch.yml'), 'utf8')).toJS();
+    config = patches.flatMap((patch: any) => patch.insert ?? []).find((entry: any) => entry.id === 'memory-anchor-mcp').config;
   } else if (agent === 'opencode') {
     const server = JSON.parse(await readFile(path.join(workspace, 'opencode.json'), 'utf8')).mcp['memory-anchor'];
     expect(server).toMatchObject({ type: 'local', enabled: true });
@@ -57,7 +64,7 @@ test.each(PROMPT_HOOK_AGENTS)('init-%s registers a launchable server and injects
   try {
     await client.connect(transport);
     expect(client.getInstructions()).toContain('[MEMORY ANCHOR MCP]');
-    expect((await client.listTools()).tools.map(tool => tool.name)).toEqual(['get_chart', 'get_file']);
+    expect((await client.listTools()).tools.map(tool => tool.name)).toEqual(['get_chart', 'get_file', 'get_project_state']);
     const result = await client.callTool({ name: 'get_file', arguments: { path: 'src/demo.ts' } });
     expect(result.isError).not.toBe(true);
     expect(JSON.stringify(result.content)).toContain('demo()');
@@ -73,9 +80,9 @@ test.each(PROMPT_HOOK_AGENTS)('init-%s registers a launchable server and injects
 
 test('combined init registers each format and rerunning registration is byte-idempotent', async () => {
   await run(process.execPath, [cliPath, 'init'], {
-    cwd: workspace, env: { ...process.env, HERMES_HOME: path.join(workspace, 'hermes-home') }, timeout: 15000,
+    cwd: workspace, env: { ...process.env, HOME: path.join(workspace, 'user-home'), HERMES_HOME: path.join(workspace, 'hermes-home') }, timeout: 15000,
   });
-  const files = ['.mcp.json', '.codex/config.toml', 'opencode.json', 'hermes-home/config.yaml'];
+  const files = ['.mcp.json', '.codex/config.toml', 'opencode.json', 'hermes-home/config.yaml', '.qwen/settings.json', '.zcode/config.json', '.memoryanchor/deepseek/cordis.patch.yml'];
   const before = await Promise.all(files.map(file => readFile(path.join(workspace, file), 'utf8')));
   for (const agent of PROMPT_HOOK_AGENTS) expect(await registerMcp(workspace, agent)).toBe(false);
   expect(await Promise.all(files.map(file => readFile(path.join(workspace, file), 'utf8')))).toEqual(before);
@@ -141,7 +148,7 @@ test('preserves Hermes YAML comments and does not bind global config to another 
   const client = new Client({ name: 'outside-test', version: '1.0.0' });
   try {
     await client.connect(new StdioClientTransport({ ...launch, cwd: another, stderr: 'pipe' }));
-    expect((await client.listTools()).tools).toHaveLength(2);
+    expect((await client.listTools()).tools).toHaveLength(3);
     expect((await client.callTool({ name: 'get_chart', arguments: { path: '.' } })).isError).toBe(true);
   } finally { await client.close(); }
 });

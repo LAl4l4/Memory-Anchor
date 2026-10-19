@@ -9,6 +9,9 @@ export type HookAgent =
   | 'opencode'
   | 'qodercn'
   | 'hermes'
+  | 'qwencode'
+  | 'deepseek'
+  | 'zcode'
   | 'unknown';
 
 export interface HookInvocation {
@@ -18,6 +21,9 @@ export interface HookInvocation {
 }
 
 const AGENTS = new Set<HookAgent>([
+  'qwencode',
+  'deepseek',
+  'zcode',
   'claude',
   'codex',
   'codebuddy',
@@ -40,6 +46,16 @@ const EVENT_BY_ENTRY_FILE: Record<string, string> = {
 
 /** Package-bin names remain available when Node is invoked through a symlink. */
 const INVOCATION_BY_BIN_NAME: Record<string, Pick<HookInvocation, 'agent' | 'event'>> = {
+  'memoryanchor-qwencode-pre': { agent: 'qwencode', event: 'SessionStart' },
+  'memoryanchor-qwencode-prompt': { agent: 'qwencode', event: 'UserPromptSubmit' },
+  'memoryanchor-qwencode-stop': { agent: 'qwencode', event: 'Stop' },
+  'memoryanchor-deepseek-pre': { agent: 'deepseek', event: 'SessionStart' },
+  'memoryanchor-deepseek-prompt': { agent: 'deepseek', event: 'UserPromptSubmit' },
+  'memoryanchor-deepseek-stop': { agent: 'deepseek', event: 'Stop' },
+  'memoryanchor-zcode-pre': { agent: 'zcode', event: 'SessionStart' },
+  'memoryanchor-zcode-prompt': { agent: 'zcode', event: 'UserPromptSubmit' },
+  'memoryanchor-zcode-stop': { agent: 'zcode', event: 'Stop' },
+  'memoryanchor-qwencode-post': { agent: 'qwencode', event: 'SessionEnd' },
   'memoryanchor-claude-pre': { agent: 'claude', event: 'SessionStart' },
   'memoryanchor-claude-stop': { agent: 'claude', event: 'Stop' },
   'memoryanchor-claude-post': { agent: 'claude', event: 'SessionEnd' },

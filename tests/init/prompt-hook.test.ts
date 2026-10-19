@@ -20,7 +20,7 @@ function runPromptHook(cwd: string, args: string[] = []): Promise<string> {
     execFile(
       process.execPath,
       [cliPath, 'prompt-hook', ...args],
-      { cwd, env: { ...process.env, HERMES_HOME: path.join(cwd, 'hermes-home') } },
+      { cwd, env: { ...process.env, HOME: path.join(cwd, 'user-home'), HERMES_HOME: path.join(cwd, 'hermes-home') } },
       (error, stdout, stderr) => {
         if (error) {
           reject(new Error(`${error.message}\nstdout=${stdout}\nstderr=${stderr}`));
@@ -104,6 +104,14 @@ test('--off removes only the selected prompt hook', async () => {
   );
   expect((await readJson('.codex', 'hooks.json')).hooks.UserPromptSubmit).toBeUndefined();
   expect((await readJson('.claude', 'settings.json')).hooks.UserPromptSubmit).toBeDefined();
+});
+
+test('--off without agents disables every workspace reminder', async () => {
+  await runPromptHook(tempDir, ['qwencode', 'deepseek', 'zcode']);
+  await runPromptHook(tempDir, ['--off']);
+  expect((await readJson('.memoryanchor', 'prompt-hooks.json')).enabled).toEqual([]);
+  expect((await readJson('.qwen', 'settings.json')).hooks.UserPromptSubmit).toBeUndefined();
+  expect((await readJson('.memoryanchor', 'deepseek', 'hooks.json')).hooks.UserPromptSubmit).toBeUndefined();
 });
 
 test('--off removes the Hermes prompt entry from the global config', async () => {
