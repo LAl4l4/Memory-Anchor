@@ -66,6 +66,42 @@ The output mirrors the source tree. For example:
 
 At session start, Memory Anchor injects MCP guidance, repository guardrails, a compact chart entry directory, a module-name directory, and decisions. The chart directory contains the root entry and its first chart children from the existing partition registry, without recursive expansion. Each injected directory is capped at 20 entries and 1,600 characters, with an explicit notice for omitted entries. Query `get_chart({path})` or `get_file({path})` for architecture details. Use `get_project_state({})` to list all module names and `get_project_state({module: "exact name"})` to read one complete module. Stored memory is never truncated. Re-running initialization removes the legacy index and managed default rules while preserving custom rules.
 
+## Ignoring files
+
+Memory Anchor reads the workspace's `.gitignore` files, including rules in
+subdirectories. To exclude additional files from architecture charts while
+keeping them in Git, create `.memoryanchorignore` in the workspace root:
+
+```gitignore
+# Large fixtures and generated code
+tests/fixtures/
+**/*.generated.ts
+
+# Keep one file from an otherwise excluded group
+examples/*
+!examples/minimal.ts
+```
+
+Both files use [Git ignore syntax](https://git-scm.com/docs/gitignore), including
+comments, directory patterns, `**`, and `!` exceptions. Nested `.gitignore` rules
+are relative to their own directory; `.memoryanchorignore` rules are relative
+to the workspace root. Anchor rules add exclusions to Git rules; `!` exceptions
+only undo exclusions in the same layer. Excluded parent directories must be
+re-included before their children can be included.
+
+The same policy applies to initialization, incremental charts, and dependency
+targets. Patterns apply even to already tracked files. Existing built-in
+exclusions such as `node_modules/`, `.git/`, `dist/`, `build/`, and
+`.memoryanchor/` remain mandatory. Git's global ignore files and
+`.git/info/exclude` are not read, so chart contents do not depend on a machine's
+Git configuration. The existing scanner omits dotfiles and hidden directories.
+
+Rule changes trigger a full chart rebuild on the next lifecycle refresh,
+removing stale entries and restoring newly included files. Ordinary source
+changes continue to use incremental refreshes. No JSON configuration or
+`.memoryanchorignore` file is required; commit the optional ignore file when
+the exclusions should be shared with your team.
+
 ## Incremental updates
 
 Stop and session-end hooks read the Git working-tree changes and pass the changed paths to the partitioned incremental updater. The legacy `updateChartIncrementally` API remains available and points to this same implementation.

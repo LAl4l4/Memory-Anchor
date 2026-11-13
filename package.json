@@ -1,6 +1,6 @@
 {
   "name": "memory-anchor",
-  "version": "1.10.0",
+  "version": "1.10.1",
   "description": "MemoryAnchor CLI scaffold",
   "license": "Apache-2.0",
   "author": "LAl4l4",
@@ -62,6 +62,7 @@
     "@modelcontextprotocol/sdk": "^1.30.0",
     "cac": "^6.7.14",
     "glob": "^13.0.6",
+    "ignore": "^7.0.6",
     "smol-toml": "^1.8.0",
     "web-tree-sitter": "0.26.9",
     "yaml": "^2.9.0",

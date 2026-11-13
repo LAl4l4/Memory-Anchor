@@ -46,6 +46,8 @@ with the CLI.
 | `.memoryanchor/dependencyGraph.json` | Persisted file-import candidate and function-level forward/reverse dependency edges for incremental chart refreshes. |
 | `.memoryanchor/refresh-checkpoint.json` | Successful-refresh file metadata fingerprints and chart-state identity used to skip unchanged dirty paths. |
 | `.memoryanchor/untracked-files.json` | Observed Git-untracked paths whose existence is checked on future lifecycle refreshes. |
+| `.memoryanchor/ignore-state.json` | Rule contents captured by the last successful full build, used to detect ignore-policy changes. |
+| `.memoryanchorignore` | Optional workspace-root Git-style exclusions specific to Memory Anchor. |
 | `.memoryanchor/guardrails.md` | Durable repository-specific implementation guardrails. |
 | `.memoryanchor/project-state.md` | Current module status, dependencies, and known issues. |
 | `.memoryanchor/decisions.md` | Architectural decisions and their rationale. |
@@ -71,6 +73,32 @@ It scans supported source files, compiles a partitioned chart tree, ensures the 
 supported agent integrations. Targeted `init-<agent>` commands configure one
 agent integration, while `init-public` creates only the shared repository
 memory and public instructions.
+
+### File inclusion policy
+
+Scan and render through one workspace-rooted ignore policy: built-in exclusions,
+root and nested `.gitignore` rules, then additional exclusions from the optional
+root `.memoryanchorignore`. Use Git ignore syntax, including negations and
+directory pruning; a negation cannot restore a child of an excluded parent.
+Anchor negations affect only Anchor rules and cannot override Git or built-in
+exclusions. Apply patterns to tracked and untracked files alike. Do not read
+global Git excludes or `.git/info/exclude`. Preserve the scanner's existing
+omission of dotfiles and hidden directories.
+
+Cache loaded rule matchers and directory decisions within each scan. Pass the
+workspace root into subtree and direct-file scans so anchored patterns have
+identical semantics during sizing, final rendering, and incremental refresh.
+Ignored code must not enter the dependency-path set or parsed graph nodes;
+unresolved import candidates may still retain those paths.
+
+Persist the scanned rule contents only after the full build succeeds. Lifecycle
+capture checks those rules, root rule-file creation, and `.gitignore` candidates
+from the existing physical directory registry and changed-path ancestors without
+traversing the source tree. This also detects rules hidden from Git status or
+committed since the build. Changed rules or missing rule-state snapshots request
+one full rebuild before ordinary changed-file filtering; this removes obsolete
+charts/edges and restores newly included files. Rule files remain optional and
+are never overwritten by chart builds.
 
 ### Build stages
 

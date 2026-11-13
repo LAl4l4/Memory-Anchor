@@ -3,6 +3,7 @@ import * as path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { acknowledgeRefresh, selectChangesSinceRefresh } from './refreshCheckpoint.js';
 import { ANCHOR_DIR_NAME, UNTRACKED_FILE_WATCH_FILE_NAME } from '../constant.js';
+import { getIgnorePolicyChanges } from './ignorePolicy.js';
 
 interface GitChange {
     status: 'M' | 'A' | '??' | string;
@@ -139,6 +140,10 @@ function captureGitChanges(): GitChange[] | null {
             }
         }
         const changes = parsed.filter(change => !isAnchorInternalPath(change.file));
+        const paths = new Set(changes.map(change => change.file));
+        for (const file of getIgnorePolicyChanges(process.cwd(), [...paths])) {
+            if (!paths.has(file)) changes.push({ status: 'M', file });
+        }
 
         const reconciled = reconcileUntrackedWatch(changes, process.cwd());
         return selectChangesSinceRefresh(reconciled, process.cwd());

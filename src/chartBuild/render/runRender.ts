@@ -137,7 +137,7 @@ async function preparePartitionedChart(
         throw new Error(`Cannot build partitioned chart: directory '${directory}' does not exist`);
     }
 
-    const dirGroups = listProjectFiles(sourceDirectory, !shallow);
+    const dirGroups = listProjectFiles(sourceDirectory, !shallow, projectRoot);
     const childChartsSection = buildChildChartsSection(childCharts);
     const chartDirectory = resolveChartDirectory(outputRoot, directory);
     const chartPath = path.join(chartDirectory, 'chart.md');

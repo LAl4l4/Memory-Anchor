@@ -1,18 +1,19 @@
 import { buildChartFull } from './buildChart.js';
 import { updatePartitionedChartsIncrementally } from './partition/incrementalPartitioner.js';
-import { isIgnored } from './shared/utils.js';
 import { appendDebugLog, formatError } from '../utils/logger.js';
+import { getIgnorePolicyChanges, IgnorePolicy } from '../utils/ignorePolicy.js';
 
 /**
  * Update only the affected directory partition and its ancestor character
  * totals. Falls back to a partitioned full build when registry topology is
- * unavailable.
+ * unavailable or ignore rules have changed.
  */
 export async function updatePartitionedChartIncrementally(
     changedFiles: string[]
 ): Promise<void> {
-    const files = changedFiles.filter((file) => !isIgnored(file));
-    if (files.length === 0) {
+    const policy = new IgnorePolicy(process.cwd());
+    const files = changedFiles.filter((file) => !policy.isIgnored(file));
+    if (files.length === 0 && getIgnorePolicyChanges(process.cwd(), changedFiles).length === 0) {
         appendDebugLog('debug', 'Incremental refresh skipped: no non-ignored changed files.');
         return;
     }
@@ -23,11 +24,11 @@ export async function updatePartitionedChartIncrementally(
     );
 
     try {
-        const updated = await updatePartitionedChartsIncrementally(files);
+        const updated = await updatePartitionedChartsIncrementally(changedFiles);
         if (!updated) {
             appendDebugLog(
                 'warn',
-                'Incremental refresh fell back to a full build because persistent topology or dependency state is unavailable.'
+                'Incremental refresh fell back to a full build because persistent state is unavailable or ignore rules changed.'
             );
             await buildChartFull();
             return;

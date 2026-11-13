@@ -19,11 +19,11 @@ import type {
 } from '../shared/CBHTypes.js';
 import {
     isCodeFile,
-    isIgnored,
     listProjectFiles,
     resolveWorkspacePaths,
 } from '../shared/utils.js';
 import { appendDebugLog, formatError } from '../../utils/logger.js';
+import { getIgnorePolicyChanges, IgnorePolicy } from '../../utils/ignorePolicy.js';
 import {
     DIRECTORY_CHAR_THRESHOLDS,
     DirectoryCharThresholds,
@@ -112,11 +112,12 @@ function persistDirectoryTree(registryPath: string, root: DirectoryTreeNode): vo
     );
 }
 
-function normalizeChangedFiles(changedFiles: readonly string[]): string[] {
+function normalizeChangedFiles(changedFiles: readonly string[], projectRoot: string): string[] {
+    const policy = new IgnorePolicy(projectRoot);
     return [...new Set(
         changedFiles
             .map(normalizeRelativePath)
-            .filter(relativeFile => !isIgnored(relativeFile))
+            .filter(relativeFile => !policy.isIgnored(relativeFile))
     )];
 }
 
@@ -179,7 +180,7 @@ function listDirectProjectFiles(projectRoot: string, directory: string): string[
         throw error;
     }
 
-    return [...listProjectFiles(sourceDirectory, false).values()]
+    return [...listProjectFiles(sourceDirectory, false, projectRoot).values()]
         .flat()
         .map(file => directory === '.'
             ? normalizeRelativePath(file)
@@ -517,7 +518,12 @@ export async function updatePartitionedChartsIncrementally(
     const root = loadDirectoryTree(workspace);
     if (!root) return false;
 
-    const files = normalizeChangedFiles(changedFiles);
+    if (getIgnorePolicyChanges(workspace.projectRoot, changedFiles).length > 0) {
+        appendDebugLog('debug', 'Ignore rules changed: requesting a full chart rebuild.');
+        return false;
+    }
+
+    const files = normalizeChangedFiles(changedFiles, workspace.projectRoot);
     if (files.length === 0) {
         appendDebugLog('debug', 'Incremental partition pipeline skipped: every changed path is ignored.');
         return true;

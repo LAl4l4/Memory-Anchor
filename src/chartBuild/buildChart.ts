@@ -11,6 +11,7 @@ import { runRender } from './render/runRender.js';
 import { destroyPool } from './parse/ASTParser.js';
 import { logToUser } from './shared/utils.js';
 import { appendDebugLog, formatError } from '../utils/logger.js';
+import { persistIgnoreState } from '../utils/ignorePolicy.js';
 import type { BuildDirectoryTreeRegistryOptions } from './partition/partitioner.js';
 import type { DirectoryTreeNode } from './partition/directoryTree.js';
 
@@ -79,6 +80,7 @@ export async function buildChart(
             globalDependencyRegistry
         )
     );
+    persistIgnoreState(parsed.projectRoot, parsed.ignoreState);
     logStageEnd(4, 'render', renderStartedAt);
 
     return { root: topology.root, directories: topology.directories, chartPaths };

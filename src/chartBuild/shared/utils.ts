@@ -4,6 +4,7 @@ import { globSync } from 'glob';
 import { EXT_TO_LANGUAGE } from '../../utils/ext-to-lang.js';
 import { appendDebugLog } from '../../utils/logger.js';
 import { IGNORED_DIR_NAMES, IGNORED_FILE_NAMES } from '../../constant.js';
+import { IgnorePolicy } from '../../utils/ignorePolicy.js';
 import type { WorkspacePaths } from './CBHTypes.js';
 
 export function resolveWorkspacePaths(): WorkspacePaths {
@@ -60,13 +61,8 @@ export function isCodeFile(filePath: string): boolean {
     return ext in EXT_TO_LANGUAGE;
 }
 
-export function isIgnored(relPath: string): boolean {
-    const normalized = relPath.split(path.sep).join('/');
-    const segments = normalized.split('/');
-    for (const segment of segments) {
-        if (IGNORED_DIR_NAMES.has(segment)) return true;
-    }
-    return IGNORED_FILE_NAMES.has(segments[segments.length - 1]);
+export function isIgnored(relPath: string, projectRoot = process.cwd()): boolean {
+    return new IgnorePolicy(projectRoot).isIgnored(relPath);
 }
 
 export function escapeRegex(str: string): string {
@@ -75,12 +71,17 @@ export function escapeRegex(str: string): string {
 
 export function listProjectFiles(
     projectRoot: string = PROJECT_ROOT,
-    recursive = true
+    recursive = true,
+    workspaceRoot: string = projectRoot,
+    policy = new IgnorePolicy(workspaceRoot)
 ): Map<string, string[]> {
     const allFiles = globSync(recursive ? '**/*' : '*', {
         cwd: projectRoot,
         nodir: true,
-        ignore: IGNORE_PATTERNS
+        ignore: {
+            ignored: entry => policy.isIgnored(entry.fullpath(), entry.isDirectory()),
+            childrenIgnored: entry => policy.isIgnored(entry.fullpath(), true),
+        }
     });
 
     const dirGroups = new Map<string, string[]>();
@@ -103,7 +104,8 @@ export function listParseableProjectFiles(projectRoot: string = PROJECT_ROOT): s
 }
 
 /** Check direct file ownership without paying for a glob traversal. */
-export function hasDirectProjectFiles(directory: string): boolean {
+export function hasDirectProjectFiles(directory: string, workspaceRoot = directory): boolean {
+    const policy = new IgnorePolicy(workspaceRoot);
     let entries: fs.Dirent[];
     try {
         entries = fs.readdirSync(directory, { withFileTypes: true });
@@ -114,7 +116,7 @@ export function hasDirectProjectFiles(directory: string): boolean {
     }
 
     return entries.some(entry => {
-        if (IGNORED_FILE_NAMES.has(entry.name)) return false;
+        if (policy.isIgnored(path.join(directory, entry.name))) return false;
         if (entry.isFile()) return true;
         if (!entry.isSymbolicLink()) return false;
 
