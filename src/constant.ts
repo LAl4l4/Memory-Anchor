@@ -142,6 +142,12 @@ Memory Anchor is initialized in this repository. Follow these rules to ensure it
 
 export const AGENTS_ANCHOR_LINE = '- Follow `AGENTS.md` for Memory Anchor rules.';
 
+/**
+ * Claude Code loads CLAUDE.md but not AGENTS.md, and a plain pointer sentence
+ * does not pull the rules into context. The `@path` import does.
+ */
+export const CLAUDE_AGENTS_IMPORT_LINE = '@AGENTS.md';
+
 // =============================================================================
 // Hook Command Names
 // =============================================================================

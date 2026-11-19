@@ -1,9 +1,9 @@
 import { CAC } from 'cac';
 import { registerMcp } from './initMcp.js';
 import path from 'node:path';
-import { appendFile, mkdir } from 'node:fs/promises';
+import { appendFile, mkdir, readFile, realpath, writeFile } from 'node:fs/promises';
 import type { CommandContext } from '../../types.js';
-import { AGENTS_ANCHOR_LINE, HOOK_COMMANDS } from '../../constant.js';
+import { AGENTS_ANCHOR_LINE, CLAUDE_AGENTS_IMPORT_LINE, HOOK_COMMANDS } from '../../constant.js';
 import {
   type BasePaths,
   getBasePaths,
@@ -176,19 +176,44 @@ function ensureClaudeHookEntry(
 // CLAUDE.md Update
 // =============================================================================
 
+async function isSameFile(left: string, right: string): Promise<boolean> {
+  try {
+    return (await realpath(left)) === (await realpath(right));
+  } catch {
+    return false;
+  }
+}
+
 async function ensureClaudeMd(paths: ClaudePaths): Promise<boolean> {
   const exists = await fileExists(paths.claudeMdPath);
   if (!exists) {
-    const content = `# Memory Anchor\n\n${AGENTS_ANCHOR_LINE}\n`;
+    const content = `# Memory Anchor\n\n${CLAUDE_AGENTS_IMPORT_LINE}\n`;
     await appendFile(paths.claudeMdPath, content);
     return true;
   }
 
-  if (await fileContainsLine(paths.claudeMdPath, AGENTS_ANCHOR_LINE)) {
+  // A CLAUDE.md that resolves to AGENTS.md already loads the rules; importing
+  // it into itself would only duplicate them.
+  if (await isSameFile(paths.claudeMdPath, paths.agentsPath)) {
     return false;
   }
 
-  await appendFile(paths.claudeMdPath, `\n\n${AGENTS_ANCHOR_LINE}\n`);
+  if (await fileContainsLine(paths.claudeMdPath, CLAUDE_AGENTS_IMPORT_LINE)) {
+    return false;
+  }
+
+  // Upgrade the legacy pointer sentence in place so the rules are imported.
+  if (await fileContainsLine(paths.claudeMdPath, AGENTS_ANCHOR_LINE)) {
+    const current = await readFile(paths.claudeMdPath, 'utf8');
+    const upgraded = current
+      .split(/(\r?\n)/)
+      .map(part => (part.trim() === AGENTS_ANCHOR_LINE ? CLAUDE_AGENTS_IMPORT_LINE : part))
+      .join('');
+    await writeFile(paths.claudeMdPath, upgraded, 'utf8');
+    return true;
+  }
+
+  await appendFile(paths.claudeMdPath, `\n\n${CLAUDE_AGENTS_IMPORT_LINE}\n`);
   return true;
 }
 

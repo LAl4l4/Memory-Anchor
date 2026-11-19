@@ -1,11 +1,11 @@
 import { afterEach, beforeEach, expect, test } from '@jest/globals';
 import { execFile } from 'node:child_process';
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { HOOK_COMMANDS, AGENTS_ANCHOR_LINE } from '../../dist/constant.js';
+import { HOOK_COMMANDS, AGENTS_ANCHOR_LINE, CLAUDE_AGENTS_IMPORT_LINE } from '../../dist/constant.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -86,11 +86,34 @@ test('creates .claude/settings.json with SessionEnd hook', async () => {
   expect(settings.hooks.SessionEnd[0].hooks[0].command).toBe(HOOK_COMMANDS.CLAUDE_POST);
 });
 
-test('creates CLAUDE.md with memory anchor line', async () => {
+test('creates CLAUDE.md that imports AGENTS.md', async () => {
   await runInitClaude(tempDir);
 
   const claudeMd = await readFile(path.join(tempDir, 'CLAUDE.md'), 'utf8');
-  expect(claudeMd).toContain(AGENTS_ANCHOR_LINE);
+  expect(claudeMd.split('\n')).toContain(CLAUDE_AGENTS_IMPORT_LINE);
+  expect(claudeMd).not.toContain(AGENTS_ANCHOR_LINE);
+});
+
+test('upgrades the legacy AGENTS.md pointer line to an import', async () => {
+  const claudeMdPath = path.join(tempDir, 'CLAUDE.md');
+  await writeFile(claudeMdPath, `# Memory Anchor\n\n${AGENTS_ANCHOR_LINE}\n\nKeep this.\n`);
+
+  await runInitClaude(tempDir);
+
+  const content = await readFile(claudeMdPath, 'utf8');
+  expect(content).toBe(`# Memory Anchor\n\n${CLAUDE_AGENTS_IMPORT_LINE}\n\nKeep this.\n`);
+});
+
+test('leaves a CLAUDE.md symlinked to AGENTS.md without a self-import', async () => {
+  await writeFile(path.join(tempDir, 'AGENTS.md'), '# Project guide\n');
+  await symlink('AGENTS.md', path.join(tempDir, 'CLAUDE.md'));
+
+  await runInitClaude(tempDir);
+
+  const agents = await readFile(path.join(tempDir, 'AGENTS.md'), 'utf8');
+  expect(agents.split('\n')).not.toContain(CLAUDE_AGENTS_IMPORT_LINE);
+  expect(agents).not.toContain(AGENTS_ANCHOR_LINE);
+  expect(agents).toContain('## Memory Anchor Rules');
 });
 
 test('existing CLAUDE.md content is preserved', async () => {
@@ -102,7 +125,7 @@ test('existing CLAUDE.md content is preserved', async () => {
   const content = await readFile(claudeMdPath, 'utf8');
   expect(content).toContain('# My Custom Rules');
   expect(content).toContain('Be helpful.');
-  expect(content).toContain(AGENTS_ANCHOR_LINE);
+  expect(content.split('\n')).toContain(CLAUDE_AGENTS_IMPORT_LINE);
 });
 
 test('re-running does not duplicate hooks', async () => {
@@ -118,13 +141,11 @@ test('re-running does not duplicate hooks', async () => {
   expect(settings.hooks.SessionEnd).toHaveLength(1);
 });
 
-test('re-running does not duplicate CLAUDE.md anchor line', async () => {
+test('re-running does not duplicate CLAUDE.md import line', async () => {
   await runInitClaude(tempDir);
   await runInitClaude(tempDir);
 
   const claudeMd = await readFile(path.join(tempDir, 'CLAUDE.md'), 'utf8');
-  const escaped = AGENTS_ANCHOR_LINE.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const re = new RegExp(escaped, 'g');
-  const matches = claudeMd.match(re);
+  const matches = claudeMd.split('\n').filter(line => line.trim() === CLAUDE_AGENTS_IMPORT_LINE);
   expect(matches).toHaveLength(1);
 });
