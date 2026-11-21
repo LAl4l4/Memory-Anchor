@@ -1,9 +1,31 @@
 {
   "name": "memory-anchor",
   "version": "1.10.1",
-  "description": "MemoryAnchor CLI scaffold",
+  "description": "Repository memory for coding agents: Tree-sitter architecture charts, MCP tools and lifecycle hooks across 10 agent platforms.",
   "license": "Apache-2.0",
   "author": "LAl4l4",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/LAl4l4/Memory-Anchor.git"
+  },
+  "homepage": "https://github.com/LAl4l4/Memory-Anchor#readme",
+  "bugs": {
+    "url": "https://github.com/LAl4l4/Memory-Anchor/issues"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "coding-agent",
+    "ai-agent",
+    "agent-memory",
+    "context-engineering",
+    "claude-code",
+    "codex",
+    "opencode",
+    "copilot",
+    "tree-sitter",
+    "code-map"
+  ],
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
