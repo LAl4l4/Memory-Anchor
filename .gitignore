@@ -30,3 +30,11 @@ CLAUDE.md
 .github
 
 .mcp.json
+
+# MA-mini-agent: model API settings and run traces stay local
+MA-mini-agent/config.json
+MA-mini-agent/runs/
+bench/runs/
+# bench suites built from private repositories stay local
+bench/suites/*
+!bench/suites/README.md
