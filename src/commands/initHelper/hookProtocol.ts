@@ -121,7 +121,13 @@ export type HookConfigShape =
    * Used by: hermes.
    */
   | 'yaml-hook-array'
-  | 'global-process-events';
+  | 'global-process-events'
+  /**
+   * Top-level named hook map (e.g. `.agents/hooks.json`) where lifecycle
+   * events (`SessionStart`, `PreInvocation`, `Stop`) hold flat handler arrays.
+   * Used by: antigravity.
+   */
+  | 'named-flat-hook-groups';
 
 // =============================================================================
 // Axis 4: Context markdown file
@@ -168,6 +174,8 @@ export type OpencodeEventName =
 
 export type HermesEventName = 'pre_llm_call' | 'on_session_end' | 'on_session_finalize';
 
+export type AntigravityEventName = 'SessionStart' | 'PreInvocation' | 'Stop';
+
 // =============================================================================
 // Full protocol spec per platform
 // =============================================================================
@@ -184,7 +192,8 @@ export interface AgentHookProtocol<E extends string = string> {
     | 'hermes'
     | 'qwencode'
     | 'deepseek'
-    | 'zcode';
+    | 'zcode'
+    | 'antigravity';
   /** Human-readable label, used in logs and errors. */
   readonly label: string;
   /** Casing / namespacing convention for this platform's event names. */
@@ -427,6 +436,25 @@ export const HOOK_PROTOCOLS = {
     canBlockUserPrompt: false,
     canRewriteUserPrompt: false,
   },
+  antigravity: {
+    agentId: 'antigravity',
+    label: 'Antigravity',
+    eventNameStyle: 'pascal-case',
+    injectionMechanism: 'stdout-json-protocol',
+    hookConfigShape: 'named-flat-hook-groups',
+    contextMdStrategy: 'none',
+    hookConfigPath: '.agents/hooks.json',
+    contextMdPath: null,
+    eventNames: {
+      pre: 'SessionStart' as AntigravityEventName,
+      prompt: 'PreInvocation' as AntigravityEventName,
+      stop: 'Stop' as AntigravityEventName,
+      post: null,
+    },
+    contextInjectionEvent: null,
+    canBlockUserPrompt: true,
+    canRewriteUserPrompt: false,
+  },
 } as const;
 
 export type AgentId = keyof typeof HOOK_PROTOCOLS;
@@ -502,6 +530,14 @@ type _HermesGuard = EnforceEventNameMatch<
   NonNullable<typeof HOOK_PROTOCOLS.hermes.eventNames.stop>,
   NonNullable<typeof HOOK_PROTOCOLS.hermes.eventNames.post>,
   NonNullable<typeof HOOK_PROTOCOLS.hermes.contextInjectionEvent>
+>;
+type _AntigravityGuard = EnforceEventNameMatch<
+  AntigravityEventName,
+  typeof HOOK_PROTOCOLS.antigravity.eventNames.pre,
+  typeof HOOK_PROTOCOLS.antigravity.eventNames.prompt,
+  typeof HOOK_PROTOCOLS.antigravity.eventNames.stop,
+  typeof HOOK_PROTOCOLS.antigravity.eventNames.post,
+  typeof HOOK_PROTOCOLS.antigravity.contextInjectionEvent
 >;
 
 // =============================================================================

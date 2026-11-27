@@ -21,7 +21,7 @@ export function updateProjectState(changes: GitChange[] | null): void {
   logToUser(`Code changes captured: ${parts.join('; ')}`, '36');
 }
 
-export async function runSessionEnd(): Promise<void> {
+export async function runSessionEnd(options?: { exit?: boolean }): Promise<void> {
   const invocation = logHookTriggered(getHookInvocation());
   try {
     const changes = captureGitChanges();
@@ -50,5 +50,7 @@ export async function runSessionEnd(): Promise<void> {
   } finally {
     await destroyPool();
   }
-  process.exit(0);
+  if (options?.exit !== false) {
+    process.exit(0);
+  }
 }

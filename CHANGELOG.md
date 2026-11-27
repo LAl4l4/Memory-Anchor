@@ -4,6 +4,7 @@ Entries are split into one file per date, newest first.
 
 ## Date index
 
+- [28-11-2026](changelog/28-11-2026.md)
 - [19-11-2026](changelog/19-11-2026.md)
 - [13-11-2026](changelog/13-11-2026.md)
 - [18-10-2026](changelog/18-10-2026.md)

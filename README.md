@@ -131,7 +131,7 @@ If the partition registry or required output topology is missing, the compatibil
 `anchor init` now registers the Memory Anchor MCP server alongside the existing
 agent integrations. The platform-specific `anchor init-claude`, `init-codex`,
 `init-codebuddy`, `init-qodercn`, `init-copilot`, `init-opencode`, `init-hermes`,
-`init-qwencode`, `init-deepseek`, and `init-zcode`
+`init-qwencode`, `init-deepseek`, `init-zcode`, and `init-antigravity`
 commands register it for that platform. `init-public` remains common-files-only.
 
 | Client | Registration location |
@@ -143,6 +143,7 @@ commands register it for that platform. `init-public` remains common-files-only.
 | Qwen Code | Project `.qwen/settings.json` → `mcpServers.memory-anchor` |
 | ZCode | Project `.zcode/config.json` → `mcp.servers.memory-anchor` |
 | DeepSeek Harness | `.memoryanchor/deepseek/cordis.patch.yml` → `dsh-mcp-client` entry, loaded using `--patch` |
+| Antigravity | Project workspace plugin `.agents/plugins/memory-anchor/mcp_config.json` → `mcpServers.memory-anchor` |
 
 Registration pins the current Node executable and installed `dist/cli.js`, so it
 also works from a source checkout after `npm run build`. Project registrations
@@ -290,6 +291,7 @@ Session ends
 | Qwen Code | `anchor init-qwencode` | `.qwen/settings.json` and `QWEN.md` |
 | DeepSeek Harness | `anchor init-deepseek` | `.memoryanchor/deepseek/hooks.json` and `cordis.patch.yml` overlay |
 | ZCode | `anchor init-zcode` | User `~/.zcode/cli/config.json` hooks; project `.zcode/config.json` MCP |
+| Antigravity | `anchor init-antigravity` | `.agents/hooks.json` and workspace plugin `.agents/plugins/memory-anchor/` |
 
 Platform wrappers that expose native lifecycle callbacks converge on the same public stop and session-end handlers, sharing Git capture, partitioned incremental updates, fallback behavior, and parser-pool lifecycle.
 
@@ -335,8 +337,17 @@ upstream commit `687f282e8625c6b8d11ff58211a90524be2e4317`; see the
 and [profile overlays](https://github.com/deepseek-ai/deepseek-harness/blob/687f282e8625c6b8d11ff58211a90524be2e4317/apps/cli/reference/README.md).
 
 For these integrations, enable reminders with
-`anchor prompt-hook qwencode deepseek zcode`; `qwen`, `qwen-code`, `dsh`, and
-`deepseek-harness` are also accepted as selection aliases.
+`anchor prompt-hook qwencode deepseek zcode antigravity`; `qwen`, `qwen-code`, `dsh`,
+`deepseek-harness`, and `agy` are also accepted as selection aliases.
+
+Antigravity discovers workspace customizations from `.agents/` and reads `AGENTS.md`
+natively. `anchor init-antigravity` registers flat `SessionStart` and `Stop` handlers
+under the `"memory-anchor"` key in `.agents/hooks.json` (preserving unrelated named
+hooks, user handlers, and any explicit `"enabled": false` setting) and bundles the
+workspace-scoped MCP server in `.agents/plugins/memory-anchor/{plugin.json,mcp_config.json}`.
+`SessionStart` injects context via `injectSteps` (`systemMessage`), opt-in reminders use
+`PreInvocation` when enabled via `anchor prompt-hook antigravity` (or `agy`), and `Stop`
+runs incremental chart refresh, releases parser workers, and returns `{"decision":"allow"}`.
 
 When an integration needs investigation, run `anchor debug`. This enables a workspace-local `.memoryanchor/debug.log` without changing normal console behavior. It records normal CLI output, full-build stages, incremental refresh decisions, fallback reasons, and lifecycle failures. Every supported hook additionally records its agent, event, resolved working directory, and success/failure result; OpenCode records the same fields from its standalone plugin. Use `anchor debug --off` to stop appending; the existing log is retained for inspection.
 
@@ -356,6 +367,7 @@ When an integration needs investigation, run `anchor debug`. This enables a work
 | `anchor init-qwencode` | Initialize Qwen Code hooks, instructions, and MCP. |
 | `anchor init-deepseek` | Prepare DeepSeek Harness hooks and its explicit startup overlay. |
 | `anchor init-zcode` | Initialize ZCode user hooks and project MCP. |
+| `anchor init-antigravity` | Initialize Antigravity workspace hooks and plugin MCP. |
 | `anchor prompt-hook [agents...]` | Enable or disable optional UserPrompt reminders (`--off` disables). |
 | `anchor debug` | Enable persistent diagnostics in `.memoryanchor/debug.log` (`--off` disables without deleting the log). |
 | `anchor maintain` | Read-only review of memory budget and legacy `[STALE]` notices. |

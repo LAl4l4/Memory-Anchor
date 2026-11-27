@@ -48,6 +48,10 @@ test.each(PROMPT_HOOK_AGENTS)('init-%s registers a launchable server and injects
     config = JSON.parse(await readFile(path.join(workspace, '.qwen/settings.json'), 'utf8')).mcpServers['memory-anchor'];
   } else if (agent === 'zcode') {
     config = JSON.parse(await readFile(path.join(workspace, '.zcode/config.json'), 'utf8')).mcp.servers['memory-anchor'];
+  } else if (agent === 'antigravity') {
+    const manifest = JSON.parse(await readFile(path.join(workspace, '.agents/plugins/memory-anchor/plugin.json'), 'utf8'));
+    expect(manifest).toMatchObject({ name: 'memory-anchor' });
+    config = JSON.parse(await readFile(path.join(workspace, '.agents/plugins/memory-anchor/mcp_config.json'), 'utf8')).mcpServers['memory-anchor'];
   } else if (agent === 'deepseek') {
     const patches = parseDocument(await readFile(path.join(workspace, '.memoryanchor/deepseek/cordis.patch.yml'), 'utf8')).toJS();
     config = patches.flatMap((patch: any) => patch.insert ?? []).find((entry: any) => entry.id === 'memory-anchor-mcp').config;
@@ -82,7 +86,7 @@ test('combined init registers each format and rerunning registration is byte-ide
   await run(process.execPath, [cliPath, 'init'], {
     cwd: workspace, env: { ...process.env, HOME: path.join(workspace, 'user-home'), HERMES_HOME: path.join(workspace, 'hermes-home') }, timeout: 15000,
   });
-  const files = ['.mcp.json', '.codex/config.toml', 'opencode.json', 'hermes-home/config.yaml', '.qwen/settings.json', '.zcode/config.json', '.memoryanchor/deepseek/cordis.patch.yml'];
+  const files = ['.mcp.json', '.codex/config.toml', 'opencode.json', 'hermes-home/config.yaml', '.qwen/settings.json', '.zcode/config.json', '.memoryanchor/deepseek/cordis.patch.yml', '.agents/plugins/memory-anchor/plugin.json', '.agents/plugins/memory-anchor/mcp_config.json'];
   const before = await Promise.all(files.map(file => readFile(path.join(workspace, file), 'utf8')));
   for (const agent of PROMPT_HOOK_AGENTS) expect(await registerMcp(workspace, agent)).toBe(false);
   expect(await Promise.all(files.map(file => readFile(path.join(workspace, file), 'utf8')))).toEqual(before);
@@ -121,11 +125,13 @@ test('normalizes a bare Copilot server map without hiding existing servers', asy
   expect(config.mcpServers['memory-anchor']).toBeDefined();
 });
 
-test.each<['claude' | 'codex' | 'hermes', string, string]>([
+test.each<['claude' | 'codex' | 'hermes' | 'antigravity', string, string]>([
   ['claude', '.mcp.json', '{broken'],
   ['claude', '.mcp.json', '{"mcpServers":[]}'],
   ['codex', '.codex/config.toml', 'model = ['],
   ['hermes', 'hermes-home/config.yaml', 'mcp_servers: []\n'],
+  ['antigravity', '.agents/plugins/memory-anchor/mcp_config.json', '{broken'],
+  ['antigravity', '.agents/plugins/memory-anchor/plugin.json', '{broken'],
 ])('rejects invalid %s configuration without writing it', async (agent, file, original) => {
   await put(file, original);
   await expect(registerMcp(workspace, agent)).rejects.toThrow();

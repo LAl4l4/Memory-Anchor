@@ -6,7 +6,7 @@ import { parse as parseToml, stringify as stringifyToml } from 'smol-toml';
 import { parseDocument, YAMLMap } from 'yaml';
 import type { PromptHookAgent } from '../../constant.js';
 import { logger } from '../../utils/logger.js';
-import { asObject, readConfig, saveConfig } from './jsonConfig.js';
+import { asObject, readConfig, readOptional as readOptionalText, saveConfig } from './jsonConfig.js';
 import { addDeepseekEntry } from './deepseekPatch.js';
 
 const SERVER_NAME = 'memory-anchor';
@@ -128,6 +128,26 @@ export async function registerMcp(cwd: string, agent: PromptHookAgent): Promise<
     mcp.servers = servers;
     config.mcp = mcp;
     updated = await saveConfig(file, config);
+  } else if (agent === 'antigravity') {
+    const pluginDir = path.join(cwd, '.agents', 'plugins', SERVER_NAME);
+    const pluginFile = path.join(pluginDir, 'plugin.json');
+    file = path.join(pluginDir, 'mcp_config.json');
+    const existingPluginText = await readOptionalText(pluginFile);
+    if (existingPluginText.trim()) {
+      await readConfig(pluginFile);
+    }
+    const config = await readConfig(file);
+    const servers = asObject(config.mcpServers ?? {}, 'mcpServers');
+    const pluginUpdated = existingPluginText.trim()
+      ? false
+      : await saveConfig(pluginFile, {
+          name: SERVER_NAME,
+          description: 'Read-only Memory Anchor MCP tools for querying repository architecture charts, file symbols, and module status.',
+        });
+    if (keepExisting(servers, file)) return pluginUpdated;
+    servers[SERVER_NAME] = getMcpLaunch(cwd);
+    config.mcpServers = servers;
+    updated = (await saveConfig(file, config)) || pluginUpdated;
   } else if (agent === 'codex') {
     file = path.join(cwd, '.codex', 'config.toml');
     updated = await registerCodex(file, cwd);

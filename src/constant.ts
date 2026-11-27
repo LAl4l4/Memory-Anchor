@@ -36,7 +36,8 @@ export const GITIGNORE_ENTRY = [
   '.qoder',
   '.qwen',
   'QWEN.md',
-  '.zcode'
+  '.zcode',
+  '.agents'
 ];
 
 // =============================================================================
@@ -163,6 +164,9 @@ export const HOOK_COMMANDS = {
   ZCODE_PRE: 'memoryanchor-zcode-pre',
   ZCODE_STOP: 'memoryanchor-zcode-stop',
   ZCODE_PROMPT: 'memoryanchor-zcode-prompt',
+  ANTIGRAVITY_PRE: 'memoryanchor-antigravity-pre',
+  ANTIGRAVITY_STOP: 'memoryanchor-antigravity-stop',
+  ANTIGRAVITY_PROMPT: 'memoryanchor-antigravity-prompt',
 
   CLAUDE_PRE: 'memoryanchor-claude-pre',
   CLAUDE_STOP: 'memoryanchor-claude-stop',
@@ -206,6 +210,7 @@ export const PROMPT_HOOK_AGENTS = [
   'qwencode',
   'deepseek',
   'zcode',
+  'antigravity',
 ] as const;
 
 export type PromptHookAgent = typeof PROMPT_HOOK_AGENTS[number];

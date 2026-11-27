@@ -65,7 +65,10 @@
     "memoryanchor-deepseek-stop": "dist/hooks/deepseek/stop.js",
     "memoryanchor-zcode-pre": "dist/hooks/zcode/session-start.js",
     "memoryanchor-zcode-prompt": "dist/hooks/zcode/user-prompt.js",
-    "memoryanchor-zcode-stop": "dist/hooks/zcode/stop.js"
+    "memoryanchor-zcode-stop": "dist/hooks/zcode/stop.js",
+    "memoryanchor-antigravity-pre": "dist/hooks/antigravity/session-start.js",
+    "memoryanchor-antigravity-prompt": "dist/hooks/antigravity/pre-invocation.js",
+    "memoryanchor-antigravity-stop": "dist/hooks/antigravity/stop.js"
   },
   "files": [
     "dist/",

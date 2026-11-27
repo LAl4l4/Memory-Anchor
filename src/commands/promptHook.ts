@@ -1,6 +1,7 @@
 import { qwencodeSetup } from './initHelper/initQwencode.js';
 import { deepseekSetup } from './initHelper/initDeepseek.js';
 import { zcodeSetup, hasZcodeHooks } from './initHelper/initZcode.js';
+import { antigravitySetup } from './initHelper/initAntigravity.js';
 import { CAC } from 'cac';
 import path from 'node:path';
 import type { CommandContext } from '../types.js';
@@ -25,6 +26,7 @@ const PROMPT_HOOK_FILES: Record<PromptHookAgent, string | null> = {
   qwencode: '.qwen/settings.json',
   deepseek: '.memoryanchor/deepseek/hooks.json',
   zcode: null,
+  antigravity: '.agents/hooks.json',
   claude: '.claude/settings.json',
   codex: '.codex/hooks.json',
   codebuddy: '.codebuddy/settings.json',
@@ -58,6 +60,7 @@ async function reconcilePlatformHooks(cwd: string, enabled: Set<PromptHookAgent>
     qwencode: qwencodeSetup,
     deepseek: deepseekSetup,
     zcode: zcodeSetup,
+    antigravity: antigravitySetup,
     claude: claudeSetup,
     codex: codexSetup,
     codebuddy: codebuddySetup,

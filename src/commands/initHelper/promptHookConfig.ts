@@ -19,6 +19,8 @@ const PROMPT_HOOK_ALIASES: Record<string, PromptHookAgent> = {
   'deepseek-harness': 'deepseek',
   dsh: 'deepseek',
   zcode: 'zcode',
+  antigravity: 'antigravity',
+  agy: 'antigravity',
   claude: 'claude',
   codex: 'codex',
   codebuddy: 'codebuddy',

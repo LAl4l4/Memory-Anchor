@@ -82,6 +82,8 @@ test('selects exact agents and enables all agents when no selection is supplied'
     .toBe(HOOK_COMMANDS.QODERCN_PROMPT);
   expect((await readJson('.github', 'hooks', 'memory-anchor.json')).hooks.userPromptTransformed[0].bash)
     .toBe(HOOK_COMMANDS.COPILOT_PROMPT);
+  expect((await readJson('.agents', 'hooks.json'))['memory-anchor'].PreInvocation[0].command)
+    .toBe(HOOK_COMMANDS.ANTIGRAVITY_PROMPT);
   expect(await readFile(path.join(tempDir, '.opencode', 'plugins', 'memory-anchor.js'), 'utf8'))
     .toMatch(/config\.enabled\.includes\(['"]opencode['"]\)/);
 
@@ -107,11 +109,12 @@ test('--off removes only the selected prompt hook', async () => {
 });
 
 test('--off without agents disables every workspace reminder', async () => {
-  await runPromptHook(tempDir, ['qwencode', 'deepseek', 'zcode']);
+  await runPromptHook(tempDir, ['qwencode', 'deepseek', 'zcode', 'antigravity']);
   await runPromptHook(tempDir, ['--off']);
   expect((await readJson('.memoryanchor', 'prompt-hooks.json')).enabled).toEqual([]);
   expect((await readJson('.qwen', 'settings.json')).hooks.UserPromptSubmit).toBeUndefined();
   expect((await readJson('.memoryanchor', 'deepseek', 'hooks.json')).hooks.UserPromptSubmit).toBeUndefined();
+  expect((await readJson('.agents', 'hooks.json'))['memory-anchor'].PreInvocation).toBeUndefined();
 });
 
 test('--off removes the Hermes prompt entry from the global config', async () => {

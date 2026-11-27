@@ -12,6 +12,7 @@ export type HookAgent =
   | 'qwencode'
   | 'deepseek'
   | 'zcode'
+  | 'antigravity'
   | 'unknown';
 
 export interface HookInvocation {
@@ -24,6 +25,7 @@ const AGENTS = new Set<HookAgent>([
   'qwencode',
   'deepseek',
   'zcode',
+  'antigravity',
   'claude',
   'codex',
   'codebuddy',
@@ -37,6 +39,7 @@ const EVENT_BY_ENTRY_FILE: Record<string, string> = {
   'session-start': 'SessionStart',
   'pre-session': 'SessionStart',
   'pre-llm-call': 'PreLlmCall',
+  'pre-invocation': 'PreInvocation',
   'user-prompt': 'UserPromptSubmit',
   stop: 'Stop',
   'agent-stop': 'Stop',
@@ -55,6 +58,9 @@ const INVOCATION_BY_BIN_NAME: Record<string, Pick<HookInvocation, 'agent' | 'eve
   'memoryanchor-zcode-pre': { agent: 'zcode', event: 'SessionStart' },
   'memoryanchor-zcode-prompt': { agent: 'zcode', event: 'UserPromptSubmit' },
   'memoryanchor-zcode-stop': { agent: 'zcode', event: 'Stop' },
+  'memoryanchor-antigravity-pre': { agent: 'antigravity', event: 'SessionStart' },
+  'memoryanchor-antigravity-prompt': { agent: 'antigravity', event: 'PreInvocation' },
+  'memoryanchor-antigravity-stop': { agent: 'antigravity', event: 'Stop' },
   'memoryanchor-qwencode-post': { agent: 'qwencode', event: 'SessionEnd' },
   'memoryanchor-claude-pre': { agent: 'claude', event: 'SessionStart' },
   'memoryanchor-claude-stop': { agent: 'claude', event: 'Stop' },
