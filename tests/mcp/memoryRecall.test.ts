@@ -88,15 +88,29 @@ describe('MemoryStore.recall', () => {
 
   test('returns complete entries across kinds with ids get_memory accepts', async () => {
     const result = await store.recall({ query: 'parser worker pools' }) as any;
-    expect(result).toMatchObject({ query: 'parser worker pools', searched: 7 });
-    expect(result.results.map((hit: any) => hit.id)).toEqual(['Parser and worker pools', expect.stringMatching(/^g-/)]);
-    const [module, guardrail] = result.results;
+    expect(result).toMatchObject({ query: 'parser worker pools', searched: 7, ranking: 'bm25+semantic' });
+    expect(result).not.toHaveProperty('hint');
+    expect(result.results.map((hit: any) => hit.id)).toEqual(['Parser and worker pools', expect.stringMatching(/^g-/), expect.stringMatching(/^d-/)]);
+    const [module, guardrail, related] = result.results;
     expect(module).toMatchObject({ kind: 'project_state', version: expect.stringMatching(/^[0-9a-f]{8}$/),
       content: expect.stringContaining('- status: Stable') });
     expect(await store.get('project_state', module.id)).toMatchObject({ entry: { version: module.version, content: module.content } });
     expect(guardrail).toMatchObject({ kind: 'guardrails', content: 'Run Jest in-band because parser pools race.' });
     expect(guardrail).not.toHaveProperty('version');
-    expect(result.results[0].score).toBeGreaterThan(result.results[1].score);
+    expect(module).toMatchObject({ match: 'keyword' });
+    expect(module.bm25).toBeGreaterThan(guardrail.bm25);
+    // Shares no search term with the query ('parsing' is not 'parser'); found by meaning and ranked after keyword matches.
+    expect(related).toMatchObject({ kind: 'decisions', content: 'Use tree-sitter for parsing source files.' });
+    expect(related).toMatchObject({ match: 'meaning' });
+    expect(related).not.toHaveProperty('bm25');
+    expect(related.similarity).toBeGreaterThanOrEqual(0.2);
+  });
+
+  test('finds same-language entries by meaning when no word matches, and says so', async () => {
+    const result = await store.recall({ query: '语义搜索' }) as any;
+    expect(result.results[0].content).toBe('记忆检索先使用 BM25，之后再融合向量召回。');
+    expect(result.results.every((hit: any) => hit.match === 'meaning' && hit.similarity >= 0.1)).toBe(true);
+    expect(result.hint).toContain('meaning alone');
   });
 
   test('filters by kind, honors limit and lists duplicate entries once', async () => {
@@ -110,11 +124,12 @@ describe('MemoryStore.recall', () => {
 
   test('reads current files on every call', async () => {
     const before = await store.recall({ query: 'embeddings' }) as any;
-    expect(before.results).toEqual([]);
+    expect(before.results.every((hit: any) => hit.bm25 === undefined)).toBe(true);
     expect(before.hint).toContain('get_memory');
     await store.write({ kind: 'decisions', op: 'add', content: 'Fuse embedding similarity with BM25 scores later.' });
     const after = await store.recall({ query: 'embeddings' }) as any;
-    expect(after.results.map((hit: any) => hit.content)).toEqual(['Fuse embedding similarity with BM25 scores later.']);
+    expect(after.results[0]).toMatchObject({ content: 'Fuse embedding similarity with BM25 scores later.', bm25: expect.any(Number) });
+    expect(after.results.filter((hit: any) => hit.bm25 !== undefined)).toHaveLength(1);
     expect(after).not.toHaveProperty('hint');
   });
 
@@ -127,7 +142,7 @@ describe('MemoryStore.recall', () => {
     await writeFile(file, content.replace('Run Jest in-band', 'Run Vite in-band'));
     await utimes(file, mtime, mtime);
     const fresh = await MemoryStore.create(workspace);
-    expect((await fresh.recall({ query: 'jest' }) as any).results).toEqual([]);
+    expect((await fresh.recall({ query: 'jest' }) as any).results.every((hit: any) => hit.bm25 === undefined)).toBe(true);
     expect((await store.recall({ query: 'vite' }) as any).results[0].content).toBe('Run Vite in-band because parser pools race.');
   });
 

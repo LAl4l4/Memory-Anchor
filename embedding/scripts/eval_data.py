@@ -119,3 +119,11 @@ SETS = {
     "zh": (ZH_DOCS, ZH_QUERIES),
     "en": (EN_DOCS, EN_QUERIES),
 }
+
+
+if __name__ == "__main__":
+    # JSON for eval_recall_pipeline.mjs: python eval_data.py > ../data/eval_sets.json
+    import json
+
+    print(json.dumps({"sets": {name: {"docs": docs, "queries": queries} for name, (docs, queries) in SETS.items()}},
+                     ensure_ascii=False))

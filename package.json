@@ -1,6 +1,6 @@
 {
   "name": "memory-anchor",
-  "version": "1.10.1",
+  "version": "1.11.0",
   "description": "Repository memory for coding agents: Tree-sitter architecture charts, MCP tools and lifecycle hooks across 10 agent platforms.",
   "license": "Apache-2.0",
   "author": "LAl4l4",
@@ -73,6 +73,9 @@
   "files": [
     "dist/",
     "tree-sitter-parser/",
+    "embedding/models/m2v-jina-zh-256-tl-int8/config.json",
+    "embedding/models/m2v-jina-zh-256-tl-int8/tokenizer.json",
+    "embedding/models/m2v-jina-zh-256-tl-int8/model.safetensors",
     "README.md"
   ],
   "scripts": {

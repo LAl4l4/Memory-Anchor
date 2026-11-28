@@ -8,6 +8,8 @@ import {
 import { normalizeLine } from '../hooks/public/guardrailMaintenance.js';
 import { memoryMaintenanceNotice } from '../hooks/public/memoryMaintenance.js';
 import { Bm25Index, searchTerms } from './bm25.js';
+import { selectRecallHits } from './hybridRank.js';
+import { cosine, loadDefaultEmbedding } from './staticEmbedding.js';
 import { projectStateLayout } from './memoryCatalog.js';
 
 export const MEMORY_KINDS = ['guardrails', 'decisions', 'project_state'] as const;
@@ -29,7 +31,7 @@ export interface WriteMemoryInput {
   force?: boolean;
 }
 
-export const RECALL_DEFAULT_LIMIT = 5;
+export const RECALL_DEFAULT_LIMIT = 8;
 export const RECALL_MAX_LIMIT = 20;
 
 export interface RecallMemoryInput {
@@ -54,7 +56,8 @@ const STOP_WORDS = new Set(['the', 'and', 'or', 'a', 'an', 'to', 'of', 'in', 'on
 interface Entry { id: string; content: string; start: number; end: number }
 /** `text` is what gets indexed; `version` is set for project_state modules. */
 interface RecallDoc { kind: MemoryKind; id: string; content: string; text: string; version?: string }
-interface RecallIndex { contents: string; docs: RecallDoc[]; index: Bm25Index }
+/** `vectors` is null when the embedding model is unavailable; recall then ranks by BM25 alone. */
+interface RecallIndex { contents: string; docs: RecallDoc[]; index: Bm25Index; vectors: (Float32Array | null)[] | null }
 /** Per-process, keyed by anchor directory and kind filter; one MCP server serves one workspace, so it stays tiny. */
 const recallCache = new Map<string, RecallIndex>();
 const RECALL_CACHE_SIZE = 16;
@@ -315,13 +318,18 @@ export class MemoryStore {
       }
       return unique(this.entries(item, lines)).map(({ id, content }) => ({ kind: item, id, content, text: content }));
     });
-    const built = { contents, docs, index: new Bm25Index(docs.map(doc => searchTerms(doc.text))) };
+    const model = await loadDefaultEmbedding();
+    const built = { contents, docs, index: new Bm25Index(docs.map(doc => searchTerms(doc.text))),
+      vectors: model ? docs.map(doc => model.embed(doc.text)) : null };
     if (recallCache.size >= RECALL_CACHE_SIZE) recallCache.clear();
     recallCache.set(key, built);
     return built;
   }
 
-  /** Rank entries against a keyword query with BM25. */
+  /**
+   * BM25 keyword matches in BM25 order, plus a few places for entries found by embedding similarity alone
+   * (see hybridRank). Without the embedding model, or for a query with no known token, this is plain BM25.
+   */
   async recall({ query, kind, limit = RECALL_DEFAULT_LIMIT }: RecallMemoryInput) {
     if (kind !== undefined && !MEMORY_KINDS.includes(kind)) throw new Error(`kind must be one of ${MEMORY_KINDS.join(', ')}.`);
     if (!Number.isInteger(limit) || limit < 1 || limit > RECALL_MAX_LIMIT) {
@@ -329,13 +337,21 @@ export class MemoryStore {
     }
     const terms = searchTerms(query);
     if (!terms.length) throw new Error('query has no searchable words; use the module, file, symbol or topic names the memory would mention.');
-    const { docs, index } = await this.recallIndex(kind);
-    const results = index.search(terms, limit).map(({ index: at, score }) => {
+    const { docs, index, vectors } = await this.recallIndex(kind);
+    const queryVector = vectors && (await loadDefaultEmbedding())?.embed(query);
+    const similarity = vectors && queryVector ? vectors.map(vector => (vector ? cosine(queryVector, vector) : null)) : null;
+    const hits = selectRecallHits(index.scores(terms), similarity, limit);
+    const results = hits.map(({ index: at, match, bm25, similarity: cos }) => {
       const { kind: hit, id, version, content } = docs[at];
-      return { kind: hit, id, score: Number(score.toFixed(3)), ...(version ? { version } : {}), content };
+      return { kind: hit, id, match, ...(bm25 !== undefined ? { bm25: Number(bm25.toFixed(3)) } : {}),
+        ...(cos !== undefined ? { similarity: Number(cos.toFixed(3)) } : {}), ...(version ? { version } : {}), content };
     });
-    return { query, searched: docs.length, results,
-      ...(results.length ? {} : { hint: 'No entry shares a word with the query; retry with other names or keywords, or call get_memory({}) for the directory.' }) };
+    const keywordMatches = hits.some(hit => hit.match === 'keyword');
+    const hint = !results.length
+      ? 'No entry shares a word with the query; retry with other names or keywords, or call get_memory({}) for the directory.'
+      : keywordMatches ? undefined
+        : 'No entry shares a word with the query; these results are ranked by meaning alone and may be unrelated. Retry with module, file or symbol names, or call get_memory({}) for the directory.';
+    return { query, searched: docs.length, ranking: similarity ? 'bm25+semantic' : 'bm25', results, ...(hint ? { hint } : {}) };
   }
 
   private async getOne(kind: MemoryKind, id: string) {

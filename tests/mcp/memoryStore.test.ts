@@ -150,7 +150,10 @@ test('real CLI stdio serves get_memory, recall_memory and write_memory', async (
     expect(JSON.stringify(get.content)).toContain('Via MCP');
     const recall = await client.callTool({ name: 'recall_memory', arguments: { query: 'hook stdout protocol' } });
     expect(recall.isError).not.toBe(true);
-    const hits = JSON.parse((recall.content as any)[0].text).results;
+    const recalled = JSON.parse((recall.content as any)[0].text);
+    // The CLI resolves the packaged embedding model relative to dist/.
+    expect(recalled.ranking).toBe('bm25+semantic');
+    const hits = recalled.results;
     expect(hits[0]).toMatchObject({ kind: 'guardrails', content: 'Keep hook stdout reserved for protocol output.' });
     expect((await client.callTool({ name: 'recall_memory', arguments: { query: 'hooks', limit: 50 } })).isError).toBe(true);
     expect((await client.callTool({ name: 'write_memory', arguments: { kind: 'project_state', op: 'update', id: 'Hooks', fields: { bogus: 'x' } } })).isError).toBe(true);

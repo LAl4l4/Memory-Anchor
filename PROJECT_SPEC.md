@@ -252,7 +252,7 @@ At session start, the common context payload must provide, in order:
 1. Concise MCP guidance for direct directory/file queries and source fallback.
 2. Repository-specific guardrails, with advisory notices when needed.
 3. A chart directory containing the root and first descendant chart owners, derived from the existing partition registry.
-4. A project-state module-name directory; get_memory lists modules or returns one exact module in full, and recall_memory ranks modules by keyword.
+4. A project-state module-name directory; get_memory lists modules or returns one exact module in full, and recall_memory ranks modules by keyword and adds ones found by semantic similarity.
 5. Full architectural decisions.
 
 Each injected directory is limited to 20 entries and 1,600 characters and explicitly reports omitted entries. Missing or invalid chart registries fall back to the root query entry without rebuilding. Project-state queries do not require chart artifacts.
