@@ -2,7 +2,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
-import { runAgent } from './agent.mjs';
+import { ENGINES, runAgent } from './agent.mjs';
 import { AGENT_ROOT, loadConfig } from './config.mjs';
 
 const HELP = `ma-mini-agent — minimal coding agent for measuring MemoryAnchor
@@ -15,6 +15,8 @@ Options:
   -p, --prompt <text>     Task prompt
   -f, --prompt-file <f>   Read the task prompt from a file
   -c, --config <file>     Config file (default: MA-mini-agent/config.json or $MA_AGENT_CONFIG)
+      --engine <name>     Agent loop: langgraph (default; LangGraph + LangChain models)
+                          | langgraph-multi (planner → coder → reviewer) | native (hand-written)
       --provider <name>   Override config.provider (openai | anthropic | mock)
       --model <id>        Override the selected provider's model
       --ma / --no-ma      Enable / disable MemoryAnchor (hooks + MCP)
@@ -36,6 +38,7 @@ function parseCli(argv) {
       prompt: { type: 'string', short: 'p' },
       'prompt-file': { type: 'string', short: 'f' },
       config: { type: 'string', short: 'c' },
+      engine: { type: 'string' },
       provider: { type: 'string' },
       model: { type: 'string' },
       ma: { type: 'boolean' },
@@ -54,6 +57,10 @@ function parseCli(argv) {
 function cliOverrides(args) {
   const overrides = { agent: {}, memoryAnchor: {} };
   if (args.provider) overrides.provider = args.provider;
+  if (args.engine) {
+    if (!ENGINES.includes(args.engine)) throw new Error(`--engine must be one of: ${ENGINES.join(', ')}`);
+    overrides.agent.engine = args.engine;
+  }
   if (args.ma !== undefined) overrides.memoryAnchor.enabled = args.ma;
   if (args['prompt-hook'] !== undefined) overrides.memoryAnchor.promptHook = args['prompt-hook'];
   if (args['stop-hook'] !== undefined) overrides.memoryAnchor.stopHook = args['stop-hook'];
@@ -75,7 +82,7 @@ const short = (v, n = 120) => {
 function printEvent(event) {
   switch (event.type) {
     case 'run_start':
-      process.stderr.write(dim(`▶ ${event.provider}/${event.model}  MA=${event.memoryAnchor ? 'on' : 'off'}  tools=${event.tools.length}  system=${event.systemChars} chars\n`));
+      process.stderr.write(dim(`▶ [${event.engine}] ${event.provider}/${event.model}  MA=${event.memoryAnchor ? 'on' : 'off'}  tools=${event.tools.length}  system=${event.systemChars} chars\n`));
       break;
     case 'ma_hook':
       process.stderr.write(dim(`  [MA] ${event.hook} ${event.ok ? 'ok' : 'FAILED'} ${event.ms}ms${event.bytes !== undefined ? ` ${event.bytes}B` : ''}${event.stderr ? ` — ${short(event.stderr)}` : ''}\n`));
@@ -83,9 +90,15 @@ function printEvent(event) {
     case 'ma_mcp':
       process.stderr.write(dim(`  [MA] MCP tools: ${event.tools.join(', ')} (${event.ms}ms)\n`));
       break;
+    case 'agent_start':
+      process.stderr.write(`\n◆ ${event.agent} (run ${event.run}, ${event.turnsLeft} turns left)\n`);
+      break;
+    case 'agent_end':
+      process.stderr.write(dim(`◆ ${event.agent} ${event.status} after ${event.turns} turns\n`));
+      break;
     case 'model_turn':
       if (event.text) process.stderr.write(`\n${event.text.trim()}\n`);
-      process.stderr.write(dim(`  turn ${event.turn} · ${event.stopReason} · in ${event.usage.input} out ${event.usage.output}${event.usage.cacheRead ? ` cache ${event.usage.cacheRead}` : ''} · ${event.ms}ms\n`));
+      process.stderr.write(dim(`  ${event.agent ? `${event.agent} ` : ''}turn ${event.turn} · ${event.stopReason} · in ${event.usage.input} out ${event.usage.output}${event.usage.cacheRead ? ` cache ${event.usage.cacheRead}` : ''} · ${event.ms}ms\n`));
       break;
     case 'tool_result':
       process.stderr.write(`  ${event.isError ? '✗' : '→'} ${event.name} ${dim(short(event.input))}${event.isError ? `\n    ${short(event.preview, 200)}` : ''}\n`);
@@ -134,7 +147,9 @@ async function main() {
   process.stderr.write(
     `\n■ ${result.status}${result.error ? ` (${result.error})` : ''} · ${result.turns} turns · ${result.toolCalls} tool calls · ` +
       `in ${u.input} out ${u.output} cache ${u.cacheRead} · ${(result.durationMs / 1000).toFixed(1)}s\n` +
-      `  files read ${result.files.read.length}, written ${result.files.written.length} · result: ${path.join(outDir, 'result.json')}\n`,
+      `  files read ${result.files.read.length}, written ${result.files.written.length}` +
+      (result.multiAgent ? ` · review ${result.multiAgent.verdict} after ${result.multiAgent.reviewRounds} round(s)` : '') +
+      ` · result: ${path.join(outDir, 'result.json')}\n`,
   );
   return result.status === 'completed' ? 0 : 1;
 }

@@ -4,13 +4,21 @@
   "private": true,
   "description": "Minimal coding agent used to measure MemoryAnchor's effect on model behaviour",
   "type": "module",
-  "bin": { "ma-agent": "src/cli.mjs" },
+  "bin": {
+    "ma-agent": "src/cli.mjs"
+  },
   "scripts": {
     "agent": "node src/cli.mjs"
   },
-  "engines": { "node": ">=22" },
+  "engines": {
+    "node": ">=22"
+  },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.10.0",
+    "@langchain/anthropic": "^1.6.6",
+    "@langchain/core": "^1.5.1",
+    "@langchain/langgraph": "^1.7.5",
+    "@langchain/openai": "^1.8.5",
     "@modelcontextprotocol/sdk": "^1.30.0"
   }
 }
