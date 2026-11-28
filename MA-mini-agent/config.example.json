@@ -35,11 +35,19 @@
     }
   },
   "agent": {
+    "$comment": "engine: langgraph (default; src/langgraph, LangGraph StateGraph + LangChain chat models) | langgraph-multi (planner -> coder -> reviewer) | native (src/native, hand-written loop and providers). Same tools, prompts and result.json.",
+    "engine": "langgraph",
     "maxTurns": 40,
     "allowCommands": true,
     "commandTimeoutMs": 120000,
     "maxToolOutputChars": 20000,
-    "loadAgentsMd": true
+    "loadAgentsMd": true,
+    "multiAgent": {
+      "$comment": "engine langgraph-multi only: planner -> coder -> reviewer. maxTurns above is the total across roles; these cap each planner/reviewer run, maxReviewRounds caps how often the reviewer can send the coder back.",
+      "plannerMaxTurns": 12,
+      "reviewerMaxTurns": 10,
+      "maxReviewRounds": 2
+    }
   },
   "memoryAnchor": {
     "$comment": "root: MemoryAnchor checkout whose dist/ is used (default: parent of MA-mini-agent). Run `npm run build` there first.",

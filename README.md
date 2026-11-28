@@ -64,7 +64,7 @@ The output mirrors the source tree. For example:
     └── tests/chart.md
 ```
 
-At session start, Memory Anchor injects MCP guidance, repository guardrails, a compact chart entry directory, a module-name directory, and decisions. The chart directory contains the root entry and its first chart children from the existing partition registry, without recursive expansion. Each injected directory is capped at 20 entries and 1,600 characters, with an explicit notice for omitted entries. Query `get_chart({path})` or `get_file({path})` for architecture details. Use `get_project_state({})` to list all module names and `get_project_state({module: "exact name"})` to read one complete module. Stored memory is never truncated. Re-running initialization removes the legacy index and managed default rules while preserving custom rules.
+At session start, Memory Anchor injects MCP guidance, repository guardrails, a compact chart entry directory, a module-name directory, and decisions. The chart directory contains the root entry and its first chart children from the existing partition registry, without recursive expansion. Each injected directory is capped at 20 entries and 1,600 characters, with an explicit notice for omitted entries. Query `get_chart({path})` or `get_file({path})` for architecture details. Use `get_memory({})` for a directory of guardrails, decision summaries and modules, `get_memory({kind, id})` to read one complete entry (project_state ids are module names), `recall_memory({query, kind?, limit?})` to rank guardrails, decisions and modules against a task query (BM25 keyword matches first, plus a few entries a bundled Chinese/English static embedding model finds by meaning) and get the best complete entries with their ids, and `write_memory({kind, op, id, content | fields})` to add, update or remove one entry. Writes keep the markdown files as the only store, change only the targeted lines, serialize concurrent writers, and return `similar_entries` instead of adding an overlapping entry unless `force` is set. Generated agent rules tell agents to always write through `write_memory`, because direct edits bypass the write lock and can lose concurrent agents' changes; edit the files by hand only when MCP is unavailable. Stored memory is never truncated. Re-running initialization removes the legacy index and managed default rules while preserving custom rules, and moves a project-state.md that has no modules (an old manifest or free-form notes) verbatim into a `Legacy project state` module so memory tools can read it.
 
 ## Ignoring files
 
@@ -146,7 +146,8 @@ commands register it for that platform. `init-public` remains common-files-only.
 | Antigravity | Project workspace plugin `.agents/plugins/memory-anchor/mcp_config.json` → `mcpServers.memory-anchor` |
 
 Registration pins the current Node executable and installed `dist/cli.js`, so it
-also works from a source checkout after `npm run build`. Project registrations
+also works from a source checkout after `npm run build`. Re-running any init command refreshes an entry Memory Anchor wrote earlier to the
+installation that ran it, while user-owned launches, other keys and trust policies are kept. Project registrations
 pass an absolute `--workspace`. Hermes has global configuration, so its entry
 uses the server's startup working directory instead; launch Hermes from the
 initialized project root. Initializing another project does not retarget that

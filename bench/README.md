@@ -30,7 +30,7 @@ node bench/src/cli.mjs report bench/runs/<run-id>
 agents are not comparable; use a separate `--run-id` per agent.
 
 `run` options: `--tasks a,b`, `--groups off,scattered,ma` (default; add `doc` only when you need the packed-AGENTS.md upper bound), `--agent-config <file>` (default
-`MA-mini-agent/config.json`), `--max-turns N`, `--run-id`, `--work-dir` (default `$TMPDIR/ma-bench`),
+`MA-mini-agent/config.json`), `--agent-engine langgraph|langgraph-multi|native` (mini only; overrides `agent.engine`, default `langgraph`; use a separate `--run-id` per engine), `--max-turns N`, `--run-id`, `--work-dir` (default `$TMPDIR/ma-bench`),
 `--keep-workspaces`.
 
 Per trial the harness builds a fresh workspace, gives it the group's knowledge (`off` / `scattered` / `doc` / `ma`),

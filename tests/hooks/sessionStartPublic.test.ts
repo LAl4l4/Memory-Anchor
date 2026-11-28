@@ -19,7 +19,8 @@ test('missing memory files yield concise MCP guidance without placeholder sectio
   expect(result).toContain('[MEMORY ANCHOR: CONTEXT INJECTED]');
   expect(result).toContain('get_chart({path})');
   expect(result).toContain('get_file({path})');
-  expect(result).toContain('If MCP is unavailable');
+  expect(result).toContain('write_memory');
+  expect(result).not.toContain('unavailable');
   expect(result).not.toContain('index.md');
   expect(result).not.toContain('No active');
   expect(result).not.toContain('[GUARDRAILS');
@@ -42,7 +43,8 @@ test('session injects only repository rules and does not mutate legacy memory', 
     expect(result).not.toContain(marker);
   }
   expect(result).not.toContain('MODULE-STATUS-MARKER');
-  expect(result).toContain('(whole document)');
+  expect(result).not.toContain('(whole document)');
+  expect(result).toContain('project-state.md has no modules');
   expect(result).toContain('DECISIONS-MARKER');
   expect(await readFile(path.join(anchorDir, 'guardrails.md'), 'utf8')).toBe(guardrails);
 });
@@ -108,5 +110,5 @@ test('chart directory exposes one chart level and bounds large directories', asy
   expect(result).toContain('60 more entries');
   expect(result).not.toContain('private detail');
   const { compactDirectory } = await import('../../dist/mcp/memoryCatalog.js');
-  expect(compactDirectory(['x'.repeat(2000)], 'get_project_state({})').length).toBeLessThan(1600);
+  expect(compactDirectory(['x'.repeat(2000)], 'get_memory({kind:"project_state"})').length).toBeLessThan(1600);
 });

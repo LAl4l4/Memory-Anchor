@@ -2,6 +2,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
 import { ChartReader } from './chartReader.js';
+import { MEMORY_KINDS, MemoryStore, PROJECT_STATE_FIELDS, RECALL_DEFAULT_LIMIT, RECALL_MAX_LIMIT } from './memoryStore.js';
 import { getVersion } from '../commands/version.js';
 import { MCP_USAGE_INSTRUCTIONS } from './instructions.js';
 import * as path from 'node:path';
@@ -11,6 +12,7 @@ export async function createChartServer(workspace: string): Promise<McpServer> {
   // Global clients can discover tools outside a workspace; queries then fail clearly.
   // Resolve a reader per request so a workspace initialized later can be queried.
   const reader = () => ChartReader.create(workspaceRoot);
+  const store = () => MemoryStore.create(workspaceRoot);
   const server = new McpServer({ name: 'memory-anchor', version: getVersion() },
     { instructions: MCP_USAGE_INSTRUCTIONS });
   const annotations = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false };
@@ -32,10 +34,26 @@ export async function createChartServer(workspace: string): Promise<McpServer> {
     inputSchema: { path: z.string().min(1), include_source: z.boolean().default(false),
       start_line: z.number().int().positive().optional(), end_line: z.number().int().positive().optional() }, annotations,
   }, args => result(async () => (await reader()).getFile(args.path, args)));
-  server.registerTool('get_project_state', {
-    description: 'List project-state module names, or read one complete module by its exact name. Reads current memory without requiring chart artifacts.',
-    inputSchema: { module: z.string().min(1).optional() }, annotations,
-  }, args => result(async () => (await reader()).getProjectState(args.module)));
+  const kind = z.enum(MEMORY_KINDS);
+  server.registerTool('get_memory', {
+    description: 'Read project memory. No arguments: a directory of guardrails, decision summaries and project_state modules with ids. kind: every entry of that kind (project_state lists module ids, versions and status). kind + id: one complete entry. Guardrail/decision ids derive from content and change when the entry is edited; project_state ids are module names.',
+    inputSchema: { kind: kind.optional(), id: z.string().min(1).optional() }, annotations,
+  }, args => result(async () => (await store()).get(args.kind, args.id)));
+  server.registerTool('recall_memory', {
+    description: `Search project memory: guardrails, decisions and project_state modules that share words with the query, in BM25 relevance order, plus a few places (a quarter of limit, rounded down) for entries a bundled Chinese/English embedding model finds by meaning alone, each with its complete content and the id get_memory/write_memory take (plus version for modules). match says how each result was found (keyword or meaning); bm25 is set for keyword matches and similarity (cosine) whenever the model ran. When nothing shares a word, results are found by meaning alone and a hint says so. Semantic matching works within a language (Chinese query for Chinese memory, English for English), not across. Query with the module, file, symbol and feature names the memory would contain, or describe the topic in plain words; identifiers are split (camelCase, snake_case) and CJK text is keyword-matched by character pairs. kind limits the search to one kind; limit defaults to ${RECALL_DEFAULT_LIMIT} (maximum ${RECALL_MAX_LIMIT}).`,
+    inputSchema: { query: z.string().min(1), kind: kind.optional(),
+      limit: z.number().int().min(1).max(RECALL_MAX_LIMIT).default(RECALL_DEFAULT_LIMIT) }, annotations,
+  }, args => result(async () => (await store()).recall(args)));
+  server.registerTool('write_memory', {
+    description: 'Add, update or remove one memory entry in .memoryanchor. Write plain language; the storage format (rule checkboxes, bullets, headings) is applied for you. guardrails: content is one rule. decisions: content is one decision (choice and rationale). project_state: id is the module name and fields sets functionality/status/dependencies/known_issues/notes (newlines are collapsed; update patches only the given fields). update/remove need a current id from get_memory. add returns similar_entries instead of writing when an existing entry overlaps; update that entry, or pass force: true when the new one is distinct.',
+    inputSchema: {
+      kind, op: z.enum(['add', 'update', 'remove']), id: z.string().min(1).optional(), content: z.string().optional(),
+      fields: z.object(Object.fromEntries(PROJECT_STATE_FIELDS.map(field => [field, z.string().optional()])) as
+        Record<typeof PROJECT_STATE_FIELDS[number], z.ZodOptional<z.ZodString>>).strict().optional(),
+      version: z.string().optional(), force: z.boolean().default(false),
+    },
+    annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false },
+  }, args => result(async () => (await store()).write(args)));
   return server;
 }
 

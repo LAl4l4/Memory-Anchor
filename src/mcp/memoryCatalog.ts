@@ -1,37 +1,56 @@
 import { fromDirectoryTreeRegistry, isChartOwner, type DirectoryTreeNode } from '../chartBuild/partition/directoryTree.js';
 
-/** Read module boundaries without treating headings in fenced examples as modules. */
-export function projectStateModules(content: string): { name: string; content: string }[] {
-  const modules: { name: string; content: string }[] = [];
-  const lines = content.split(/\r?\n/);
+export interface ProjectStateLayout {
+  /** Module line ranges, `end` exclusive; ranges include trailing blank lines. */
+  modules: { name: string; start: number; end: number }[];
+  /** First `## Module Status` section, `end` exclusive. */
+  status?: { start: number; end: number };
+}
+
+/** Read module boundaries by line without treating headings in fenced examples as modules. */
+export function projectStateLayout(lines: string[]): ProjectStateLayout {
+  const layout: ProjectStateLayout = { modules: [] };
   let fence = '';
   let active = false;
-  let current: { name: string; lines: string[] } | undefined;
-  const flush = () => {
-    if (current) modules.push({ name: current.name, content: current.lines.join('\n').trim() });
+  let current: { name: string; start: number } | undefined;
+  const flush = (end: number) => {
+    if (current) layout.modules.push({ ...current, end });
     current = undefined;
   };
-  for (const line of lines) {
+  lines.forEach((line, index) => {
     const marker = line.match(/^\s{0,3}(`{3,}|~{3,})/);
     if (marker) {
       if (!fence) fence = marker[1];
       else if (marker[1][0] === fence[0] && marker[1].length >= fence.length) fence = '';
-      current?.lines.push(line);
-      continue;
+      return;
     }
-    if (!fence) {
-      if (/^#{1,2} /.test(line)) {
-        flush();
-        active = /^## Module Status\s*#*\s*$/.test(line);
-      }
-      const heading = active && line.match(/^###\s+(.+?)\s*#*\s*$/);
-      if (heading) { flush(); current = { name: heading[1], lines: [line] }; continue; }
+    if (fence) return;
+    if (/^#{1,2} /.test(line)) {
+      flush(index);
+      if (active && layout.status && layout.status.end === lines.length) layout.status.end = index;
+      active = /^## Module Status\s*#*\s*$/.test(line);
+      if (active && !layout.status) layout.status = { start: index, end: lines.length };
     }
-    current?.lines.push(line);
-  }
-  flush();
-  // Legacy/unstructured state stays accessible without injecting its body.
-  return modules.length || !content.trim() ? modules : [{ name: '(whole document)', content: content.trim() }];
+    const heading = active && line.match(/^###\s+(.+?)\s*#*\s*$/);
+    if (heading) { flush(index); current = { name: heading[1], start: index }; }
+  });
+  flush(lines.length);
+  return layout;
+}
+
+export function projectStateModules(content: string): { name: string; content: string }[] {
+  const lines = content.split(/\r?\n/);
+  return projectStateLayout(lines).modules.map(module => ({ name: module.name,
+    content: lines.slice(module.start, module.end).join('\n').trim() }));
+}
+
+/**
+ * Text but no `### module` under `## Module Status` (pre-module manifests, hand-written notes):
+ * memory tools cannot address it until init moves it into a module. Headings alone hold no state.
+ */
+export function isUnstructuredProjectState(content: string): boolean {
+  const lines = content.split(/\r?\n/);
+  return !projectStateLayout(lines).modules.length && lines.some(line => line.trim() && !/^\s{0,3}#{1,6}(\s|$)/.test(line));
 }
 
 /** One chart level; file-less split wrappers route to their first chart owners. */

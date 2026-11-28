@@ -7,11 +7,18 @@ export const DEFAULT_CONFIG_PATH = path.join(AGENT_ROOT, 'config.json');
 const EXAMPLE_CONFIG_PATH = path.join(AGENT_ROOT, 'config.example.json');
 
 const AGENT_DEFAULTS = {
+  engine: 'langgraph',
   maxTurns: 40,
   allowCommands: true,
   commandTimeoutMs: 120_000,
   maxToolOutputChars: 20_000,
   loadAgentsMd: true,
+  /** Only for engine langgraph-multi. maxTurns above stays the total across all roles. */
+  multiAgent: {
+    plannerMaxTurns: 12,
+    reviewerMaxTurns: 10,
+    maxReviewRounds: 2,
+  },
 };
 
 const MEMORY_ANCHOR_DEFAULTS = {

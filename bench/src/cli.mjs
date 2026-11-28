@@ -3,7 +3,7 @@ import { appendFileSync, existsSync, mkdirSync, rmSync, writeFileSync } from 'no
 import os from 'node:os';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
-import { runAgent } from '../../MA-mini-agent/src/agent.mjs';
+import { ENGINES, runAgent } from '../../MA-mini-agent/src/agent.mjs';
 import { loadConfig } from '../../MA-mini-agent/src/config.mjs';
 import { CLI_AGENTS, cliAvailable, runCliAgent } from './cliAgents.mjs';
 import { gradeWorkspace } from './grade.mjs';
@@ -19,9 +19,11 @@ const HELP = `MemoryAnchor bench
 
   node bench/src/cli.mjs run --suite <name> [--tasks a,b] [--groups off,scattered,ma (add doc on request)] [--trials 3]
                              [--agent mini|claude-code|codex] [--agent-model m] [--agent-effort e]
-                             [--agent-config MA-mini-agent/config.json] [--max-turns 40] [--run-id id]
+                             [--agent-config MA-mini-agent/config.json] [--agent-engine langgraph|langgraph-multi|native]
+                             [--max-turns 40] [--run-id id]
       Run the agent on every task × group × trial, grade, and write bench/runs/<run-id>/.
-      mini (default) is MA-mini-agent with the API in --agent-config. claude-code and codex run the
+      mini (default) is MA-mini-agent with the API in --agent-config; --agent-engine overrides its
+      agent.engine (langgraph by default, langgraph-multi for planner → coder → reviewer, native for the hand-written loop). claude-code and codex run the
       official CLI signed in on this machine (subscription), isolated from user-level config.
 
   node bench/src/cli.mjs report <run-dir>
@@ -44,6 +46,7 @@ function parse(argv) {
       'agent-effort': { type: 'string' },
       'agent-timeout-min': { type: 'string' },
       'agent-config': { type: 'string' },
+      'agent-engine': { type: 'string' },
       'max-turns': { type: 'string' },
       'run-id': { type: 'string' },
       'work-dir': { type: 'string' },
@@ -102,6 +105,9 @@ async function run(args) {
   const agentKind = args.agent ?? 'mini';
   if (agentKind !== 'mini' && !CLI_AGENTS.includes(agentKind)) throw new Error(`Unknown agent ${agentKind}; use mini, ${CLI_AGENTS.join(', ')}`);
   if (agentKind !== 'mini' && !cliAvailable(agentKind)) throw new Error(`${agentKind} CLI not found on PATH`);
+  const agentEngine = args['agent-engine'];
+  if (agentEngine && agentKind !== 'mini') throw new Error('--agent-engine only applies to --agent mini');
+  if (agentEngine && !ENGINES.includes(agentEngine)) throw new Error(`Unknown --agent-engine ${agentEngine}; use ${ENGINES.join(', ')}`);
   const runId = args['run-id'] ?? `${suite.name}-${new Date().toISOString().replace(/[:.]/g, '-')}`;
   const runDir = path.join(BENCH_ROOT, 'runs', runId);
   const wsRoot = path.join(workRoot(args), runId);
@@ -109,7 +115,7 @@ async function run(args) {
   const resultsFile = path.join(runDir, 'results.jsonl');
   writeFileSync(
     path.join(runDir, 'run.json'),
-    `${JSON.stringify({ suite: suite.name, source: suite.source, agent: agentKind, agentModel: args['agent-model'] ?? null, tasks: tasks.map((t) => t.id), groups, trials, startedAt: new Date().toISOString() }, null, 2)}\n`,
+    `${JSON.stringify({ suite: suite.name, source: suite.source, agent: agentKind, ...(agentKind === 'mini' ? { agentEngine: agentEngine ?? null } : {}), agentModel: args['agent-model'] ?? null, tasks: tasks.map((t) => t.id), groups, trials, startedAt: new Date().toISOString() }, null, 2)}\n`,
   );
 
   const total = tasks.length * groups.length * trials;
@@ -131,9 +137,12 @@ async function run(args) {
         if (agentKind === 'mini') {
           const config = loadConfig(args['agent-config'], {
             memoryAnchor: { enabled: group === 'ma', promptHook: false },
-            ...(args['max-turns'] ? { agent: { maxTurns: Number.parseInt(args['max-turns'], 10) } } : {}),
+            agent: {
+              ...(agentEngine ? { engine: agentEngine } : {}),
+              ...(args['max-turns'] ? { maxTurns: Number.parseInt(args['max-turns'], 10) } : {}),
+            },
           });
-          log(`${label}: agent running (${config.provider}/${config.providers?.[config.provider]?.model ?? ''})`);
+          log(`${label}: agent running (${config.agent.engine} · ${config.provider}/${config.providers?.[config.provider]?.model ?? ''})`);
           agent = await runAgent({ config, workspace: ws, task: task.prompt, traceFile: path.join(outDir, 'trace.jsonl') });
         } else {
           log(`${label}: agent running (${agentKind}${args['agent-model'] ? `/${args['agent-model']}` : ''})`);

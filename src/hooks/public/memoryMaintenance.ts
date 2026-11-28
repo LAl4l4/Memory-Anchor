@@ -1,6 +1,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { GUARDRAILS_MAX_BYTES, PROJECT_STATE_MODULE_STATUS_MAX_BYTES } from '../../constant.js';
+import { isUnstructuredProjectState } from '../../mcp/memoryCatalog.js';
 
 function extractProjectStateModuleStatus(projectState: string): string {
   const moduleHeading = /^##\s+Module Status\s*$/m;
@@ -26,6 +27,9 @@ export function memoryMaintenanceNotice(guardrails: string, projectState: string
   }
   if (statusBytes > PROJECT_STATE_MODULE_STATUS_MAX_BYTES) {
     notices.push(`- project-state.md Module Status: ${statusBytes} UTF-8 bytes; advisory limit: ${PROJECT_STATE_MODULE_STATUS_MAX_BYTES} bytes.`);
+  }
+  if (isUnstructuredProjectState(projectState)) {
+    notices.push('- project-state.md has no modules under `## Module Status`, so memory tools cannot read it; run `anchor init` to move its content into a module.');
   }
   if (guardrails.includes('[STALE]')) {
     notices.push('- guardrails.md contains legacy [STALE] markers. A source edit alone does not establish that a rule is obsolete.');
