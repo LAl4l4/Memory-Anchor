@@ -1,4 +1,5 @@
-import { readFile, writeFile } from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
+import { writeFileAtomic } from '../../utils/memoryFiles.js';
 import {
   DECISIONS_DEFAULT_CONTENT,
   PROJECT_STATE_DEFAULT_CONTENT,
@@ -122,7 +123,7 @@ async function readOptionalFile(filePath: string): Promise<string | null> {
   }
 }
 
-/** Create the two state files and migrate embedded Key Decisions and module-less state without loss. */
+/** Create the two state files and migrate embedded Key Decisions and module-less state without loss. Call under withMemoryLock. */
 export async function ensureProjectMemoryFiles(
   projectStatePath: string,
   decisionsPath: string,
@@ -136,7 +137,7 @@ export async function ensureProjectMemoryFiles(
 
   const currentDecisions = await readOptionalFile(decisionsPath);
   if (currentDecisions === null) {
-    await writeFile(decisionsPath, split.decisions ?? DECISIONS_DEFAULT_CONTENT);
+    await writeFileAtomic(decisionsPath, split.decisions ?? DECISIONS_DEFAULT_CONTENT);
     changed = true;
   } else {
     let nextDecisions = preserveKeyDecisionSpacing(currentDecisions);
@@ -147,13 +148,13 @@ export async function ensureProjectMemoryFiles(
       }
     }
     if (nextDecisions !== currentDecisions) {
-      await writeFile(decisionsPath, nextDecisions);
+      await writeFileAtomic(decisionsPath, nextDecisions);
       changed = true;
     }
   }
 
   if (currentProjectState === null || nextProjectState !== currentProjectState) {
-    await writeFile(projectStatePath, nextProjectState);
+    await writeFileAtomic(projectStatePath, nextProjectState);
     changed = true;
   }
 

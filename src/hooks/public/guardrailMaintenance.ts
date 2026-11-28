@@ -2,6 +2,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { GUARDRAILS_MANAGED_RULE_SET, GUARDRAILS_SPECIFIC_TITLE } from '../../constant.js';
 import { logToUser } from '../../chartBuild/shared/utils.js';
+import { withMemoryLock, writeFileAtomic } from '../../utils/memoryFiles.js';
 
 function normalizeRuleLine(line: string): string {
   line = line.trim();
@@ -39,10 +40,15 @@ export function extractRepositoryRules(content: string): string[] {
     .filter(line => !GUARDRAILS_MANAGED_RULE_SET.has(line)))];
 }
 
-export function sanitizeGuardrails(workdir = process.cwd()): void {
-  const guardrailsPath = path.join(workdir, '.memoryanchor', 'guardrails.md');
+/** Rewrite guardrails.md in the normalized format, under the memory write lock shared with write_memory. */
+export async function sanitizeGuardrails(workdir = process.cwd()): Promise<void> {
+  const anchorDir = path.join(workdir, '.memoryanchor');
+  const guardrailsPath = path.join(anchorDir, 'guardrails.md');
   if (!fs.existsSync(guardrailsPath)) return;
-  const rules = extractRepositoryRules(fs.readFileSync(guardrailsPath, 'utf8'));
-  fs.writeFileSync(guardrailsPath, `${GUARDRAILS_SPECIFIC_TITLE}\n${rules.join('\n')}\n`, 'utf8');
-  logToUser(`Guardrails normalized (${rules.length} repository rules)`, '35');
+  const count = await withMemoryLock(anchorDir, async () => {
+    const rules = extractRepositoryRules(await fs.promises.readFile(guardrailsPath, 'utf8'));
+    await writeFileAtomic(guardrailsPath, `${GUARDRAILS_SPECIFIC_TITLE}\n${rules.join('\n')}\n`);
+    return rules.length;
+  });
+  logToUser(`Guardrails normalized (${count} repository rules)`, '35');
 }

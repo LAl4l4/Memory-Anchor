@@ -1,4 +1,4 @@
-import { createHash, randomBytes } from 'node:crypto';
+import { createHash } from 'node:crypto';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import {
@@ -7,6 +7,7 @@ import {
 } from '../constant.js';
 import { normalizeLine } from '../hooks/public/guardrailMaintenance.js';
 import { memoryMaintenanceNotice } from '../hooks/public/memoryMaintenance.js';
+import { type MemoryLock, withMemoryLock, writeFileAtomic } from '../utils/memoryFiles.js';
 import { Bm25Index, searchTerms } from './bm25.js';
 import { selectRecallHits } from './hybridRank.js';
 import { cosine, loadDefaultEmbedding } from './staticEmbedding.js';
@@ -48,8 +49,6 @@ const FILES: Record<MemoryKind, string> = {
 };
 const MAX_MEMORY_BYTES = 2 * 1024 * 1024;
 const SIMILARITY_THRESHOLD = 0.5;
-const LOCK_TIMEOUT_MS = 5000;
-const STALE_LOCK_MS = 30000;
 const STOP_WORDS = new Set(['the', 'and', 'or', 'a', 'an', 'to', 'of', 'in', 'on', 'for', 'with', 'by', 'as', 'is',
   'are', 'be', 'it', 'its', 'this', 'that', 'from', 'at', 'not', 'only', 'must', 'should', 'when', 'use', 'keep']);
 
@@ -245,35 +244,9 @@ export class MemoryStore {
     return { lines, eol: content.includes('\r\n') ? '\r\n' : '\n', exists: true, modifiedAt: stat.mtime.toISOString() };
   }
 
-  private async save(kind: MemoryKind, doc: Doc, lines: string[]): Promise<void> {
-    const file = this.file(kind);
-    const temp = path.join(this.anchor, `.${path.basename(file)}.${process.pid}.${randomBytes(4).toString('hex')}.tmp`);
-    try {
-      await fs.writeFile(temp, lines.join(doc.eol) + doc.eol, 'utf8');
-      await fs.rename(temp, file);
-    } finally {
-      await fs.rm(temp, { force: true });
-    }
-  }
-
-  /** Serialize writers across MCP processes; a crashed writer's lock expires. */
-  private async locked<T>(operation: () => Promise<T>): Promise<T> {
-    const lock = path.join(this.anchor, '.memory.lock');
-    const deadline = Date.now() + LOCK_TIMEOUT_MS;
-    for (;;) {
-      try {
-        await fs.writeFile(lock, String(process.pid), { flag: 'wx' });
-        break;
-      } catch (error) {
-        if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
-        const stat = await fs.stat(lock).catch(() => null);
-        if (stat && Date.now() - stat.mtimeMs > STALE_LOCK_MS) { await fs.rm(lock, { force: true }); continue; }
-        if (Date.now() > deadline) throw new Error('Memory files are locked by another writer; retry shortly.');
-        await new Promise(resolve => setTimeout(resolve, 25));
-      }
-    }
-    try { return await operation(); }
-    finally { await fs.rm(lock, { force: true }); }
+  /** Atomic replace; refuses to commit when the write lock was lost in the meantime. */
+  private async save(kind: MemoryKind, doc: Doc, lines: string[], lock: MemoryLock): Promise<void> {
+    await writeFileAtomic(this.file(kind), lines.join(doc.eol) + doc.eol, { beforeRename: () => lock.assertHeld() });
   }
 
   private entries(kind: 'guardrails' | 'decisions', lines: string[]): Entry[] {
@@ -370,7 +343,7 @@ export class MemoryStore {
 
   async write(input: WriteMemoryInput) {
     if (!MEMORY_KINDS.includes(input.kind)) throw new Error(`kind must be one of ${MEMORY_KINDS.join(', ')}.`);
-    return this.locked(async () => {
+    return withMemoryLock(this.anchor, async (lock) => {
       const doc = await this.read(input.kind);
       const lines = [...doc.lines];
       const outcome = input.kind === 'project_state'
@@ -378,7 +351,7 @@ export class MemoryStore {
         : this.writeEntry(input, lines);
       if (!outcome.written) return { kind: input.kind, op: input.op, path: FILES[input.kind], ...outcome };
       while (lines.length && !lines[lines.length - 1].trim()) lines.pop();
-      await this.save(input.kind, doc, lines);
+      await this.save(input.kind, doc, lines, lock);
       const notice = await this.notice();
       return { written: true, kind: input.kind, op: input.op, path: FILES[input.kind], id: outcome.id,
         ...(notice ? { warning: notice } : {}) };

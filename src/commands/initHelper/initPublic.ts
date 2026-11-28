@@ -18,6 +18,7 @@ import { scanAvailableParsers } from '../../chartBuild/scan-parsers.js';
 import { ensureGuardrailsFile } from './initGuardrails.js';
 import { ensureProjectMemoryFiles } from './initProjectState.js';
 import { ensurePromptHookConfig } from './promptHookConfig.js';
+import { withMemoryLock } from '../../utils/memoryFiles.js';
 
 // =============================================================================
 // Types
@@ -184,14 +185,15 @@ export async function migrateLegacyAnchorFiles(memoryAnchorDir: string): Promise
 }
 
 export async function ensureAnchorFiles(memoryAnchorDir: string): Promise<boolean> {
-  const migrated = await migrateLegacyAnchorFiles(memoryAnchorDir);
-  const guardrailsCreated = await ensureGuardrailsFile(
-    path.join(memoryAnchorDir, GUARDRAILS_FILE_NAME)
-  );
-  const projectMemoryCreatedOrMigrated = await ensureProjectMemoryFiles(
-    path.join(memoryAnchorDir, PROJECT_STATE_FILE_NAME),
-    path.join(memoryAnchorDir, DECISIONS_FILE_NAME),
-  );
+  // Same lock as MCP write_memory, so a running agent's writes are never overwritten by migration.
+  const { migrated, guardrailsCreated, projectMemoryCreatedOrMigrated } = await withMemoryLock(memoryAnchorDir, async () => ({
+    migrated: await migrateLegacyAnchorFiles(memoryAnchorDir),
+    guardrailsCreated: await ensureGuardrailsFile(path.join(memoryAnchorDir, GUARDRAILS_FILE_NAME)),
+    projectMemoryCreatedOrMigrated: await ensureProjectMemoryFiles(
+      path.join(memoryAnchorDir, PROJECT_STATE_FILE_NAME),
+      path.join(memoryAnchorDir, DECISIONS_FILE_NAME),
+    ),
+  }));
   const promptHookConfigCreated = await ensurePromptHookConfig(memoryAnchorDir);
 
   return migrated

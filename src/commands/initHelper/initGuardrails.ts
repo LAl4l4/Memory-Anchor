@@ -1,10 +1,11 @@
-import { readFile, writeFile } from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
 import { extractRepositoryRules } from '../../hooks/public/guardrailMaintenance.js';
+import { writeFileAtomic } from '../../utils/memoryFiles.js';
 import {
   GUARDRAILS_SPECIFIC_TITLE,
 } from '../../constant.js';
 
-/** Migrate managed defaults away while preserving repository rules. */
+/** Migrate managed defaults away while preserving repository rules. Call under withMemoryLock. */
 export async function ensureGuardrailsFile(guardrailsPath: string): Promise<boolean> {
   let existingSpecific: string[] = [];
 
@@ -34,6 +35,6 @@ export async function ensureGuardrailsFile(guardrailsPath: string): Promise<bool
     // File doesn't exist — proceed to write
   }
 
-  await writeFile(guardrailsPath, newContent);
+  await writeFileAtomic(guardrailsPath, newContent);
   return true;
 }

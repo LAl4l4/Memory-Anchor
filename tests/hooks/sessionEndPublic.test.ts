@@ -143,7 +143,7 @@ test('updateManifest does NOT log when changes is empty array', () => {
 test('sanitizeBallast removes the default section', async () => {
   await writeFile(ballastPath, SAMPLE_BALLAST);
 
-  sanitizeBallast();
+  await sanitizeBallast();
   const result = await readFile(ballastPath, 'utf8');
 
   expect(result).not.toContain(BALLAST_DEFAULT_TITLE);
@@ -155,7 +155,7 @@ test('sanitizeBallast removes the default section', async () => {
 test('sanitizeBallast removes managed default rules', async () => {
   await writeFile(ballastPath, SAMPLE_BALLAST);
 
-  sanitizeBallast();
+  await sanitizeBallast();
   const result = await readFile(ballastPath, 'utf8');
 
   for (const rule of BALLAST_DEFAULT_RULES) {
@@ -166,7 +166,7 @@ test('sanitizeBallast removes managed default rules', async () => {
 test('sanitizeBallast keeps specific rules intact', async () => {
   await writeFile(ballastPath, SAMPLE_BALLAST);
 
-  sanitizeBallast();
+  await sanitizeBallast();
   const result = await readFile(ballastPath, 'utf8');
 
   expect(result).toContain('Never use eval() in production code.');
@@ -179,7 +179,7 @@ test('sanitizeBallast drops retired default rules instead of keeping them as spe
     `${SAMPLE_BALLAST}\n${LEGACY_GUARDRAILS_RULES.join('\n')}\n`,
   );
 
-  sanitizeBallast();
+  await sanitizeBallast();
   const result = await readFile(ballastPath, 'utf8');
 
   for (const rule of LEGACY_GUARDRAILS_RULES) {
@@ -191,7 +191,7 @@ test('sanitizeBallast drops retired default rules instead of keeping them as spe
 test('sanitizeBallast deduplicates duplicate rules', async () => {
   await writeFile(ballastPath, SAMPLE_BALLAST_EXTRA_SPECIFIC);
 
-  sanitizeBallast();
+  await sanitizeBallast();
   const result = await readFile(ballastPath, 'utf8');
 
   const matches = result.match(/Always add tests for sample\.ts helpers\./g);
@@ -209,7 +209,7 @@ ${BALLAST_SPECIFIC_TITLE}
 
   await writeFile(ballastPath, messy);
 
-  sanitizeBallast();
+  await sanitizeBallast();
   const result = await readFile(ballastPath, 'utf8');
 
   expect(result).toContain('- [ ] Use tabs');
@@ -233,7 +233,7 @@ some random text
 
   await writeFile(ballastPath, withJunk);
 
-  sanitizeBallast();
+  await sanitizeBallast();
   const result = await readFile(ballastPath, 'utf8');
 
   expect(result).toContain('Specific rule 1');
@@ -241,9 +241,9 @@ some random text
   expect(result).toContain('- [ ] some random text');
 });
 
-test('sanitizeGuardrails is no-op when guardrails.md does not exist', () => {
+test('sanitizeGuardrails is no-op when guardrails.md does not exist', async () => {
   const spy = jest.spyOn(process.stderr, 'write').mockImplementation(() => true);
-  expect(() => sanitizeBallast()).not.toThrow();
+  await expect(sanitizeBallast()).resolves.toBeUndefined();
   expect(spy).not.toHaveBeenCalled();
   spy.mockRestore();
 });
