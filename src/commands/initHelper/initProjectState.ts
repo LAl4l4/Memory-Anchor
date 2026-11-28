@@ -3,6 +3,48 @@ import {
   DECISIONS_DEFAULT_CONTENT,
   PROJECT_STATE_DEFAULT_CONTENT,
 } from '../../constant.js';
+import { isUnstructuredProjectState } from '../../mcp/memoryCatalog.js';
+
+export const LEGACY_PROJECT_STATE_MODULE = 'Legacy project state';
+/** manifest.md default before Module Status existed; it holds no state. */
+const LEGACY_MANIFEST_DEFAULT = /^\s*## Todo:\s*## Done:\s*$/;
+const eolOf = (content: string): string => (content.includes('\r\n') ? '\r\n' : '\n');
+
+/** The Module Status manifest template was indented inside its template literal; dedent it when that exposes its headings. */
+export function dedentLegacyProjectState(content: string): string {
+  const lines = content.split(/\r?\n/);
+  const indentOf = (line: string): number => /^ */.exec(line)![0].length;
+  const indents = lines.filter((line) => line.trim()).map(indentOf);
+  const indent = indents.length ? Math.min(...indents) : 0;
+  if (!indent) return content;
+  const dedented = lines.map((line) => line.slice(Math.min(indent, indentOf(line))));
+  return dedented.some((line) => /^##\s+(Module Status|Key Decisions)\s*$/.test(line))
+    ? dedented.join(eolOf(content))
+    : content;
+}
+
+/**
+ * Memory tools read project state only as modules, so a file without any moves verbatim into one
+ * module. Four-space indentation keeps its headings and fences from being parsed as structure.
+ */
+export function structureLegacyProjectState(content: string): string {
+  if (LEGACY_MANIFEST_DEFAULT.test(content)) return PROJECT_STATE_DEFAULT_CONTENT;
+  if (!isUnstructuredProjectState(content)) return content;
+  const lines = content.split(/\r?\n/);
+  let start = 0;
+  let end = lines.length;
+  while (start < end && !lines[start].trim()) start++;
+  while (end > start && !lines[end - 1].trim()) end--;
+  return [
+    '## Module Status',
+    '',
+    `### ${LEGACY_PROJECT_STATE_MODULE}`,
+    '- status: Migrated by anchor init from a project-state.md without modules; move each item below into its own module, then remove this one.',
+    '- notes: Original content, kept verbatim:',
+    ...lines.slice(start, end).map((line) => (line.trim() ? `    ${line}` : '')),
+    '',
+  ].join(eolOf(content));
+}
 
 /**
  * Preserve decision content while ensuring top-level decision bullets remain
@@ -80,15 +122,16 @@ async function readOptionalFile(filePath: string): Promise<string | null> {
   }
 }
 
-/** Create the two state files and migrate embedded Key Decisions without loss. */
+/** Create the two state files and migrate embedded Key Decisions and module-less state without loss. */
 export async function ensureProjectMemoryFiles(
   projectStatePath: string,
   decisionsPath: string,
 ): Promise<boolean> {
   const currentProjectState = await readOptionalFile(projectStatePath);
   const split = splitProjectStateDecisions(
-    currentProjectState ?? PROJECT_STATE_DEFAULT_CONTENT,
+    dedentLegacyProjectState(currentProjectState ?? PROJECT_STATE_DEFAULT_CONTENT),
   );
+  const nextProjectState = structureLegacyProjectState(split.projectState);
   let changed = false;
 
   const currentDecisions = await readOptionalFile(decisionsPath);
@@ -109,8 +152,8 @@ export async function ensureProjectMemoryFiles(
     }
   }
 
-  if (currentProjectState === null || split.projectState !== currentProjectState) {
-    await writeFile(projectStatePath, split.projectState);
+  if (currentProjectState === null || nextProjectState !== currentProjectState) {
+    await writeFile(projectStatePath, nextProjectState);
     changed = true;
   }
 

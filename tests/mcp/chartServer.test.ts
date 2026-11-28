@@ -5,6 +5,7 @@ import path from 'node:path';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { ChartReader, extractFileArchitecture } from '../../dist/mcp/chartReader.js';
+import { MemoryStore } from '../../dist/mcp/memoryStore.js';
 import { createDirectoryTree, rebuildChartTree, toDirectoryTreeRegistry } from '../../dist/chartBuild/partition/directoryTree.js';
 
 let workspace: string;
@@ -108,9 +109,9 @@ test('real CLI stdio supports initialize, list, calls, error recovery and clean 
   const client = new Client({ name: 'test-client', version: '1.0.0' });
   try {
     await client.connect(transport);
-    expect((await client.listTools()).tools.map(tool => tool.name)).toEqual(['get_chart', 'get_file', 'get_project_state', 'get_memory', 'write_memory']);
+    expect((await client.listTools()).tools.map(tool => tool.name)).toEqual(['get_chart', 'get_file', 'get_memory', 'recall_memory', 'write_memory']);
     await put('.memoryanchor/project-state.md', '## Module Status\n### Parser\n- status: Stable');
-    const state = await client.callTool({ name: 'get_project_state', arguments: { module: 'Parser' } });
+    const state = await client.callTool({ name: 'get_memory', arguments: { kind: 'project_state', id: 'Parser' } });
     expect(state.isError).not.toBe(true);
     expect(JSON.stringify(state.content)).toContain('Stable');
     const result = await client.callTool({ name: 'get_file', arguments: { path: 'src/index.ts', include_source: true } });
@@ -124,19 +125,18 @@ test('real CLI stdio supports initialize, list, calls, error recovery and clean 
   expect(await readFile(path.join(workspace, '.memoryanchor/dirTree.json'), 'utf8')).toBe(before);
 }, 15000);
 
-test('project state lists names and reads current modules without chart artifacts', async () => {
+test('project state memory lists and reads current modules without chart artifacts', async () => {
   await rm(path.join(workspace, '.memoryanchor/dirTree.json'));
   await put('.memoryanchor/project-state.md', '## Module Status\n### Parser\n- status: Stable\n```md\n### Not a module\n```\n### Hooks\n- notes: Separate\n## Other\nDo not include');
-  expect(await reader.getProjectState()).toMatchObject({ modules: ['Parser', 'Hooks'] });
-  expect(await reader.getProjectState('Parser')).toMatchObject({ content: expect.stringContaining('### Not a module') });
-  expect(await reader.getProjectState('Parser')).toMatchObject({ content: expect.not.stringContaining('Separate') });
-  expect(await reader.getProjectState('Hooks')).toMatchObject({ content: expect.not.stringContaining('Do not include') });
-  await expect(reader.getProjectState('missing')).rejects.toThrow('Unknown module');
+  const store = await MemoryStore.create(workspace);
+  expect((await store.get('project_state') as any).modules.map((module: any) => module.id)).toEqual(['Parser', 'Hooks']);
+  expect(await store.get('project_state', 'Parser')).toMatchObject({ entry: { content: expect.stringContaining('### Not a module') } });
+  expect(await store.get('project_state', 'Parser')).toMatchObject({ entry: { content: expect.not.stringContaining('Separate') } });
+  expect(await store.get('project_state', 'Hooks')).toMatchObject({ entry: { content: expect.not.stringContaining('Do not include') } });
+  await expect(store.get('project_state', 'missing')).rejects.toThrow('get_memory');
   await put('.memoryanchor/project-state.md', '## Module Status\n### Parser\n- status: Changed');
-  expect(await reader.getProjectState('Parser')).toMatchObject({ content: expect.stringContaining('Changed') });
-  await put('.memoryanchor/project-state.md', 'legacy state');
-  expect(await reader.getProjectState('(whole document)')).toMatchObject({ content: 'legacy state' });
+  expect(await store.get('project_state', 'Parser')).toMatchObject({ entry: { content: expect.stringContaining('Changed') } });
   await rm(path.join(workspace, '.memoryanchor/project-state.md'));
   await symlink(process.execPath, path.join(workspace, '.memoryanchor/project-state.md'));
-  await expect(reader.getProjectState()).rejects.toThrow('inside');
+  await expect(store.get('project_state')).rejects.toThrow('regular file');
 });

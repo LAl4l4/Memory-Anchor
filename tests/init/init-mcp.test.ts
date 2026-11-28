@@ -61,14 +61,14 @@ test.each(PROMPT_HOOK_AGENTS)('init-%s registers a launchable server and injects
     config = { command: server.command[0], args: server.command.slice(1) };
   } else {
     config = JSON.parse(await readFile(path.join(workspace, '.mcp.json'), 'utf8')).mcpServers['memory-anchor'];
-    expect(config).toMatchObject({ type: 'stdio', tools: ['get_chart', 'get_file', 'get_project_state', 'get_memory', 'write_memory'] });
+    expect(config).toMatchObject({ type: 'stdio', tools: ['get_chart', 'get_file', 'get_memory', 'recall_memory', 'write_memory'] });
   }
   const client = new Client({ name: 'init-test', version: '1.0.0' });
   const transport = new StdioClientTransport({ command: config.command, args: config.args, cwd: workspace, stderr: 'pipe' });
   try {
     await client.connect(transport);
     expect(client.getInstructions()).toContain('[MEMORY ANCHOR MCP]');
-    expect((await client.listTools()).tools.map(tool => tool.name)).toEqual(['get_chart', 'get_file', 'get_project_state', 'get_memory', 'write_memory']);
+    expect((await client.listTools()).tools.map(tool => tool.name)).toEqual(['get_chart', 'get_file', 'get_memory', 'recall_memory', 'write_memory']);
     const result = await client.callTool({ name: 'get_file', arguments: { path: 'src/demo.ts' } });
     expect(result.isError).not.toBe(true);
     expect(JSON.stringify(result.content)).toContain('demo()');
@@ -125,8 +125,12 @@ test('refreshes stale managed launches in every format while keeping custom keys
   await put('.mcp.json', json({ type: 'stdio', tools: ['get_chart', 'get_file'], env: { KEEP: '1' } }));
   expect(await registerMcp(workspace, 'claude')).toBe(true);
   expect(JSON.parse(await readFile(path.join(workspace, '.mcp.json'), 'utf8')).mcpServers['memory-anchor']).toEqual({
-    type: 'stdio', ...launch, tools: ['get_chart', 'get_file', 'get_project_state', 'get_memory', 'write_memory'], env: { KEEP: '1' } });
+    type: 'stdio', ...launch, tools: ['get_chart', 'get_file', 'get_memory', 'recall_memory', 'write_memory'], env: { KEEP: '1' } });
   expect(await registerMcp(workspace, 'claude')).toBe(false);
+  await put('.mcp.json', json({ tools: ['get_chart', 'get_file', 'get_project_state', 'get_memory', 'write_memory'] }));
+  await registerMcp(workspace, 'claude');
+  expect(JSON.parse(await readFile(path.join(workspace, '.mcp.json'), 'utf8')).mcpServers['memory-anchor'].tools).toEqual(
+    ['get_chart', 'get_file', 'get_memory', 'recall_memory', 'write_memory']);
   await put('.mcp.json', json({ tools: ['get_chart'] }));
   await registerMcp(workspace, 'claude');
   expect(JSON.parse(await readFile(path.join(workspace, '.mcp.json'), 'utf8')).mcpServers['memory-anchor'].tools).toEqual(['get_chart']);

@@ -38,3 +38,6 @@ bench/runs/
 # bench suites built from private repositories stay local
 bench/suites/*
 !bench/suites/README.md
+
+# embedding: training corpus and teacher features are large and regenerable
+embedding/data/

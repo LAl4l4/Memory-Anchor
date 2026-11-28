@@ -1,0 +1,13 @@
+# Versions that successfully distilled jinaai/jina-embeddings-v2-base-zh (2026-11-28).
+#
+# These pins cannot be resolved in a single `pip install -r`: model2vec 0.11 declares
+# huggingface-hub>=1.0 while transformers 4.x requires huggingface-hub<1.0.
+# Install in two steps instead (pip warns about the conflict; distill and encode still work):
+#
+#   pip install "model2vec[distill]==0.11.0" "torch==2.15.0"
+#   pip install "transformers==4.57.6"
+#
+# transformers must stay < 5: jina's remote code imports transformers.onnx, removed in v5.
+model2vec[distill]==0.11.0
+torch==2.15.0
+transformers==4.57.6

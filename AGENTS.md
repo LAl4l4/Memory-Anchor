@@ -18,11 +18,12 @@ Memory Anchor is initialized in this repository. Use its MCP tools for repositor
 ### Tools
 - get_chart({path}) reads the architecture chart covering a directory; get_file({path}) reads one file's symbols, signatures, ranges, dependencies and callers, and optionally its source. Prefer them over opening chart or source files directly.
 - get_memory({kind, id}) reads project memory; write_memory({kind, op, id, content | fields}) adds, updates or removes one entry. Write content in plain language; write_memory applies the storage format.
+- recall_memory({query, kind?, limit?}) ranks memory entries by keyword relevance and returns complete entries with their ids. Query with the module, file, symbol or feature names the memory would contain.
 
 ### Memory Kinds
 - guardrails: durable repository rules; injected in full and must be followed.
 - decisions: architectural choices and their rationale; injected in full.
-- project_state: module status (functionality/status/dependencies/known_issues/notes); only module names are injected. Read one module with get_memory({kind: "project_state", id: module}).
+- project_state: module status (functionality/status/dependencies/known_issues/notes); only module names are injected. Read one module with get_memory({kind: "project_state", id: module}), or find the modules a task touches with recall_memory.
 
 ### Chart Relationship Notation
 - '+' marks an exported symbol; '-' marks the default/internal symbol. Function rows omit the words 'function'; '+' functions include only source-declared parameter/return types, while '-' functions omit signatures.

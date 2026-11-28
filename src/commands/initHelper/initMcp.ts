@@ -37,8 +37,8 @@ export function getMcpLaunch(workspace?: string): { command: string; args: strin
 }
 
 type Launch = { command: string; args: string[] };
-/** `tools` lists older init versions wrote; any other list is a user choice and is kept. */
-const LEGACY_TOOL_LISTS = [['get_chart', 'get_file']];
+/** `tools` lists older init versions wrote (the second still names the removed get_project_state); any other list is a user choice and is kept. */
+const LEGACY_TOOL_LISTS = [['get_chart', 'get_file'], ['get_chart', 'get_file', 'get_project_state', 'get_memory', 'write_memory']];
 
 /** An init-written launch runs `<node> <...>/dist/cli.js mcp ...`; any other launch belongs to the user. */
 export function isManagedLaunch(argv: unknown[]): boolean {

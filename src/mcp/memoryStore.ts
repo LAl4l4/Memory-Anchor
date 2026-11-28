@@ -7,6 +7,7 @@ import {
 } from '../constant.js';
 import { normalizeLine } from '../hooks/public/guardrailMaintenance.js';
 import { memoryMaintenanceNotice } from '../hooks/public/memoryMaintenance.js';
+import { Bm25Index, searchTerms } from './bm25.js';
 import { projectStateLayout } from './memoryCatalog.js';
 
 export const MEMORY_KINDS = ['guardrails', 'decisions', 'project_state'] as const;
@@ -28,6 +29,16 @@ export interface WriteMemoryInput {
   force?: boolean;
 }
 
+export const RECALL_DEFAULT_LIMIT = 5;
+export const RECALL_MAX_LIMIT = 20;
+
+export interface RecallMemoryInput {
+  query: string;
+  /** Search one kind instead of all three. */
+  kind?: MemoryKind;
+  limit?: number;
+}
+
 const FILES: Record<MemoryKind, string> = {
   guardrails: path.posix.join(ANCHOR_DIR_NAME, 'guardrails.md'),
   decisions: path.posix.join(ANCHOR_DIR_NAME, DECISIONS_FILE_NAME),
@@ -41,6 +52,12 @@ const STOP_WORDS = new Set(['the', 'and', 'or', 'a', 'an', 'to', 'of', 'in', 'on
   'are', 'be', 'it', 'its', 'this', 'that', 'from', 'at', 'not', 'only', 'must', 'should', 'when', 'use', 'keep']);
 
 interface Entry { id: string; content: string; start: number; end: number }
+/** `text` is what gets indexed; `version` is set for project_state modules. */
+interface RecallDoc { kind: MemoryKind; id: string; content: string; text: string; version?: string }
+interface RecallIndex { contents: string; docs: RecallDoc[]; index: Bm25Index }
+/** Per-process, keyed by anchor directory and kind filter; one MCP server serves one workspace, so it stays tiny. */
+const recallCache = new Map<string, RecallIndex>();
+const RECALL_CACHE_SIZE = 16;
 interface Doc { lines: string[]; eol: string; exists: boolean; modifiedAt: string | null }
 
 const collapse = (text: string): string => text.trim().replace(/\s+/g, ' ');
@@ -155,8 +172,11 @@ function replaceCopies(lines: string[], copies: Entry[], target: Entry, rendered
   }
 }
 
-const unique = <T extends { id: string }>(items: T[]): T[] =>
-  items.filter((item, index) => items.findIndex(other => other.id === item.id) === index);
+/** Keep the first entry per id in one pass. */
+function unique<T extends { id: string }>(items: T[]): T[] {
+  const seen = new Set<string>();
+  return items.filter(item => !seen.has(item.id) && Boolean(seen.add(item.id)));
+}
 
 /** Last non-blank line inside [start, end), or start - 1 when the range is blank. */
 function lastContent(lines: string[], start: number, end: number): number {
@@ -274,6 +294,48 @@ export class MemoryStore {
       return { ...base, modules: moduleEntries(doc.lines).map(({ id: key, version, status }) => ({ id: key, version, status })) };
     }
     return { ...base, entries: unique(this.entries(kind, doc.lines)).map(({ id: key, content }) => ({ id: key, content })) };
+  }
+
+  /**
+   * The files are reread on every call (cheap) so hand edits and other writers are always seen;
+   * tokenizing and indexing (the costly part) is reused while their content is unchanged.
+   */
+  private async recallIndex(kind?: MemoryKind): Promise<RecallIndex> {
+    const kinds = kind ? [kind] : MEMORY_KINDS;
+    const files = await Promise.all(kinds.map(item => this.read(item)));
+    const key = `${this.anchor}\0${kind ?? '*'}`;
+    const contents = files.map(file => file.lines.join('\n')).join('\0');
+    const cached = recallCache.get(key);
+    if (cached?.contents === contents) return cached;
+    const docs = kinds.flatMap((item, at): RecallDoc[] => {
+      const { lines } = files[at];
+      if (item === 'project_state') {
+        // The content already starts with the heading, so the module name counts twice.
+        return moduleEntries(lines).map(({ id, version, content }) => ({ kind: item, id, version, content, text: `${id}\n${content}` }));
+      }
+      return unique(this.entries(item, lines)).map(({ id, content }) => ({ kind: item, id, content, text: content }));
+    });
+    const built = { contents, docs, index: new Bm25Index(docs.map(doc => searchTerms(doc.text))) };
+    if (recallCache.size >= RECALL_CACHE_SIZE) recallCache.clear();
+    recallCache.set(key, built);
+    return built;
+  }
+
+  /** Rank entries against a keyword query with BM25. */
+  async recall({ query, kind, limit = RECALL_DEFAULT_LIMIT }: RecallMemoryInput) {
+    if (kind !== undefined && !MEMORY_KINDS.includes(kind)) throw new Error(`kind must be one of ${MEMORY_KINDS.join(', ')}.`);
+    if (!Number.isInteger(limit) || limit < 1 || limit > RECALL_MAX_LIMIT) {
+      throw new Error(`limit must be an integer from 1 to ${RECALL_MAX_LIMIT}.`);
+    }
+    const terms = searchTerms(query);
+    if (!terms.length) throw new Error('query has no searchable words; use the module, file, symbol or topic names the memory would mention.');
+    const { docs, index } = await this.recallIndex(kind);
+    const results = index.search(terms, limit).map(({ index: at, score }) => {
+      const { kind: hit, id, version, content } = docs[at];
+      return { kind: hit, id, score: Number(score.toFixed(3)), ...(version ? { version } : {}), content };
+    });
+    return { query, searched: docs.length, results,
+      ...(results.length ? {} : { hint: 'No entry shares a word with the query; retry with other names or keywords, or call get_memory({}) for the directory.' }) };
   }
 
   private async getOne(kind: MemoryKind, id: string) {

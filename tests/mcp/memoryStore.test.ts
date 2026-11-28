@@ -138,7 +138,7 @@ test('warns when memory exceeds advisory budgets without truncating', async () =
   expect(await read('guardrails.md')).toContain('x'.repeat(6000));
 });
 
-test('real CLI stdio serves get_memory and write_memory', async () => {
+test('real CLI stdio serves get_memory, recall_memory and write_memory', async () => {
   const transport = new StdioClientTransport({ command: process.execPath,
     args: [path.resolve('dist/cli.js'), 'mcp', '--workspace', workspace], stderr: 'pipe' });
   const client = new Client({ name: 'memory-test', version: '1.0.0' });
@@ -148,6 +148,11 @@ test('real CLI stdio serves get_memory and write_memory', async () => {
     expect(write.isError).not.toBe(true);
     const get = await client.callTool({ name: 'get_memory', arguments: { kind: 'project_state', id: 'Hooks' } });
     expect(JSON.stringify(get.content)).toContain('Via MCP');
+    const recall = await client.callTool({ name: 'recall_memory', arguments: { query: 'hook stdout protocol' } });
+    expect(recall.isError).not.toBe(true);
+    const hits = JSON.parse((recall.content as any)[0].text).results;
+    expect(hits[0]).toMatchObject({ kind: 'guardrails', content: 'Keep hook stdout reserved for protocol output.' });
+    expect((await client.callTool({ name: 'recall_memory', arguments: { query: 'hooks', limit: 50 } })).isError).toBe(true);
     expect((await client.callTool({ name: 'write_memory', arguments: { kind: 'project_state', op: 'update', id: 'Hooks', fields: { bogus: 'x' } } })).isError).toBe(true);
     expect((await client.callTool({ name: 'write_memory', arguments: { kind: 'guardrails', op: 'remove' } })).isError).toBe(true);
   } finally { await client.close(); }

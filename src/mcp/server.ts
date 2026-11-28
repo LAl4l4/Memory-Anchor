@@ -2,7 +2,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
 import { ChartReader } from './chartReader.js';
-import { MEMORY_KINDS, MemoryStore, PROJECT_STATE_FIELDS } from './memoryStore.js';
+import { MEMORY_KINDS, MemoryStore, PROJECT_STATE_FIELDS, RECALL_DEFAULT_LIMIT, RECALL_MAX_LIMIT } from './memoryStore.js';
 import { getVersion } from '../commands/version.js';
 import { MCP_USAGE_INSTRUCTIONS } from './instructions.js';
 import * as path from 'node:path';
@@ -34,15 +34,16 @@ export async function createChartServer(workspace: string): Promise<McpServer> {
     inputSchema: { path: z.string().min(1), include_source: z.boolean().default(false),
       start_line: z.number().int().positive().optional(), end_line: z.number().int().positive().optional() }, annotations,
   }, args => result(async () => (await reader()).getFile(args.path, args)));
-  server.registerTool('get_project_state', {
-    description: 'List project-state module names, or read one complete module by its exact name. Reads current memory without requiring chart artifacts.',
-    inputSchema: { module: z.string().min(1).optional() }, annotations,
-  }, args => result(async () => (await reader()).getProjectState(args.module)));
   const kind = z.enum(MEMORY_KINDS);
   server.registerTool('get_memory', {
     description: 'Read project memory. No arguments: a directory of guardrails, decision summaries and project_state modules with ids. kind: every entry of that kind (project_state lists module ids, versions and status). kind + id: one complete entry. Guardrail/decision ids derive from content and change when the entry is edited; project_state ids are module names.',
     inputSchema: { kind: kind.optional(), id: z.string().min(1).optional() }, annotations,
   }, args => result(async () => (await store()).get(args.kind, args.id)));
+  server.registerTool('recall_memory', {
+    description: `Search project memory by keywords: guardrails, decisions and project_state modules ranked by BM25 relevance, best first, each with its complete content and the id get_memory/write_memory take (plus version for modules). Matching is lexical, without synonyms or translation: query with the words the memory would contain, such as module, file, symbol and feature names; identifiers are split (camelCase, snake_case) and CJK text is matched by character pairs. kind limits the search to one kind; limit defaults to ${RECALL_DEFAULT_LIMIT} (maximum ${RECALL_MAX_LIMIT}).`,
+    inputSchema: { query: z.string().min(1), kind: kind.optional(),
+      limit: z.number().int().min(1).max(RECALL_MAX_LIMIT).default(RECALL_DEFAULT_LIMIT) }, annotations,
+  }, args => result(async () => (await store()).recall(args)));
   server.registerTool('write_memory', {
     description: 'Add, update or remove one memory entry in .memoryanchor. Write plain language; the storage format (rule checkboxes, bullets, headings) is applied for you. guardrails: content is one rule. decisions: content is one decision (choice and rationale). project_state: id is the module name and fields sets functionality/status/dependencies/known_issues/notes (newlines are collapsed; update patches only the given fields). update/remove need a current id from get_memory. add returns similar_entries instead of writing when an existing entry overlaps; update that entry, or pass force: true when the new one is distinct.',
     inputSchema: {

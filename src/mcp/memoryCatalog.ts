@@ -40,10 +40,17 @@ export function projectStateLayout(lines: string[]): ProjectStateLayout {
 
 export function projectStateModules(content: string): { name: string; content: string }[] {
   const lines = content.split(/\r?\n/);
-  const modules = projectStateLayout(lines).modules.map(module => ({ name: module.name,
+  return projectStateLayout(lines).modules.map(module => ({ name: module.name,
     content: lines.slice(module.start, module.end).join('\n').trim() }));
-  // Legacy/unstructured state stays accessible without injecting its body.
-  return modules.length || !content.trim() ? modules : [{ name: '(whole document)', content: content.trim() }];
+}
+
+/**
+ * Text but no `### module` under `## Module Status` (pre-module manifests, hand-written notes):
+ * memory tools cannot address it until init moves it into a module. Headings alone hold no state.
+ */
+export function isUnstructuredProjectState(content: string): boolean {
+  const lines = content.split(/\r?\n/);
+  return !projectStateLayout(lines).modules.length && lines.some(line => line.trim() && !/^\s{0,3}#{1,6}(\s|$)/.test(line));
 }
 
 /** One chart level; file-less split wrappers route to their first chart owners. */

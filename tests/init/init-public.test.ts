@@ -11,8 +11,11 @@ import {
   GITIGNORE_ENTRY,
   GUARDRAILS_FILE_NAME,
   LEGACY_GUARDRAILS_RULES,
+  PROJECT_STATE_DEFAULT_CONTENT,
   PROJECT_STATE_FILE_NAME,
 } from '../../dist/constant.js';
+import { dedentLegacyProjectState, structureLegacyProjectState } from '../../dist/commands/initHelper/initProjectState.js';
+import { MemoryStore } from '../../dist/mcp/memoryStore.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -153,6 +156,53 @@ test('re-running an interrupted decision migration does not duplicate decisions'
 
   const decisions = await readFile(path.join(anchorDir, DECISIONS_FILE_NAME), 'utf8');
   expect(decisions.match(/- keep this decision/g)).toHaveLength(1);
+});
+
+test('moves module-less project state verbatim into one module that memory tools read, once', async () => {
+  const anchorDir = path.join(tempDir, ANCHOR_DIR_NAME);
+  await import('node:fs/promises').then((fs) => fs.mkdir(anchorDir, { recursive: true }));
+  const statePath = path.join(anchorDir, PROJECT_STATE_FILE_NAME);
+  await writeFile(statePath, '## Todo:\n- [ ] Ship recall\n\n```md\n### not a module\n```\n## Done:\n- [x] Parser pools\n\n## Key Decisions\n- Use BM25 first.\n');
+
+  await runInitPublic(tempDir);
+
+  const migrated = await readFile(statePath, 'utf8');
+  expect(migrated).toBe([
+    '## Module Status', '', '### Legacy project state',
+    '- status: Migrated by anchor init from a project-state.md without modules; move each item below into its own module, then remove this one.',
+    '- notes: Original content, kept verbatim:',
+    '    ## Todo:', '    - [ ] Ship recall', '', '    ```md', '    ### not a module', '    ```', '    ## Done:', '    - [x] Parser pools', '',
+  ].join('\n'));
+  await expect(readFile(path.join(anchorDir, DECISIONS_FILE_NAME), 'utf8')).resolves.toContain('- Use BM25 first.');
+  const store = await MemoryStore.create(tempDir);
+  expect((await store.get('project_state') as any).modules.map((module: any) => module.id)).toEqual(['Legacy project state']);
+  expect(await store.get('project_state', 'Legacy project state')).toMatchObject({ entry: { content: expect.stringContaining('- [x] Parser pools') } });
+  expect((await store.recall({ query: 'parser pools' }) as any).results[0].id).toBe('Legacy project state');
+
+  await runInitPublic(tempDir);
+  await expect(readFile(statePath, 'utf8')).resolves.toBe(migrated);
+});
+
+test('dedents the indented Module Status manifest template and splits its decisions', async () => {
+  const anchorDir = path.join(tempDir, ANCHOR_DIR_NAME);
+  await import('node:fs/promises').then((fs) => fs.mkdir(anchorDir, { recursive: true }));
+  await writeFile(path.join(anchorDir, 'manifest.md'), '\n    ## Module Status\n\n    ### core\n    - status: Stable\n      wrapped note\n\n    ## Key Decisions\n    - keep tree-sitter\n');
+
+  await runInitPublic(tempDir);
+
+  await expect(readFile(path.join(anchorDir, PROJECT_STATE_FILE_NAME), 'utf8'))
+    .resolves.toBe('\n## Module Status\n\n### core\n- status: Stable\n  wrapped note\n');
+  await expect(readFile(path.join(anchorDir, DECISIONS_FILE_NAME), 'utf8')).resolves.toContain('- keep tree-sitter');
+});
+
+test('legacy project-state helpers leave structured, heading-only and unrelated content alone', () => {
+  const structured = '## Module Status\r\n### core\r\n- status: Stable\r\n';
+  expect(structureLegacyProjectState(structured)).toBe(structured);
+  expect(structureLegacyProjectState('## Module Status\n')).toBe('## Module Status\n');
+  expect(structureLegacyProjectState('## Todo:\n\n## Done:\n')).toBe(PROJECT_STATE_DEFAULT_CONTENT);
+  expect(structureLegacyProjectState('notes\r\n')).toContain('\r\n    notes\r\n');
+  expect(dedentLegacyProjectState('  indented prose\n  ## Other\n')).toBe('  indented prose\n  ## Other\n');
+  expect(dedentLegacyProjectState('## Module Status\n### core\n')).toBe('## Module Status\n### core\n');
 });
 
 test('creates AGENTS.md with memory anchor rules', async () => {
