@@ -61,14 +61,14 @@ test.each(PROMPT_HOOK_AGENTS)('init-%s registers a launchable server and injects
     config = { command: server.command[0], args: server.command.slice(1) };
   } else {
     config = JSON.parse(await readFile(path.join(workspace, '.mcp.json'), 'utf8')).mcpServers['memory-anchor'];
-    expect(config).toMatchObject({ type: 'stdio', tools: ['get_chart', 'get_file'] });
+    expect(config).toMatchObject({ type: 'stdio', tools: ['get_chart', 'get_file', 'get_project_state', 'get_memory', 'write_memory'] });
   }
   const client = new Client({ name: 'init-test', version: '1.0.0' });
   const transport = new StdioClientTransport({ command: config.command, args: config.args, cwd: workspace, stderr: 'pipe' });
   try {
     await client.connect(transport);
     expect(client.getInstructions()).toContain('[MEMORY ANCHOR MCP]');
-    expect((await client.listTools()).tools.map(tool => tool.name)).toEqual(['get_chart', 'get_file', 'get_project_state']);
+    expect((await client.listTools()).tools.map(tool => tool.name)).toEqual(['get_chart', 'get_file', 'get_project_state', 'get_memory', 'write_memory']);
     const result = await client.callTool({ name: 'get_file', arguments: { path: 'src/demo.ts' } });
     expect(result.isError).not.toBe(true);
     expect(JSON.stringify(result.content)).toContain('demo()');
@@ -77,7 +77,8 @@ test.each(PROMPT_HOOK_AGENTS)('init-%s registers a launchable server and injects
   expect(context).toContain('[MEMORY ANCHOR MCP]');
   expect(context).toContain('get_chart');
   expect(context).toContain('get_file');
-  expect(context).toContain('If MCP is unavailable');
+  expect(context).toContain('undefined behaviour');
+  expect(context).not.toContain('unavailable');
   expect(context).not.toContain('[ROOT CHART ALREADY INJECTED');
   expect(context).not.toContain('index.md');
 }, 20000);
@@ -117,6 +118,56 @@ test('preserves TOML comments and settings, including quoted existing server nam
   expect(await readFile(path.join(workspace, '.codex/config.toml'), 'utf8')).toBe(disabled);
 });
 
+test('refreshes stale managed launches in every format while keeping custom keys and user launches', async () => {
+  const stale = ['/old/node_modules/memory-anchor/dist/cli.js', 'mcp', '--workspace', '/old/repo'];
+  const launch = getMcpLaunch(workspace);
+  const json = (extra: object) => JSON.stringify({ mcpServers: { 'memory-anchor': { command: '/old/node', args: stale, ...extra } } });
+  await put('.mcp.json', json({ type: 'stdio', tools: ['get_chart', 'get_file'], env: { KEEP: '1' } }));
+  expect(await registerMcp(workspace, 'claude')).toBe(true);
+  expect(JSON.parse(await readFile(path.join(workspace, '.mcp.json'), 'utf8')).mcpServers['memory-anchor']).toEqual({
+    type: 'stdio', ...launch, tools: ['get_chart', 'get_file', 'get_project_state', 'get_memory', 'write_memory'], env: { KEEP: '1' } });
+  expect(await registerMcp(workspace, 'claude')).toBe(false);
+  await put('.mcp.json', json({ tools: ['get_chart'] }));
+  await registerMcp(workspace, 'claude');
+  expect(JSON.parse(await readFile(path.join(workspace, '.mcp.json'), 'utf8')).mcpServers['memory-anchor'].tools).toEqual(['get_chart']);
+
+  await put('opencode.json', JSON.stringify({ mcp: { 'memory-anchor': { type: 'local', command: ['/old/node', ...stale], enabled: false } } }));
+  expect(await registerMcp(workspace, 'opencode')).toBe(true);
+  expect(JSON.parse(await readFile(path.join(workspace, 'opencode.json'), 'utf8')).mcp['memory-anchor']).toEqual({
+    type: 'local', command: [launch.command, ...launch.args], enabled: false });
+
+  await put('.qwen/settings.json', json({ trust: true }));
+  expect(await registerMcp(workspace, 'qwencode')).toBe(true);
+  expect(JSON.parse(await readFile(path.join(workspace, '.qwen/settings.json'), 'utf8')).mcpServers['memory-anchor']).toEqual({ ...launch, trust: true });
+
+  const toml = '# mine\n[mcp_servers.memory-anchor]\n# keep this comment\ncommand = "/old/node"\nargs = ' + JSON.stringify(stale) + '\nenabled = false\n\n[mcp_servers.other]\ncommand = "x"\n';
+  await put('.codex/config.toml', toml);
+  expect(await registerMcp(workspace, 'codex')).toBe(true);
+  const codex = await readFile(path.join(workspace, '.codex/config.toml'), 'utf8');
+  expect(codex).toContain('# keep this comment');
+  expect((parseToml(codex).mcp_servers as any)['memory-anchor']).toEqual({ ...launch, enabled: false });
+  expect((parseToml(codex).mcp_servers as any).other).toEqual({ command: 'x' });
+  expect(await registerMcp(workspace, 'codex')).toBe(false);
+  const multiline = '[mcp_servers.memory-anchor]\ncommand = "/old/node"\nargs = [\n  ' + stale.map(arg => JSON.stringify(arg)).join(',\n  ') + '\n]\n';
+  await put('.codex/config.toml', multiline);
+  expect(await registerMcp(workspace, 'codex')).toBe(false);
+  expect(await readFile(path.join(workspace, '.codex/config.toml'), 'utf8')).toBe(multiline);
+
+  await put('hermes-home/config.yaml', '# top\nmcp_servers:\n  memory-anchor:\n    command: /old/node # old\n    args: ["/old/dist/cli.js", "mcp"]\n    timeout: 30\n');
+  expect(await registerMcp(workspace, 'hermes')).toBe(true);
+  const hermes = await readFile(path.join(workspace, 'hermes-home/config.yaml'), 'utf8');
+  expect(hermes).toContain('# top');
+  expect(parseDocument(hermes).toJS().mcp_servers['memory-anchor']).toEqual({ ...getMcpLaunch(), timeout: 30 });
+
+  await put('.memoryanchor/deepseek/cordis.patch.yml', '# overlay\n- insert:\n    - id: memory-anchor-mcp\n      name: "@deepseek-ai/dsh-mcp-client"\n      config: { serverName: memory-anchor, transport: stdio, command: /old/node, args: ["/old/dist/cli.js", "mcp"], cwd: /old, retries: 2 }\n');
+  expect(await registerMcp(workspace, 'deepseek')).toBe(true);
+  const deepseek = await readFile(path.join(workspace, '.memoryanchor/deepseek/cordis.patch.yml'), 'utf8');
+  expect(deepseek).toContain('# overlay');
+  expect(parseDocument(deepseek).toJS()[0].insert[0].config).toEqual({ serverName: 'memory-anchor', transport: 'stdio',
+    ...launch, cwd: path.resolve(workspace), retries: 2 });
+  expect(await registerMcp(workspace, 'deepseek')).toBe(false);
+});
+
 test('normalizes a bare Copilot server map without hiding existing servers', async () => {
   await put('.mcp.json', '{"other":{"command":"custom","args":[]}}');
   await registerMcp(workspace, 'copilot');
@@ -154,7 +205,7 @@ test('preserves Hermes YAML comments and does not bind global config to another 
   const client = new Client({ name: 'outside-test', version: '1.0.0' });
   try {
     await client.connect(new StdioClientTransport({ ...launch, cwd: another, stderr: 'pipe' }));
-    expect((await client.listTools()).tools).toHaveLength(3);
+    expect((await client.listTools()).tools).toHaveLength(5);
     expect((await client.callTool({ name: 'get_chart', arguments: { path: '.' } })).isError).toBe(true);
   } finally { await client.close(); }
 });

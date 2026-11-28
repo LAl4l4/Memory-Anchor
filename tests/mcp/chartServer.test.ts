@@ -108,7 +108,7 @@ test('real CLI stdio supports initialize, list, calls, error recovery and clean 
   const client = new Client({ name: 'test-client', version: '1.0.0' });
   try {
     await client.connect(transport);
-    expect((await client.listTools()).tools.map(tool => tool.name)).toEqual(['get_chart', 'get_file', 'get_project_state']);
+    expect((await client.listTools()).tools.map(tool => tool.name)).toEqual(['get_chart', 'get_file', 'get_project_state', 'get_memory', 'write_memory']);
     await put('.memoryanchor/project-state.md', '## Module Status\n### Parser\n- status: Stable');
     const state = await client.callTool({ name: 'get_project_state', arguments: { module: 'Parser' } });
     expect(state.isError).not.toBe(true);

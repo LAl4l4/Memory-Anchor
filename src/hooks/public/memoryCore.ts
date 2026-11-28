@@ -29,7 +29,7 @@ export function buildMemoryCore(workspaceRoot: string): string {
     memoryMaintenanceNotice(guardrails, projectState),
     guardrails ? '[GUARDRAILS (rules must follow)]\n' + guardrails : '',
     '[CHART DIRECTORY]\n' + compactDirectory(chartEntries, 'get_chart({path:"."})'),
-    modules.length ? '[PROJECT STATE DIRECTORY]\n' + compactDirectory(modules.map(module => module.name), 'get_project_state({})') : '',
+    modules.length ? '[PROJECT STATE DIRECTORY]\n' + compactDirectory(modules.map(module => module.name), 'get_memory({kind:"project_state"})') : '',
     decisions ? '[KEY DECISIONS (architectural choices & rationale)]\n' + decisions : '',
     '',
   ].filter((line, index) => line || index === 0).join('\n');

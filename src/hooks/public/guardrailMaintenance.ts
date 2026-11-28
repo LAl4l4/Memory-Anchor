@@ -20,7 +20,8 @@ function normalizeRuleLine(line: string): string {
   return `- [ ] ${line}`
 }
 
-function normalizeLine(line: string): string | null {
+/** Headings pass through; other non-blank lines become `- [ ] rule` entries. */
+export function normalizeLine(line: string): string | null {
   const trimmed = line.trim()
   if (!trimmed) return null
 

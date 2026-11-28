@@ -161,11 +161,14 @@ test('creates AGENTS.md with memory anchor rules', async () => {
   const agents = await readFile(path.join(tempDir, 'AGENTS.md'), 'utf8');
   expect(agents).toContain('## Memory Anchor Rules');
   expect(agents).toContain('## Memory Anchor Ends');
-  expect(agents).toContain('./.memoryanchor/chart/.../chart.md: Directory-level architecture map, normally read through get_chart.');
-  expect(agents).toContain('Memory Anchor MCP tools: get_chart({path}) reads the chart covering a directory');
+  expect(agents).toContain('get_chart({path}) reads the architecture chart covering a directory');
+  expect(agents).toContain('write_memory applies the storage format');
+  expect(agents).toContain('### Memory Kinds');
   expect(agents).toContain('Use get_chart on the task directory');
   expect(agents).toContain('If the agent has any uncertainty about the overall project structure');
-  expect(agents).toContain('If the MCP tools are unavailable, disabled, or fail');
+  expect(agents).not.toContain('unavailable');
+  expect(agents).not.toContain('guardrails.md format');
+  expect(agents.trimEnd()).toMatch(/is undefined behaviour: it bypasses the write lock[^\n]*\n\n## Memory Anchor Ends$/);
   expect(agents).toContain('## Chart Relationship Notation');
   expect(agents).toContain("'+' marks an exported symbol; '-' marks the default/internal symbol");
   expect(agents).toContain("'->' lists parseable repository files referenced by a file, including targets in full repository.");

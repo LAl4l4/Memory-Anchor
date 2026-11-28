@@ -64,7 +64,7 @@ The output mirrors the source tree. For example:
     └── tests/chart.md
 ```
 
-At session start, Memory Anchor injects MCP guidance, repository guardrails, a compact chart entry directory, a module-name directory, and decisions. The chart directory contains the root entry and its first chart children from the existing partition registry, without recursive expansion. Each injected directory is capped at 20 entries and 1,600 characters, with an explicit notice for omitted entries. Query `get_chart({path})` or `get_file({path})` for architecture details. Use `get_project_state({})` to list all module names and `get_project_state({module: "exact name"})` to read one complete module. Stored memory is never truncated. Re-running initialization removes the legacy index and managed default rules while preserving custom rules.
+At session start, Memory Anchor injects MCP guidance, repository guardrails, a compact chart entry directory, a module-name directory, and decisions. The chart directory contains the root entry and its first chart children from the existing partition registry, without recursive expansion. Each injected directory is capped at 20 entries and 1,600 characters, with an explicit notice for omitted entries. Query `get_chart({path})` or `get_file({path})` for architecture details. Use `get_memory({})` for a directory of guardrails, decision summaries and modules, `get_memory({kind, id})` to read one complete entry (`get_project_state` still reads modules by name), and `write_memory({kind, op, id, content | fields})` to add, update or remove one entry. Writes keep the markdown files as the only store, change only the targeted lines, serialize concurrent writers, and return `similar_entries` instead of adding an overlapping entry unless `force` is set. Generated agent rules tell agents to always write through `write_memory`, because direct edits bypass the write lock and can lose concurrent agents' changes; edit the files by hand only when MCP is unavailable. Stored memory is never truncated. Re-running initialization removes the legacy index and managed default rules while preserving custom rules.
 
 ## Ignoring files
 
@@ -146,7 +146,8 @@ commands register it for that platform. `init-public` remains common-files-only.
 | Antigravity | Project workspace plugin `.agents/plugins/memory-anchor/mcp_config.json` → `mcpServers.memory-anchor` |
 
 Registration pins the current Node executable and installed `dist/cli.js`, so it
-also works from a source checkout after `npm run build`. Project registrations
+also works from a source checkout after `npm run build`. Re-running any init command refreshes an entry Memory Anchor wrote earlier to the
+installation that ran it, while user-owned launches, other keys and trust policies are kept. Project registrations
 pass an absolute `--workspace`. Hermes has global configuration, so its entry
 uses the server's startup working directory instead; launch Hermes from the
 initialized project root. Initializing another project does not retarget that

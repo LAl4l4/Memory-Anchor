@@ -8,7 +8,7 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
  * MemoryAnchor wiring that mirrors a native harness integration (Claude Code's):
  *   SessionStart hook stdout → system prompt
  *   UserPromptSubmit hook stdout → appended to the task prompt (optional)
- *   memory-anchor MCP server → get_chart / get_file / get_project_state tools
+ *   memory-anchor MCP server → get_chart / get_file / get_project_state / get_memory / write_memory tools
  *   Stop hook → incremental chart refresh after the run
  * Hooks run from <root>/dist so the bench measures the local build, not a global install.
  */
@@ -63,6 +63,7 @@ function mcpMeta(name, args) {
   }
   if (name === 'get_chart') return { maCharts: [target ?? '.'] };
   if (name === 'get_project_state') return { maState: [args?.module ?? '*'] };
+  if (name === 'get_memory') return { maState: [args?.id ?? args?.kind ?? '*'] };
   return {};
 }
 

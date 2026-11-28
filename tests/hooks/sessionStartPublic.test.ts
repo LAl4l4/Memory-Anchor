@@ -19,7 +19,8 @@ test('missing memory files yield concise MCP guidance without placeholder sectio
   expect(result).toContain('[MEMORY ANCHOR: CONTEXT INJECTED]');
   expect(result).toContain('get_chart({path})');
   expect(result).toContain('get_file({path})');
-  expect(result).toContain('If MCP is unavailable');
+  expect(result).toContain('write_memory');
+  expect(result).not.toContain('unavailable');
   expect(result).not.toContain('index.md');
   expect(result).not.toContain('No active');
   expect(result).not.toContain('[GUARDRAILS');
